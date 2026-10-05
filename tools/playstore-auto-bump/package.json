@@ -1,0 +1,20 @@
+{
+  "name": "@nota/playstore-auto-bump",
+  "version": "0.26.3",
+  "private": true,
+  "type": "module",
+  "description": "Automatically bump the versionCode and versionName of an Android app from the Google Play Store versions",
+  "main": "index.ts",
+  "scripts": {
+    "bump": "r ./index.ts"
+  },
+  "dependencies": {
+    "@googleapis/androidpublisher": "^35.0.0",
+    "@nota-tools/cli": "workspace:*",
+    "@nota-tools/utils": "workspace:*",
+    "typescript": "^5.9.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0"
+  }
+}

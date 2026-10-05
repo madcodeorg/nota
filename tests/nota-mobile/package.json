@@ -1,0 +1,13 @@
+{
+  "name": "@nota-test/nota-mobile",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "e2e": "yarn playwright test"
+  },
+  "devDependencies": {
+    "@nota-test/kit": "workspace:*",
+    "@playwright/test": "=1.58.2"
+  },
+  "version": "0.26.3"
+}

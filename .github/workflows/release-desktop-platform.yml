@@ -1,0 +1,361 @@
+name: Release Desktop Platform
+
+on:
+  workflow_call:
+    inputs:
+      build_type:
+        required: true
+        type: string
+      app_version:
+        required: true
+        type: string
+      git_short_hash:
+        required: true
+        type: string
+      runner:
+        required: true
+        type: string
+      platform:
+        required: true
+        type: string
+      arch:
+        required: true
+        type: string
+      target:
+        required: true
+        type: string
+      apple_codesign:
+        required: false
+        default: false
+        type: boolean
+      install_linux_deps:
+        required: false
+        default: false
+        type: boolean
+      enable_scripts:
+        required: false
+        default: false
+        type: boolean
+    outputs:
+      files_to_be_signed:
+        description: Files to be signed (Windows only)
+        value: ${{ jobs.build.outputs.files_to_be_signed }}
+
+permissions:
+  actions: write
+  contents: write
+  security-events: write
+  id-token: write
+  attestations: write
+
+jobs:
+  build:
+    runs-on: ${{ inputs.runner }}
+    environment: ${{ inputs.build_type }}
+    outputs:
+      files_to_be_signed: ${{ steps.get_files_to_be_signed.outputs.FILES_TO_BE_SIGNED }}
+    env:
+      BUILD_TYPE: ${{ inputs.build_type }}
+      RELEASE_VERSION: ${{ inputs.app_version }}
+      DEBUG: 'nota:*,napi:*'
+      APP_NAME: nota
+      # onnxruntime-node 1.24.3's distributed macOS binary requires 14.0.
+      MACOSX_DEPLOYMENT_TARGET: '14.0'
+      NOTA_BUNDLE_LOCAL_MODELS: cactus-whistle,whisper-tiny-q5-cpp
+      SKIP_GENERATE_ASSETS: 1
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      APPLE_CODESIGN_IDENTITY: ${{ secrets.APPLE_CODESIGN_IDENTITY }}
+      SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+      SENTRY_PROJECT: 'nota'
+      SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+      SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+      SENTRY_RELEASE: ${{ inputs.app_version }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Xcode
+        if: ${{ inputs.platform == 'darwin' }}
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          # Apple SpeechAnalyzer requires the macOS 26 SDK / Swift 6.2.
+          xcode-version: 26.2
+
+      - name: Setup Version
+        uses: ./.github/actions/setup-version
+        with:
+          app-version: ${{ inputs.app_version }}
+
+      - name: Setup Node.js
+        timeout-minutes: 10
+        uses: ./.github/actions/setup-node
+        with:
+          extra-flags: workspaces focus @nota/electron @nota/ai-backend @nota/monorepo @nota/nbstore @nota/infra
+          hard-link-nm: false
+          nmHoistingLimits: workspaces
+          enableScripts: ${{ inputs.enable_scripts }}
+          supported-architecture-os: ${{ inputs.platform }}
+          supported-architecture-cpu: ${{ inputs.arch }}
+
+      - name: Build Nota native
+        uses: ./.github/actions/build-rust
+        with:
+          target: ${{ inputs.target }}
+          package: '@nota/native'
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: desktop-web
+          path: packages/frontend/apps/electron/resources/web-static
+
+      - name: Download Whistle STT seed
+        uses: actions/download-artifact@v4
+        with:
+          name: desktop-local-stt-seed-whistle
+          path: .nota/models/cactus-whistle
+
+      - name: Download Tiny STT seed
+        uses: actions/download-artifact@v4
+        with:
+          name: desktop-local-stt-seed-whisper-tiny
+          path: .nota/models/whisper-tiny-q5-cpp
+
+      - name: Verify Whistle STT seed
+        run: yarn workspace @nota/ai-backend prepare-model-seed --verify-only --model cactus-whistle
+
+      - name: Verify Tiny STT seed
+        run: yarn workspace @nota/ai-backend prepare-model-seed --verify-only --model whisper-tiny-q5-cpp
+
+      - name: Build Desktop Layers
+        run: yarn nota @nota/electron build
+        env:
+          # Asset generation is skipped during Forge packaging below, so native
+          # helpers must be cross-built for the requested artifact rather than
+          # the architecture of the GitHub-hosted runner.
+          NOTA_ELECTRON_TARGET_ARCH: ${{ inputs.arch }}
+          NOTA_ELECTRON_TARGET_PLATFORM: ${{ inputs.platform }}
+          # Ship SpeechAnalyzer on supported Macs, plus compact Whistle and
+          # multilingual Whisper Tiny Q5 as the default local speech seed set.
+          NOTA_ENABLE_APPLE_SPEECH_HELPER: ${{ inputs.platform == 'darwin' && '1' || '0' }}
+
+      - name: Validate staged macOS native helpers
+        if: ${{ inputs.platform == 'darwin' }}
+        shell: bash
+        run: |
+          native_root=packages/frontend/apps/electron/resources/native
+          calendar_binding="$native_root/nota-calendar-native.darwin-${{ inputs.arch }}.node"
+          speech_helper="$native_root/nota-apple-speech-helper"
+
+          test -f "$calendar_binding"
+          test -x "$speech_helper"
+          lipo "$calendar_binding" -verify_arch "${{ inputs.arch }}"
+          lipo "$speech_helper" -verify_arch "${{ inputs.arch }}"
+
+      - name: Signing By Apple Developer ID
+        if: ${{ inputs.platform == 'darwin' && inputs.apple_codesign }}
+        uses: apple-actions/import-codesign-certs@v6
+        with:
+          p12-file-base64: ${{ secrets.CERTIFICATES_P12 }}
+          p12-password: ${{ secrets.CERTIFICATES_P12_PASSWORD }}
+
+      - name: Validate Apple signing identity
+        if: ${{ inputs.platform == 'darwin' && inputs.apple_codesign }}
+        shell: bash
+        run: |
+          missing_secrets=()
+          [ -n "${APPLE_CODESIGN_IDENTITY:-}" ] || missing_secrets+=(APPLE_CODESIGN_IDENTITY)
+          [ -n "${APPLE_ID:-}" ] || missing_secrets+=(APPLE_ID)
+          [ -n "${APPLE_PASSWORD:-}" ] || missing_secrets+=(APPLE_PASSWORD)
+          [ -n "${APPLE_TEAM_ID:-}" ] || missing_secrets+=(APPLE_TEAM_ID)
+
+          if [ ${#missing_secrets[@]} -gt 0 ]; then
+            echo "Missing required Apple release secrets: ${missing_secrets[*]}" >&2
+            security find-identity -v -p codesigning || true
+            exit 1
+          fi
+
+          if [[ "${APPLE_CODESIGN_IDENTITY}" != "Developer ID Application:"* ]]; then
+            echo "APPLE_CODESIGN_IDENTITY must be a Developer ID Application identity, got: ${APPLE_CODESIGN_IDENTITY}" >&2
+            exit 1
+          fi
+
+          if ! security find-identity -v -p codesigning | grep -F -- "${APPLE_CODESIGN_IDENTITY}"; then
+            echo "APPLE_CODESIGN_IDENTITY was not found in the imported codesigning identities: ${APPLE_CODESIGN_IDENTITY}" >&2
+            exit 1
+          fi
+
+      - name: Install additional dependencies on Linux
+        if: ${{ inputs.platform == 'linux' && inputs.install_linux_deps }}
+        run: |
+          df -h
+          sudo add-apt-repository universe
+          sudo apt install -y libfuse2 elfutils flatpak flatpak-builder
+          flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+          flatpak update
+          # some flatpak deps need git protocol.file.allow
+          git config --global protocol.file.allow always
+          # clean up apt cache to save disk space
+          sudo -E apt-get -y purge azure-cli* zulu* hhvm* llvm* firefox* google* dotnet* aspnetcore* powershell* adoptopenjdk* mysql* php* mongodb* moby* snap* || true
+          sudo -E apt-get -qq autoremove --purge
+          sudo rm -rf /usr/share/dotnet /opt/ghc /opt/hostedtoolcache/CodeQL /usr/local/lib/android
+          sudo apt-get clean
+          rm -rf ~/.cache/yarn ~/.npm
+          df -h
+
+      - name: Remove nbstore node_modules (darwin/linux)
+        if: ${{ inputs.platform != 'win32' }}
+        shell: bash
+        # node_modules of nbstore is not needed for building, and it will make the build process out of memory
+        run: |
+          cargo clean
+          rm -rf packages/frontend/apps/electron/node_modules/@nota/nbstore/node_modules/@blocksuite
+          rm -rf packages/frontend/apps/electron/node_modules/@nota/native/node_modules
+
+      - name: Remove nbstore node_modules (windows)
+        if: ${{ inputs.platform == 'win32' }}
+        shell: bash
+        run: |
+          rm -rf packages/frontend/apps/electron/node_modules/@nota/nbstore/node_modules/@blocksuite/affine/node_modules
+          rm -rf packages/frontend/apps/electron/node_modules/@nota/native/node_modules
+
+      - name: Package and notarize macOS app
+        if: ${{ inputs.platform == 'darwin' && inputs.apple_codesign }}
+        run: yarn nota @nota/electron package --platform=${{ inputs.platform }} --arch=${{ inputs.arch }}
+        env:
+          SKIP_WEB_BUILD: 1
+          HOIST_NODE_MODULES: 1
+          NODE_OPTIONS: --max-old-space-size=14384
+
+      - name: Validate release-critical macOS contents
+        if: ${{ inputs.platform == 'darwin' && inputs.apple_codesign }}
+        run: yarn nota @nota/electron node ./scripts/macos-arm64-output-check.ts --release-critical
+
+      - name: Validate notarized macOS app
+        if: ${{ inputs.platform == 'darwin' && inputs.apple_codesign }}
+        shell: bash
+        run: |
+          shopt -s nullglob
+          app_bundles=(packages/frontend/apps/electron/out/${{ env.BUILD_TYPE }}/*-darwin-${{ inputs.arch }}/*.app)
+          if [ ${#app_bundles[@]} -ne 1 ]; then
+            echo "Expected exactly one packaged macOS app, found ${#app_bundles[@]}." >&2
+            printf 'Found app: %s\n' "${app_bundles[@]}" >&2
+            exit 1
+          fi
+
+          app="${app_bundles[0]}"
+          codesign --verify --deep --strict --verbose=4 "$app"
+          xcrun stapler validate "$app"
+          spctl --assess --type execute --verbose=4 "$app"
+
+      - name: make
+        if: ${{ inputs.platform != 'win32' }}
+        shell: bash
+        run: |
+          make_args=()
+          if [ "${{ inputs.platform }}" = "darwin" ] && [ "${{ inputs.apple_codesign }}" = "true" ]; then
+            make_args+=(--skip-package)
+          fi
+          yarn nota @nota/electron make --platform=${{ inputs.platform }} --arch=${{ inputs.arch }} "${make_args[@]}"
+        env:
+          SKIP_WEB_BUILD: 1
+          HOIST_NODE_MODULES: 1
+          NODE_OPTIONS: --max-old-space-size=14384
+
+      - name: package
+        if: ${{ inputs.platform == 'win32' }}
+        run: |
+          yarn nota @nota/electron package --platform=${{ inputs.platform }} --arch=${{ inputs.arch }}
+        env:
+          SKIP_WEB_BUILD: 1
+          HOIST_NODE_MODULES: 1
+          NODE_OPTIONS: --max-old-space-size=14384
+
+      - name: Sign and notarize DMG
+        if: ${{ inputs.platform == 'darwin' && inputs.apple_codesign }}
+        shell: bash
+        run: |
+          shopt -s nullglob
+          dmg_files=(packages/frontend/apps/electron/out/${{ env.BUILD_TYPE }}/make/*.dmg)
+          if [ ${#dmg_files[@]} -eq 0 ]; then
+            echo "No DMG files found to sign." >&2
+            exit 1
+          fi
+
+          for dmg in "${dmg_files[@]}"; do
+            codesign --force --timestamp --sign "${APPLE_CODESIGN_IDENTITY}" "$dmg"
+            codesign --verify --strict --verbose=4 "$dmg"
+            xcrun notarytool submit "$dmg" \
+              --apple-id "${APPLE_ID}" \
+              --password "${APPLE_PASSWORD}" \
+              --team-id "${APPLE_TEAM_ID}" \
+              --wait
+            xcrun stapler staple "$dmg"
+            xcrun stapler validate "$dmg"
+            codesign --verify --strict --verbose=4 "$dmg"
+            spctl --assess --type open \
+              --context context:primary-signature \
+              --verbose=4 "$dmg"
+          done
+
+      - name: Save artifacts (mac)
+        if: ${{ inputs.platform == 'darwin' }}
+        run: |
+          mkdir -p builds
+          mv packages/frontend/apps/electron/out/*/make/*.dmg ./builds/nota-${{ env.RELEASE_VERSION }}-${{ env.BUILD_TYPE }}-macos-${{ inputs.arch }}.dmg
+          mv packages/frontend/apps/electron/out/*/make/zip/darwin/${{ inputs.arch }}/*.zip ./builds/nota-${{ env.RELEASE_VERSION }}-${{ env.BUILD_TYPE }}-macos-${{ inputs.arch }}.zip
+
+      - name: Save artifacts (linux)
+        if: ${{ inputs.platform == 'linux' }}
+        run: |
+          mkdir -p builds
+          mv packages/frontend/apps/electron/out/*/make/zip/linux/${{ inputs.arch }}/*.zip ./builds/nota-${{ env.RELEASE_VERSION }}-${{ env.BUILD_TYPE }}-linux-${{ inputs.arch }}.zip
+          mv packages/frontend/apps/electron/out/*/make/AppImage/${{ inputs.arch }}/*.AppImage ./builds/nota-${{ env.RELEASE_VERSION }}-${{ env.BUILD_TYPE }}-linux-${{ inputs.arch }}.appimage
+          mv packages/frontend/apps/electron/out/*/make/deb/${{ inputs.arch }}/*.deb ./builds/nota-${{ env.RELEASE_VERSION }}-${{ env.BUILD_TYPE }}-linux-${{ inputs.arch }}.deb
+          mv packages/frontend/apps/electron/out/*/make/flatpak/*/*.flatpak ./builds/nota-${{ env.RELEASE_VERSION }}-${{ env.BUILD_TYPE }}-linux-${{ inputs.arch }}.flatpak
+
+      - uses: actions/attest-build-provenance@v4
+        if: ${{ inputs.platform == 'darwin' }}
+        with:
+          subject-path: |
+            ./builds/nota-${{ env.RELEASE_VERSION }}-${{ env.BUILD_TYPE }}-macos-${{ inputs.arch }}.zip
+            ./builds/nota-${{ env.RELEASE_VERSION }}-${{ env.BUILD_TYPE }}-macos-${{ inputs.arch }}.dmg
+
+      - uses: actions/attest-build-provenance@v4
+        if: ${{ inputs.platform == 'linux' }}
+        with:
+          subject-path: |
+            ./builds/nota-${{ env.RELEASE_VERSION }}-${{ env.BUILD_TYPE }}-linux-${{ inputs.arch }}.zip
+            ./builds/nota-${{ env.RELEASE_VERSION }}-${{ env.BUILD_TYPE }}-linux-${{ inputs.arch }}.appimage
+            ./builds/nota-${{ env.RELEASE_VERSION }}-${{ env.BUILD_TYPE }}-linux-${{ inputs.arch }}.deb
+            ./builds/nota-${{ env.RELEASE_VERSION }}-${{ env.BUILD_TYPE }}-linux-${{ inputs.arch }}.flatpak
+
+      - name: Upload Artifact
+        if: ${{ inputs.platform == 'darwin' || inputs.platform == 'linux' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: nota-${{ inputs.platform }}-${{ inputs.arch }}-builds
+          path: builds
+
+      - name: get all files to be signed
+        id: get_files_to_be_signed
+        if: ${{ inputs.platform == 'win32' }}
+        shell: pwsh
+        run: |
+          Set-Variable -Name FILES_TO_BE_SIGNED -Value ((Get-ChildItem -Path packages/frontend/apps/electron/out -Recurse -File | Where-Object { $_.Extension -in @(".exe", ".node", ".dll", ".msi") } | ForEach-Object { '"' + $_.FullName.Replace((Get-Location).Path + '\packages\frontend\apps\electron\out\', '') + '"' }) -join ' ')
+          "FILES_TO_BE_SIGNED=$FILES_TO_BE_SIGNED" >> $env:GITHUB_OUTPUT
+          echo $FILES_TO_BE_SIGNED
+
+      - name: Zip artifacts for faster upload
+        if: ${{ inputs.platform == 'win32' }}
+        shell: pwsh
+        run: Compress-Archive -CompressionLevel Fastest -Path packages/frontend/apps/electron/out/* -DestinationPath archive.zip
+
+      - name: Save packaged artifacts for signing
+        if: ${{ inputs.platform == 'win32' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: packaged-${{ inputs.platform }}-${{ inputs.arch }}
+          path: |
+            archive.zip
+            !**/*.map

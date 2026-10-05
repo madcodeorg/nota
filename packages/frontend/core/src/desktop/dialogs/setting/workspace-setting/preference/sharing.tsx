@@ -1,0 +1,78 @@
+import { Switch } from '@nota/component';
+import { SettingRow, SettingWrapper } from '@nota/component/setting-components';
+import { useAsyncCallback } from '@nota/core/components/hooks/nota-async-hooks';
+import { WorkspacePermissionService } from '@nota/core/modules/permissions';
+import { WorkspaceShareSettingService } from '@nota/core/modules/share-setting';
+import {
+  isUserOwnedWorkspaceFlavour,
+  WorkspaceService,
+} from '@nota/core/modules/workspace';
+import { useI18n } from '@nota/i18n';
+import { useLiveData, useService } from '@nota/infra';
+
+export const SharingPanel = () => {
+  const workspace = useService(WorkspaceService).workspace;
+  if (isUserOwnedWorkspaceFlavour(workspace.flavour)) {
+    return null;
+  }
+  return <Sharing />;
+};
+
+export const Sharing = () => {
+  const t = useI18n();
+  const shareSetting = useService(WorkspaceShareSettingService).sharePreview;
+  const enableSharing = useLiveData(shareSetting.enableSharing$);
+  const enableUrlPreview = useLiveData(shareSetting.enableUrlPreview$);
+  const loading = useLiveData(shareSetting.isLoading$);
+  const permissionService = useService(WorkspacePermissionService);
+  const isOwner = useLiveData(permissionService.permission.isOwner$);
+
+  const handleToggleSharing = useAsyncCallback(
+    async (checked: boolean) => {
+      await shareSetting.setEnableSharing(checked);
+    },
+    [shareSetting]
+  );
+
+  const handleCheck = useAsyncCallback(
+    async (checked: boolean) => {
+      await shareSetting.setEnableUrlPreview(checked);
+    },
+    [shareSetting]
+  );
+
+  if (!isOwner) {
+    return null;
+  }
+
+  return (
+    <SettingWrapper title={t['com.affine.settings.workspace.sharing.title']()}>
+      <SettingRow
+        name={t['com.affine.settings.workspace.sharing.url-preview.title']()}
+        desc={t[
+          'com.affine.settings.workspace.sharing.url-preview.description'
+        ]()}
+      >
+        <Switch
+          checked={enableUrlPreview || false}
+          onChange={handleCheck}
+          disabled={loading}
+        />
+      </SettingRow>
+      <SettingRow
+        name={t[
+          'com.affine.settings.workspace.sharing.workspace-sharing.title'
+        ]()}
+        desc={t[
+          'com.affine.settings.workspace.sharing.workspace-sharing.description'
+        ]()}
+      >
+        <Switch
+          checked={enableSharing ?? true}
+          onChange={handleToggleSharing}
+          disabled={loading}
+        />
+      </SettingRow>
+    </SettingWrapper>
+  );
+};

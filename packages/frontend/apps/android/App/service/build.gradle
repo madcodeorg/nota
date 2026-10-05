@@ -1,0 +1,20 @@
+plugins {
+    alias libs.plugins.jetbrains.kotlin.jvm
+    alias libs.plugins.apollo.android
+}
+
+dependencies {
+    implementation libs.apollo.api
+    implementation libs.apollo.adapters.core
+    implementation libs.apollo.adapters.kotlinx.datetime
+    api libs.kotlinx.datetime
+}
+
+apollo {
+    service("nota") {
+        srcDir("../../../../../common/graphql/src/graphql")
+        schemaFiles.from("../../../../../backend/server/src/schema.gql")
+        packageName.set("com.nota.pro.graphql")
+        mapScalar("DateTime", "kotlinx.datetime.Instant", "com.apollographql.adapter.datetime.KotlinxInstantAdapter")
+    }
+}

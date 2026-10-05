@@ -1,0 +1,10 @@
+{
+  "name": "@nota/commitlint-config",
+  "version": "0.26.3",
+  "private": true,
+  "devDependencies": {
+    "@commitlint/cli": "^19.8.1",
+    "@commitlint/config-conventional": "^19.8.1",
+    "commitlint": "^19.6.0"
+  }
+}

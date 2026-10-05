@@ -1,0 +1,45 @@
+{
+  "name": "@nota/android",
+  "version": "0.26.3",
+  "description": "Nota Android application",
+  "private": true,
+  "scripts": {
+    "build": "affine bundle",
+    "dev": "affine bundle --dev",
+    "sync": "cap sync",
+    "sync:dev": "CAP_SERVER_URL=http://10.0.2.2:8080 cap sync",
+    "studio": "cap open android"
+  },
+  "dependencies": {
+    "@blocksuite/affine": "workspace:*",
+    "@blocksuite/icons": "^2.2.17",
+    "@capacitor/android": "^8.4.2",
+    "@capacitor/app": "^8.0.0",
+    "@capacitor/core": "^8.4.2",
+    "@capacitor/keyboard": "^8.0.0",
+    "@capacitor/status-bar": "^8.0.0",
+    "@capgo/capacitor-inappbrowser": "^8.12.0",
+    "@nota/component": "workspace:*",
+    "@nota/core": "workspace:*",
+    "@nota/env": "workspace:*",
+    "@nota/i18n": "workspace:*",
+    "@nota/infra": "workspace:*",
+    "@nota/mobile-shared": "workspace:*",
+    "@nota/nbstore": "workspace:*",
+    "@nota/track": "workspace:*",
+    "@sentry/react": "^10.40.0",
+    "async-call-rpc": "^6.4.2",
+    "idb": "^8.0.0",
+    "next-themes": "^0.4.4",
+    "react": "^19.2.1",
+    "react-dom": "^19.2.1",
+    "react-router-dom": "^6.30.3"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.4.2",
+    "@types/react": "^19.0.1",
+    "@types/react-dom": "^19.0.2",
+    "cross-env": "^10.1.0",
+    "typescript": "^5.9.3"
+  }
+}

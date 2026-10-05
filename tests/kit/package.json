@@ -1,0 +1,27 @@
+{
+  "name": "@nota-test/kit",
+  "private": true,
+  "type": "module",
+  "version": "0.26.3",
+  "exports": {
+    "./electron": "./src/electron.ts",
+    "./mobile": "./src/mobile.ts",
+    "./playwright": "./src/playwright.ts",
+    "./utils/*": "./src/utils/*.ts",
+    "./bs/*": "./src/bs/*.ts"
+  },
+  "devDependencies": {
+    "@blocksuite/affine": "workspace:*",
+    "@node-rs/argon2": "^2.0.2",
+    "@nota-tools/utils": "workspace:*",
+    "@nota/infra": "workspace:*",
+    "@playwright/test": "=1.58.2",
+    "express": "^5.0.0",
+    "http-proxy-middleware": "^3.0.3"
+  },
+  "peerDependencies": {
+    "@playwright/test": "*",
+    "express": "*",
+    "http-proxy-middleware": "*"
+  }
+}

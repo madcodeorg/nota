@@ -1,0 +1,7 @@
+*.fixture
+lib
+*.bin
+libonnxruntime*.dylib
+libsherpa-onnx*.dylib
+# Keep generated Rust declarations separate from the maintained bridge API.
+/index.generated.d.ts

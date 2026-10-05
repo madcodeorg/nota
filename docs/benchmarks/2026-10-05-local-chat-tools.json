@@ -1,0 +1,231 @@
+{
+  "runtime": {
+    "transformersJs": "4.2.0",
+    "onnxruntimeNode": "1.24.3",
+    "device": "cpu"
+  },
+  "hardware": {
+    "platform": "darwin",
+    "arch": "arm64",
+    "cpu": "Apple M5 Pro",
+    "logicalCpus": 15,
+    "totalRamGiB": 24,
+    "node": "v22.22.3"
+  },
+  "fixture": {
+    "system": "You are testing Nota with synthetic content. Use the tool to find facts that are not in the question. Answer only from the returned result. Do not invent information.",
+    "prompt": "Who owns the Amber demo, and when is their review due? Use lookup_meeting; this information is only in that tool.",
+    "toolName": "lookup_meeting",
+    "input": {
+      "id": "amber"
+    },
+    "result": {
+      "owner": "Nora",
+      "reviewDue": "October 9",
+      "source": "Synthetic fixture"
+    },
+    "steps": 4,
+    "finalStepToolsDisabled": true,
+    "maxOutputTokens": 512,
+    "reasoningMaxOutputTokens": 4096,
+    "passCondition": "Exactly one successful execution, no errors, and a final answer containing Nora and October 9."
+  },
+  "notes": [
+    "Seven fresh-process native functional smokes; no downloads, personal content or real external tools.",
+    "Timing includes local runtime and model loading plus tool continuation. This is not a statistical benchmark or packaged-app test.",
+    "Peak RSS is the whole process lifetime high-water mark, not model-only RAM, physical footprint, compression or swap.",
+    "Pipeline integration tests use mocked generation with real SDK tool execution for all ten catalog models. Gemma E2B/E4B and SmolLM3 were not native-tool-tested in this run."
+  ],
+  "reports": [
+    {
+      "modelId": "lfm2.5-230m-onnx-q4",
+      "recordedAt": "2026-10-05T21:31:37.897Z",
+      "totalMs": 993,
+      "firstTextMs": 891,
+      "processPeakRssMiB": 1204,
+      "calls": [],
+      "errors": [
+        "AI_InvalidToolInputError: Invalid input for tool lookup_meeting: AI_TypeValidationError: Type validation failed: Value: {}.\nError message: [\n  {\n    \"code\": \"invalid_literal\",\n    \"expected\": \"amber\",\n    \"path\": [\n      \"id\"\n    ],\n    \"message\": \"Invalid literal value, expected \\\"amber\\\"\"\n  }\n]"
+      ],
+      "output": "The Amber demo is owned by the company. Their review is due in 7 days.",
+      "fixturePassed": false
+    },
+    {
+      "modelId": "lfm2.5-350m-onnx-q4f16",
+      "recordedAt": "2026-10-05T21:31:39.346Z",
+      "totalMs": 1188,
+      "firstTextMs": null,
+      "processPeakRssMiB": 695,
+      "calls": [],
+      "errors": [
+        "Error: The local model requested an unavailable tool or omitted its arguments. This response did not execute any tools."
+      ],
+      "output": "",
+      "fixturePassed": false
+    },
+    {
+      "modelId": "qwen3.5-0.8b-onnx-q4f16",
+      "recordedAt": "2026-10-05T21:31:36.409Z",
+      "totalMs": 13709,
+      "firstTextMs": null,
+      "processPeakRssMiB": 3257,
+      "calls": [
+        {
+          "id": "amber"
+        },
+        {
+          "id": "amber"
+        },
+        {
+          "id": "amber"
+        }
+      ],
+      "errors": [
+        "Error: The local model requested an unavailable tool or omitted its arguments. This response did not execute any tools."
+      ],
+      "output": "",
+      "fixturePassed": false
+    },
+    {
+      "modelId": "lfm2.5-1.2b-instruct-onnx-q4f16",
+      "recordedAt": "2026-10-05T21:33:12.814Z",
+      "totalMs": 5135,
+      "firstTextMs": 4595,
+      "processPeakRssMiB": 1849,
+      "calls": [
+        {
+          "id": "amber"
+        }
+      ],
+      "errors": [],
+      "output": "The Amber demo is owned by Nora, and the review is due on October 9.",
+      "fixturePassed": true
+    },
+    {
+      "modelId": "qwen3.5-2b-onnx-q4f16",
+      "recordedAt": "2026-10-05T21:33:06.706Z",
+      "totalMs": 9868,
+      "firstTextMs": 9026,
+      "processPeakRssMiB": 2867,
+      "calls": [
+        {
+          "id": "amber"
+        }
+      ],
+      "errors": [],
+      "output": "The Amber demo is owned by Nora, and their review is due on October 9.",
+      "fixturePassed": true
+    },
+    {
+      "modelId": "lfm2.5-2.6b-onnx-q4f16",
+      "recordedAt": "2026-10-05T21:30:39.073Z",
+      "totalMs": 14671,
+      "firstTextMs": 13470,
+      "processPeakRssMiB": 2588,
+      "calls": [
+        {
+          "id": "amber"
+        }
+      ],
+      "errors": [],
+      "output": "The Amber demo is owned by **Nora**, and their review is due on **October 9**.",
+      "fixturePassed": true
+    },
+    {
+      "modelId": "qwen3.5-4b-onnx-q4f16",
+      "recordedAt": "2026-10-05T21:33:34.278Z",
+      "totalMs": 20961,
+      "firstTextMs": 19135,
+      "processPeakRssMiB": 4528,
+      "calls": [
+        {
+          "id": "amber"
+        }
+      ],
+      "errors": [],
+      "output": "The Amber demo is owned by Nora, and their review is due on October 9.",
+      "fixturePassed": true
+    }
+  ],
+  "backendProposalSmoke": {
+    "configuration": {
+      "toolMaxSteps": 3,
+      "generationDefaultAtTimeOfRun": 512,
+      "tools": [
+        "propose_nota_action",
+        "list_nota_documents",
+        "read_nota_document",
+        "search_nota_workspace"
+      ],
+      "embeddingMode": "fallback",
+      "mcpEnabled": false,
+      "webCrawlToolEnabled": false,
+      "shellToolEnabled": false
+    },
+    "prompt": "Make a note titled Amber Demo. Its owner is Nora, and the review is due on October 9. Use propose_nota_action to prepare the note for my approval.",
+    "notes": [
+      "Real AiModelRouter, createStreamHandler, ONNX generation, SDK tool loop and action proposal store.",
+      "Synthetic in-memory chat and isolated temporary action store; no real notes applied or changed.",
+      "Model loading and full built-in tool schema are included in timing.",
+      "Shared chat output budget was subsequently raised to 12000; this short proposal finished within the original 512-token budget."
+    ],
+    "result": {
+      "recordedAt": "2026-10-05T21:39:19.403Z",
+      "modelId": "qwen3.5-2b-onnx-q4f16",
+      "totalMs": 47858,
+      "ended": true,
+      "errors": [],
+      "output": "The proposal has been created and is pending your approval. Please review the content and approve the action before I apply it to your workspace.",
+      "events": [
+        {
+          "type": "text-delta",
+          "textDelta": "The proposal has been created and is pending your approval. Please review the content and approve the action before I apply it to your workspace."
+        },
+        {
+          "type": "tool-call",
+          "toolCallId": "local-f93986a4-b39e-492d-980c-455b82db5caf",
+          "toolName": "propose_nota_action",
+          "args": {
+            "proposal": {
+              "type": "create_note",
+              "title": "Amber Demo",
+              "markdown": "# Amber Demo\n\n**Owner**: Nora\n\n**Review Due**: October 9\n\n---\n\n*Note: This note has been proposed for your approval. Please review the content before I apply it to your workspace.*"
+            }
+          }
+        },
+        {
+          "type": "tool-result",
+          "toolCallId": "local-f93986a4-b39e-492d-980c-455b82db5caf",
+          "toolName": "propose_nota_action",
+          "args": {
+            "proposal": {
+              "type": "create_note",
+              "title": "Amber Demo",
+              "markdown": "# Amber Demo\n\n**Owner**: Nora\n\n**Review Due**: October 9\n\n---\n\n*Note: This note has been proposed for your approval. Please review the content before I apply it to your workspace.*"
+            }
+          },
+          "result": {
+            "proposal": {
+              "createdAt": "2026-10-05T21:38:58.813Z",
+              "id": "b245f33d-51ef-41bb-87f0-ec0c63ea1c6d",
+              "proposal": {
+                "type": "create_note",
+                "title": "Amber Demo",
+                "markdown": "# Amber Demo\n\n**Owner**: Nora\n\n**Review Due**: October 9\n\n---\n\n*Note: This note has been proposed for your approval. Please review the content before I apply it to your workspace.*"
+              },
+              "reason": null,
+              "result": null,
+              "sessionId": "01521081-f22c-4119-a30d-8498c332d7f2",
+              "status": "pending_approval",
+              "updatedAt": "2026-10-05T21:38:58.813Z",
+              "workspaceId": "synthetic-tool-workspace"
+            },
+            "requiresApproval": true,
+            "nextStep": "Show this proposal to the user and apply it only through the Nota frontend/editor transaction path after approval."
+          }
+        }
+      ],
+      "passed": true
+    }
+  }
+}

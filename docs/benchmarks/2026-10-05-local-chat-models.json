@@ -1,0 +1,478 @@
+{
+  "runtime": {
+    "transformersJs": "4.2.0",
+    "onnxruntimeNode": "1.24.3",
+    "device": "cpu"
+  },
+  "reports": [
+    {
+      "modelId": "lfm2.5-1.2b-instruct-onnx-q4f16",
+      "maxNewTokens": 192,
+      "recordedAt": "2026-10-05T20:24:01.074Z",
+      "hardware": {
+        "platform": "darwin",
+        "arch": "arm64",
+        "cpu": "Apple M5 Pro",
+        "logicalCpus": 15,
+        "totalRamGiB": 24,
+        "node": "v22.22.3"
+      },
+      "notes": [
+        "CPU-only; installed models only; no downloads or personal content.",
+        "Cold includes runtime/model startup; warm reuses the same pipeline.",
+        "First text is the first non-whitespace streamer callback, not time to first token.",
+        "RSS is a process-lifetime high-water mark; run each model in a fresh process.",
+        "Short synthetic tasks only. Review the output manually; this is not a quality score or an end-to-end app benchmark."
+      ],
+      "results": [
+        {
+          "case": "rewrite",
+          "phase": "cold",
+          "firstTextMs": 1164,
+          "totalMs": 1654,
+          "processPeakRssMiB": 1167,
+          "output": "The offline notes demo has been rescheduled to September 18 to allow for necessary recovery testing.",
+          "review": "One sentence; September 18 retained; recovery testing retained; no invented facts."
+        },
+        {
+          "case": "rewrite",
+          "phase": "warm",
+          "firstTextMs": 246,
+          "totalMs": 711,
+          "processPeakRssMiB": 1193,
+          "output": "The offline notes demo has been rescheduled to September 18 to allow for necessary recovery testing.",
+          "review": "One sentence; September 18 retained; recovery testing retained; no invented facts."
+        },
+        {
+          "case": "meeting",
+          "phase": "warm",
+          "firstTextMs": 413,
+          "totalMs": 1633,
+          "processPeakRssMiB": 1283,
+          "output": "- Decision: Maintain pilot as local-only with cloud sync excluded.  \n- Action: Avery to update onboarding checklist (due September 19).  \n- Action: Sam to test recording recovery (due September 18).",
+          "review": "Local-only pilot; Sam/recovery/September 18; Avery/onboarding/September 19; no invented budget or release date."
+        },
+        {
+          "case": "grounded-qa",
+          "phase": "warm",
+          "firstTextMs": 304,
+          "totalMs": 914,
+          "processPeakRssMiB": 1287,
+          "output": "The pilot supports English and Spanish, as outlined in the pilot plan, with the owner being Avery. [1]",
+          "review": "English and Spanish with [1]; French must not be a pilot language."
+        },
+        {
+          "case": "abstention",
+          "phase": "warm",
+          "firstTextMs": 252,
+          "totalMs": 382,
+          "processPeakRssMiB": 1287,
+          "output": "Not specified in the source.",
+          "review": "Abstains instead of inventing a budget."
+        }
+      ]
+    },
+    {
+      "modelId": "lfm2.5-2.6b-onnx-q4f16",
+      "maxNewTokens": 1024,
+      "recordedAt": "2026-10-05T20:27:02.319Z",
+      "hardware": {
+        "platform": "darwin",
+        "arch": "arm64",
+        "cpu": "Apple M5 Pro",
+        "logicalCpus": 15,
+        "totalRamGiB": 24,
+        "node": "v22.22.3"
+      },
+      "notes": [
+        "CPU-only; installed models only; no downloads or personal content.",
+        "Cold includes runtime/model startup; warm reuses the same pipeline.",
+        "First text is the first non-whitespace streamer callback, not time to first token.",
+        "RSS is a process-lifetime high-water mark; run each model in a fresh process.",
+        "Short synthetic tasks only. Review the output manually; this is not a quality score or an end-to-end app benchmark."
+      ],
+      "results": [
+        {
+          "case": "rewrite",
+          "phase": "cold",
+          "firstTextMs": 54426,
+          "totalMs": 55477,
+          "processPeakRssMiB": 2689,
+          "output": "The offline notes demo has been moved to September 18 because testing recovery is still required.",
+          "review": "One sentence; September 18 retained; recovery testing retained; no invented facts."
+        },
+        {
+          "case": "rewrite",
+          "phase": "warm",
+          "firstTextMs": 53042,
+          "totalMs": 54154,
+          "processPeakRssMiB": 2880,
+          "output": "The offline notes demo has been moved to September 18 because testing recovery is still required.",
+          "review": "One sentence; September 18 retained; recovery testing retained; no invented facts."
+        },
+        {
+          "case": "meeting",
+          "phase": "warm",
+          "firstTextMs": 35474,
+          "totalMs": 38772,
+          "processPeakRssMiB": 2958,
+          "output": "*   **Decision:** The pilot will remain local-only, and cloud sync is out of scope.\n*   **Action:** Sam will test recording recovery by September 18.\n*   **Action:** Avery will update the onboarding checklist by September 19.",
+          "review": "Local-only pilot; Sam/recovery/September 18; Avery/onboarding/September 19; no invented budget or release date."
+        },
+        {
+          "case": "grounded-qa",
+          "phase": "warm",
+          "firstTextMs": 12562,
+          "totalMs": 13042,
+          "processPeakRssMiB": 2958,
+          "output": "The pilot supports English and Spanish [1].",
+          "review": "English and Spanish with [1]; French must not be a pilot language."
+        },
+        {
+          "case": "abstention",
+          "phase": "warm",
+          "firstTextMs": 8822,
+          "totalMs": 9118,
+          "processPeakRssMiB": 2958,
+          "output": "Not specified in the source.",
+          "review": "Abstains instead of inventing a budget."
+        }
+      ]
+    },
+    {
+      "modelId": "lfm2.5-230m-onnx-q4",
+      "maxNewTokens": 192,
+      "recordedAt": "2026-10-05T20:23:47.861Z",
+      "hardware": {
+        "platform": "darwin",
+        "arch": "arm64",
+        "cpu": "Apple M5 Pro",
+        "logicalCpus": 15,
+        "totalRamGiB": 24,
+        "node": "v22.22.3"
+      },
+      "notes": [
+        "CPU-only; installed models only; no downloads or personal content.",
+        "Cold includes runtime/model startup; warm reuses the same pipeline.",
+        "First text is the first non-whitespace streamer callback, not time to first token.",
+        "RSS is a process-lifetime high-water mark; run each model in a fresh process.",
+        "Short synthetic tasks only. Review the output manually; this is not a quality score or an end-to-end app benchmark."
+      ],
+      "results": [
+        {
+          "case": "rewrite",
+          "phase": "cold",
+          "firstTextMs": 486,
+          "totalMs": 537,
+          "processPeakRssMiB": 526,
+          "output": "The offline notes demo has been moved to September 18 due to ongoing testing.",
+          "review": "One sentence; September 18 retained; recovery testing retained; no invented facts."
+        },
+        {
+          "case": "rewrite",
+          "phase": "warm",
+          "firstTextMs": 33,
+          "totalMs": 79,
+          "processPeakRssMiB": 534,
+          "output": "The offline notes demo has been moved to September 18 due to ongoing testing.",
+          "review": "One sentence; September 18 retained; recovery testing retained; no invented facts."
+        },
+        {
+          "case": "meeting",
+          "phase": "warm",
+          "firstTextMs": 62,
+          "totalMs": 256,
+          "processPeakRssMiB": 613,
+          "output": "1. Avery: We will keep the pilot local-only.  \n2. Sam: I will test recording recovery by September 18.  \n3. Avery: I will update the onboarding checklist by September 19.  \n4. Sam: We have not approved a budget or a release date.",
+          "review": "Local-only pilot; Sam/recovery/September 18; Avery/onboarding/September 19; no invented budget or release date."
+        },
+        {
+          "case": "grounded-qa",
+          "phase": "warm",
+          "firstTextMs": 51,
+          "totalMs": 100,
+          "processPeakRssMiB": 636,
+          "output": "[1] Pilot plan: The pilot supports English and Spanish. The owner is Avery.",
+          "review": "English and Spanish with [1]; French must not be a pilot language."
+        },
+        {
+          "case": "abstention",
+          "phase": "warm",
+          "firstTextMs": 38,
+          "totalMs": 53,
+          "processPeakRssMiB": 637,
+          "output": "Not specified in the source.",
+          "review": "Abstains instead of inventing a budget."
+        }
+      ]
+    },
+    {
+      "modelId": "lfm2.5-350m-onnx-q4f16",
+      "maxNewTokens": 192,
+      "recordedAt": "2026-10-05T20:23:49.648Z",
+      "hardware": {
+        "platform": "darwin",
+        "arch": "arm64",
+        "cpu": "Apple M5 Pro",
+        "logicalCpus": 15,
+        "totalRamGiB": 24,
+        "node": "v22.22.3"
+      },
+      "notes": [
+        "CPU-only; installed models only; no downloads or personal content.",
+        "Cold includes runtime/model startup; warm reuses the same pipeline.",
+        "First text is the first non-whitespace streamer callback, not time to first token.",
+        "RSS is a process-lifetime high-water mark; run each model in a fresh process.",
+        "Short synthetic tasks only. Review the output manually; this is not a quality score or an end-to-end app benchmark."
+      ],
+      "results": [
+        {
+          "case": "rewrite",
+          "phase": "cold",
+          "firstTextMs": 554,
+          "totalMs": 696,
+          "processPeakRssMiB": 587,
+          "output": "The offline notes demo was moved to September 18 due to ongoing recovery testing.",
+          "review": "One sentence; September 18 retained; recovery testing retained; no invented facts."
+        },
+        {
+          "case": "rewrite",
+          "phase": "warm",
+          "firstTextMs": 73,
+          "totalMs": 212,
+          "processPeakRssMiB": 604,
+          "output": "The offline notes demo was moved to September 18 due to ongoing recovery testing.",
+          "review": "One sentence; September 18 retained; recovery testing retained; no invented facts."
+        },
+        {
+          "case": "meeting",
+          "phase": "warm",
+          "firstTextMs": 124,
+          "totalMs": 371,
+          "processPeakRssMiB": 620,
+          "output": "- Avery: Update onboarding checklist by September 19  \n- Sam: No decision on budget or release date  ",
+          "review": "Local-only pilot; Sam/recovery/September 18; Avery/onboarding/September 19; no invented budget or release date."
+        },
+        {
+          "case": "grounded-qa",
+          "phase": "warm",
+          "firstTextMs": 91,
+          "totalMs": 181,
+          "processPeakRssMiB": 621,
+          "output": "The pilot supports English and Spanish. [1]",
+          "review": "English and Spanish with [1]; French must not be a pilot language."
+        },
+        {
+          "case": "abstention",
+          "phase": "warm",
+          "firstTextMs": 78,
+          "totalMs": 124,
+          "processPeakRssMiB": 623,
+          "output": "Not specified in the source.",
+          "review": "Abstains instead of inventing a budget."
+        }
+      ]
+    },
+    {
+      "modelId": "qwen3.5-0.8b-onnx-q4f16",
+      "maxNewTokens": 192,
+      "recordedAt": "2026-10-05T20:23:55.417Z",
+      "hardware": {
+        "platform": "darwin",
+        "arch": "arm64",
+        "cpu": "Apple M5 Pro",
+        "logicalCpus": 15,
+        "totalRamGiB": 24,
+        "node": "v22.22.3"
+      },
+      "notes": [
+        "CPU-only; installed models only; no downloads or personal content.",
+        "Cold includes runtime/model startup; warm reuses the same pipeline.",
+        "First text is the first non-whitespace streamer callback, not time to first token.",
+        "RSS is a process-lifetime high-water mark; run each model in a fresh process.",
+        "Short synthetic tasks only. Review the output manually; this is not a quality score or an end-to-end app benchmark."
+      ],
+      "results": [
+        {
+          "case": "rewrite",
+          "phase": "cold",
+          "firstTextMs": 1434,
+          "totalMs": 1851,
+          "processPeakRssMiB": 1249,
+          "output": "The offline notes demo is scheduled for September 18 to ensure recovery testing is completed.",
+          "review": "One sentence; September 18 retained; recovery testing retained; no invented facts."
+        },
+        {
+          "case": "rewrite",
+          "phase": "warm",
+          "firstTextMs": 295,
+          "totalMs": 727,
+          "processPeakRssMiB": 1276,
+          "output": "The offline notes demo is scheduled for September 18 to ensure recovery testing is completed.",
+          "review": "One sentence; September 18 retained; recovery testing retained; no invented facts."
+        },
+        {
+          "case": "meeting",
+          "phase": "warm",
+          "firstTextMs": 522,
+          "totalMs": 1775,
+          "processPeakRssMiB": 1482,
+          "output": "*   **Decision:** Keep the pilot local-only and remove cloud sync from the scope.\n*   **Action:** Update the onboarding checklist by September 19.\n*   **Action:** Test recording recovery by September 18.",
+          "review": "Local-only pilot; Sam/recovery/September 18; Avery/onboarding/September 19; no invented budget or release date."
+        },
+        {
+          "case": "grounded-qa",
+          "phase": "warm",
+          "firstTextMs": 378,
+          "totalMs": 753,
+          "processPeakRssMiB": 1483,
+          "output": "The pilot supports English and Spanish, as stated in the pilot plan [1].",
+          "review": "English and Spanish with [1]; French must not be a pilot language."
+        },
+        {
+          "case": "abstention",
+          "phase": "warm",
+          "firstTextMs": 316,
+          "totalMs": 444,
+          "processPeakRssMiB": 1485,
+          "output": "Not specified in the source.",
+          "review": "Abstains instead of inventing a budget."
+        }
+      ]
+    },
+    {
+      "modelId": "qwen3.5-2b-onnx-q4f16",
+      "maxNewTokens": 192,
+      "recordedAt": "2026-10-05T20:24:11.079Z",
+      "hardware": {
+        "platform": "darwin",
+        "arch": "arm64",
+        "cpu": "Apple M5 Pro",
+        "logicalCpus": 15,
+        "totalRamGiB": 24,
+        "node": "v22.22.3"
+      },
+      "notes": [
+        "CPU-only; installed models only; no downloads or personal content.",
+        "Cold includes runtime/model startup; warm reuses the same pipeline.",
+        "First text is the first non-whitespace streamer callback, not time to first token.",
+        "RSS is a process-lifetime high-water mark; run each model in a fresh process.",
+        "Short synthetic tasks only. Review the output manually; this is not a quality score or an end-to-end app benchmark."
+      ],
+      "results": [
+        {
+          "case": "rewrite",
+          "phase": "cold",
+          "firstTextMs": 2251,
+          "totalMs": 3082,
+          "processPeakRssMiB": 2035,
+          "output": "The offline notes demo has been rescheduled to September 18 due to ongoing recovery testing.",
+          "review": "One sentence; September 18 retained; recovery testing retained; no invented facts."
+        },
+        {
+          "case": "rewrite",
+          "phase": "warm",
+          "firstTextMs": 518,
+          "totalMs": 1344,
+          "processPeakRssMiB": 2045,
+          "output": "The offline notes demo has been rescheduled to September 18 due to ongoing recovery testing.",
+          "review": "One sentence; September 18 retained; recovery testing retained; no invented facts."
+        },
+        {
+          "case": "meeting",
+          "phase": "warm",
+          "firstTextMs": 928,
+          "totalMs": 3331,
+          "processPeakRssMiB": 2240,
+          "output": "*   **Decision:** The pilot remains local-only with cloud sync excluded from scope.\n*   **Action:** Sam will test recording recovery by September 18.\n*   **Action:** Avery will update the onboarding checklist by September 19.",
+          "review": "Local-only pilot; Sam/recovery/September 18; Avery/onboarding/September 19; no invented budget or release date."
+        },
+        {
+          "case": "grounded-qa",
+          "phase": "warm",
+          "firstTextMs": 672,
+          "totalMs": 1044,
+          "processPeakRssMiB": 2241,
+          "output": "The pilot supports English and Spanish [1].",
+          "review": "English and Spanish with [1]; French must not be a pilot language."
+        },
+        {
+          "case": "abstention",
+          "phase": "warm",
+          "firstTextMs": 564,
+          "totalMs": 792,
+          "processPeakRssMiB": 2241,
+          "output": "Not specified in the source.",
+          "review": "Abstains instead of inventing a budget."
+        }
+      ]
+    },
+    {
+      "modelId": "qwen3.5-4b-onnx-q4f16",
+      "maxNewTokens": 192,
+      "recordedAt": "2026-10-05T20:27:27.891Z",
+      "hardware": {
+        "platform": "darwin",
+        "arch": "arm64",
+        "cpu": "Apple M5 Pro",
+        "logicalCpus": 15,
+        "totalRamGiB": 24,
+        "node": "v22.22.3"
+      },
+      "notes": [
+        "CPU-only; installed models only; no downloads or personal content.",
+        "Cold includes runtime/model startup; warm reuses the same pipeline.",
+        "First text is the first non-whitespace streamer callback, not time to first token.",
+        "RSS is a process-lifetime high-water mark; run each model in a fresh process.",
+        "Short synthetic tasks only. Review the output manually; this is not a quality score or an end-to-end app benchmark."
+      ],
+      "results": [
+        {
+          "case": "rewrite",
+          "phase": "cold",
+          "firstTextMs": 6441,
+          "totalMs": 9005,
+          "processPeakRssMiB": 3483,
+          "output": "The offline notes demo has been rescheduled to September 18 to allow time for additional recovery testing.",
+          "review": "One sentence; September 18 retained; recovery testing retained; no invented facts."
+        },
+        {
+          "case": "rewrite",
+          "phase": "warm",
+          "firstTextMs": 1196,
+          "totalMs": 3347,
+          "processPeakRssMiB": 3561,
+          "output": "The offline notes demo has been rescheduled to September 18 to allow time for additional recovery testing.",
+          "review": "One sentence; September 18 retained; recovery testing retained; no invented facts."
+        },
+        {
+          "case": "meeting",
+          "phase": "warm",
+          "firstTextMs": 2050,
+          "totalMs": 8257,
+          "processPeakRssMiB": 3862,
+          "output": "*   **Decision:** The pilot will remain local-only, and cloud sync is explicitly out of scope.\n*   **Action:** Sam will test recording recovery by September 18.\n*   **Action:** Avery will update the onboarding checklist by September 19.",
+          "review": "Local-only pilot; Sam/recovery/September 18; Avery/onboarding/September 19; no invented budget or release date."
+        },
+        {
+          "case": "grounded-qa",
+          "phase": "warm",
+          "firstTextMs": 1469,
+          "totalMs": 2363,
+          "processPeakRssMiB": 3869,
+          "output": "The pilot supports English and Spanish [1].",
+          "review": "English and Spanish with [1]; French must not be a pilot language."
+        },
+        {
+          "case": "abstention",
+          "phase": "warm",
+          "firstTextMs": 1235,
+          "totalMs": 1777,
+          "processPeakRssMiB": 3869,
+          "output": "Not specified in the source.",
+          "review": "Abstains instead of inventing a budget."
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+<svg width="610" height="365" viewBox="0 0 610 365" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="sky" cx="50%" cy="40%" r="82%">
+      <stop offset="0%" stop-color="#ECE0C6"/>
+      <stop offset="48%" stop-color="#CDB389"/>
+      <stop offset="100%" stop-color="#5E472E"/>
+    </radialGradient>
+    <radialGradient id="vig" cx="50%" cy="48%" r="66%">
+      <stop offset="56%" stop-color="#160d05" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#160d05" stop-opacity="0.66"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="610" height="365" fill="url(#sky)"/>
+  <ellipse cx="230" cy="118" rx="300" ry="110" fill="#EBD9B2" opacity="0.30"/>
+  <ellipse cx="430" cy="92" rx="220" ry="80" fill="#C49A5E" opacity="0.26"/>
+  <ellipse cx="120" cy="252" rx="150" ry="60" fill="#7C6A45" opacity="0.22"/>
+  <ellipse cx="520" cy="282" rx="170" ry="65" fill="#8A7A52" opacity="0.20"/>
+
+  <text x="305" y="236" text-anchor="middle" font-family="Georgia,'Times New Roman',serif" font-style="italic" font-size="300" fill="#3A2A1A" opacity="0.06">n</text>
+
+  <rect width="610" height="365" fill="url(#vig)"/>
+
+  <g stroke="#C2A14D" stroke-width="1.4" fill="none" opacity="0.85" stroke-linecap="round">
+    <path d="M26 26 q60 0 60 40 q0 -28 26 -28"/>
+    <path d="M26 26 q0 60 40 60 q-28 0 -28 26"/>
+    <circle cx="26" cy="26" r="3" fill="#C2A14D" stroke="none"/>
+    <path d="M584 26 q-60 0 -60 40 q0 -28 -26 -28"/>
+    <path d="M584 26 q0 60 -40 60 q28 0 28 26"/>
+    <circle cx="584" cy="26" r="3" fill="#C2A14D" stroke="none"/>
+    <path d="M26 339 q60 0 60 -40 q0 28 26 28"/>
+    <circle cx="26" cy="339" r="3" fill="#C2A14D" stroke="none"/>
+    <path d="M584 339 q-60 0 -60 -40 q0 28 -26 28"/>
+    <circle cx="584" cy="339" r="3" fill="#C2A14D" stroke="none"/>
+  </g>
+
+  <text x="40" y="60" font-family="Georgia,'Times New Roman',serif" font-size="38" fill="#EFE6D2">Nota</text>
+
+  <rect x="116" y="132" width="120" height="120" rx="24" fill="#F5F1E6" opacity="0.10" stroke="#C2A14D" stroke-opacity="0.40" stroke-width="1"/>
+  <rect x="372" y="132" width="120" height="120" rx="24" fill="#F5F1E6" opacity="0.10" stroke="#C2A14D" stroke-opacity="0.40" stroke-width="1"/>
+
+  <path d="M250 192 C 288 174, 320 174, 352 192" stroke="#D8B86A" stroke-width="3" fill="none" stroke-linecap="round"/>
+  <path d="M345 184 L356 192 L345 200" stroke="#D8B86A" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <text x="305" y="330" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="15" fill="#E9DBBE" opacity="0.94" letter-spacing="0.4">Drag Nota into Applications</text>
+</svg>

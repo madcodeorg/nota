@@ -1,0 +1,6 @@
+{
+  "$schema": "https://github.com/heyyykk3/nota/releases/latest/download/config.schema.json",
+  "server": {
+    "name": "Nota Self Hosted Server"
+  }
+}

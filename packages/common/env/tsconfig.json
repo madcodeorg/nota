@@ -1,0 +1,11 @@
+{
+  "extends": "../../../tsconfig.web.json",
+  "compilerOptions": {
+    "types": ["build-config", "nota__env"],
+    "rootDir": "./src",
+    "outDir": "./dist",
+    "tsBuildInfoFile": "./dist/tsconfig.tsbuildinfo"
+  },
+  "include": ["./src"],
+  "references": []
+}

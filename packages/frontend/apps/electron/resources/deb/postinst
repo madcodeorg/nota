@@ -1,0 +1,5 @@
+#!/bin/sh
+set -e
+
+BUILD_TYPE=$(ls /usr/lib | grep '^nota')
+install -Dm0644 /usr/lib/${BUILD_TYPE}/resources/nota.metainfo.xml /usr/share/metainfo/nota.metainfo.xml

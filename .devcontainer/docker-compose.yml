@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  app:
+    security_opt:
+      - no-new-privileges:true
+    image: mcr.microsoft.com/devcontainers/base:bookworm
+    volumes:
+      - ../..:/workspaces:cached
+    command: sleep infinity
+    network_mode: service:db
+    environment:
+      DATABASE_URL: postgresql://nota:nota@db:5432/nota
+      REDIS_SERVER_HOST: redis
+      NOTA_INDEXER_SEARCH_ENDPOINT: http://indexer:9308
+
+  db:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_PASSWORD: nota
+      POSTGRES_USER: nota
+      POSTGRES_DB: nota
+  redis:
+    image: redis
+
+  indexer:
+    image: manticoresearch/manticore:${MANTICORE_VERSION:-10.1.0}
+    ulimits:
+      nproc: 65535
+      nofile:
+        soft: 65535
+        hard: 65535
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - manticoresearch_data:/var/lib/manticore
+
+volumes:
+  postgres-data:
+  manticoresearch_data:

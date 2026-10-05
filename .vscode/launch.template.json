@@ -1,0 +1,35 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Launch Nota Cloud",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "yarn",
+      "cwd": "${workspaceFolder}",
+      "runtimeArgs": [
+        "nota",
+        "@nota/server",
+        "dev"
+      ]
+    },
+    {
+      "name": "Launch Nota Web",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "yarn",
+      "cwd": "${workspaceFolder}",
+      "runtimeArgs": [
+        "nota",
+        "@nota/web",
+        "dev"
+      ]
+    },
+    {
+      "type": "chrome",
+      "request": "launch",
+      "name": "Debug Nota Web",
+      "url": "http://localhost:8080"
+    }
+  ]
+}

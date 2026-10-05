@@ -1,0 +1,394 @@
+{
+  "type": "page",
+  "meta": {
+    "id": "F-TNy6Tt3t",
+    "title": "Getting Started",
+    "createDate": 1791172800000,
+    "tags": []
+  },
+  "blocks": {
+    "type": "block",
+    "id": "F-TNy6Tt3t-page",
+    "flavour": "affine:page",
+    "version": 2,
+    "props": {
+      "title": {
+        "$blocksuite:internal:text$": true,
+        "delta": [
+          {
+            "insert": "Getting Started"
+          }
+        ]
+      }
+    },
+    "children": [
+      {
+        "type": "block",
+        "id": "F-TNy6Tt3t-surface",
+        "flavour": "affine:surface",
+        "version": 5,
+        "props": {
+          "elements": {}
+        },
+        "children": []
+      },
+      {
+        "type": "block",
+        "id": "F-TNy6Tt3t-note",
+        "flavour": "affine:note",
+        "version": 1,
+        "props": {
+          "xywh": "[0,0,800,800]",
+          "background": {
+            "dark": "#000000",
+            "light": "#ffffff"
+          },
+          "index": "a0",
+          "lockedBySelf": false,
+          "hidden": false,
+          "displayMode": "both",
+          "edgeless": {
+            "style": {
+              "borderRadius": 8,
+              "borderSize": 4,
+              "borderStyle": "none",
+              "shadowType": "--affine-note-shadow-box"
+            },
+            "collapse": false
+          }
+        },
+        "children": [
+          {
+            "type": "block",
+            "id": "welcome",
+            "flavour": "affine:paragraph",
+            "version": 1,
+            "props": {
+              "type": "h1",
+              "text": {
+                "$blocksuite:internal:text$": true,
+                "delta": [
+                  {
+                    "insert": "Welcome to Nota"
+                  }
+                ]
+              },
+              "collapsed": false
+            },
+            "children": []
+          },
+          {
+            "type": "block",
+            "id": "local-first",
+            "flavour": "affine:paragraph",
+            "version": 1,
+            "props": {
+              "type": "text",
+              "text": {
+                "$blocksuite:internal:text$": true,
+                "delta": [
+                  {
+                    "insert": "Your workspace lives on this device. You can write without an account, API key, or model server."
+                  }
+                ]
+              },
+              "collapsed": false
+            },
+            "children": []
+          },
+          {
+            "type": "block",
+            "id": "writing-title",
+            "flavour": "affine:paragraph",
+            "version": 1,
+            "props": {
+              "type": "h2",
+              "text": {
+                "$blocksuite:internal:text$": true,
+                "delta": [
+                  {
+                    "insert": "Start writing"
+                  }
+                ]
+              },
+              "collapsed": false
+            },
+            "children": []
+          },
+          {
+            "type": "block",
+            "id": "writing",
+            "flavour": "affine:paragraph",
+            "version": 1,
+            "props": {
+              "type": "text",
+              "text": {
+                "$blocksuite:internal:text$": true,
+                "delta": [
+                  {
+                    "insert": "Create a page from the sidebar. Type / for blocks and @ to link another page. Switch to Edgeless to arrange notes and ideas on a canvas."
+                  }
+                ]
+              },
+              "collapsed": false
+            },
+            "children": []
+          },
+          {
+            "type": "block",
+            "id": "organization-title",
+            "flavour": "affine:paragraph",
+            "version": 1,
+            "props": {
+              "type": "h2",
+              "text": {
+                "$blocksuite:internal:text$": true,
+                "delta": [
+                  {
+                    "insert": "Organize your workspace"
+                  }
+                ]
+              },
+              "collapsed": false
+            },
+            "children": []
+          },
+          {
+            "type": "block",
+            "id": "organization",
+            "flavour": "affine:paragraph",
+            "version": 1,
+            "props": {
+              "type": "text",
+              "text": {
+                "$blocksuite:internal:text$": true,
+                "delta": [
+                  {
+                    "insert": "Use folders and tags to group pages, then search for a title or phrase to find them again."
+                  }
+                ]
+              },
+              "collapsed": false
+            },
+            "children": []
+          },
+          {
+            "type": "block",
+            "id": "backup-title",
+            "flavour": "affine:paragraph",
+            "version": 1,
+            "props": {
+              "type": "h2",
+              "text": {
+                "$blocksuite:internal:text$": true,
+                "delta": [
+                  {
+                    "insert": "Keep a backup"
+                  }
+                ]
+              },
+              "collapsed": false
+            },
+            "children": []
+          },
+          {
+            "type": "block",
+            "id": "backup",
+            "flavour": "affine:paragraph",
+            "version": 1,
+            "props": {
+              "type": "text",
+              "text": {
+                "$blocksuite:internal:text$": true,
+                "delta": [
+                  {
+                    "insert": "Use Workspace Settings to export your workspace or manage local backups. Keep a copy outside this device before a reset or reinstall."
+                  }
+                ]
+              },
+              "collapsed": false
+            },
+            "children": []
+          },
+          {
+            "type": "block",
+            "id": "ai-title",
+            "flavour": "affine:paragraph",
+            "version": 1,
+            "props": {
+              "type": "h2",
+              "text": {
+                "$blocksuite:internal:text$": true,
+                "delta": [
+                  {
+                    "insert": "Set up local AI when you need it"
+                  }
+                ]
+              },
+              "collapsed": false
+            },
+            "children": []
+          },
+          {
+            "type": "block",
+            "id": "ai",
+            "flavour": "affine:paragraph",
+            "version": 1,
+            "props": {
+              "type": "text",
+              "text": {
+                "$blocksuite:internal:text$": true,
+                "delta": [
+                  {
+                    "insert": "AI Settings lets you download a local text model for chat, summaries, and note actions. The first model download needs internet access. Hosted providers are optional and use your own API key when selected."
+                  }
+                ]
+              },
+              "collapsed": false
+            },
+            "children": []
+          },
+          {
+            "type": "block",
+            "id": "meeting-title",
+            "flavour": "affine:paragraph",
+            "version": 1,
+            "props": {
+              "type": "h2",
+              "text": {
+                "$blocksuite:internal:text$": true,
+                "delta": [
+                  {
+                    "insert": "Turn meetings into notes"
+                  }
+                ]
+              },
+              "collapsed": false
+            },
+            "children": []
+          },
+          {
+            "type": "block",
+            "id": "meeting",
+            "flavour": "affine:paragraph",
+            "version": 1,
+            "props": {
+              "type": "text",
+              "text": {
+                "$blocksuite:internal:text$": true,
+                "delta": [
+                  {
+                    "insert": "Meeting Settings controls speech models and recording. Allow the microphone or system-audio permissions you need, then record and save the transcript as an editable workspace page."
+                  }
+                ]
+              },
+              "collapsed": false
+            },
+            "children": []
+          },
+          {
+            "type": "block",
+            "id": "drive-title",
+            "flavour": "affine:paragraph",
+            "version": 1,
+            "props": {
+              "type": "h2",
+              "text": {
+                "$blocksuite:internal:text$": true,
+                "delta": [
+                  {
+                    "insert": "Optional Google connection"
+                  }
+                ]
+              },
+              "collapsed": false
+            },
+            "children": []
+          },
+          {
+            "type": "block",
+            "id": "drive",
+            "flavour": "affine:paragraph",
+            "version": 1,
+            "props": {
+              "type": "text",
+              "text": {
+                "$blocksuite:internal:text$": true,
+                "delta": [
+                  {
+                    "insert": "Google Drive backup and Calendar access are optional. Local writing and meetings do not require Google sign-in. Integration availability depends on the build configuration."
+                  }
+                ]
+              },
+              "collapsed": false
+            },
+            "children": []
+          },
+          {
+            "type": "block",
+            "id": "project-title",
+            "flavour": "affine:paragraph",
+            "version": 1,
+            "props": {
+              "type": "h2",
+              "text": {
+                "$blocksuite:internal:text$": true,
+                "delta": [
+                  {
+                    "insert": "Documentation and help"
+                  }
+                ]
+              },
+              "collapsed": false
+            },
+            "children": []
+          },
+          {
+            "type": "block",
+            "id": "project",
+            "flavour": "affine:paragraph",
+            "version": 1,
+            "props": {
+              "type": "text",
+              "text": {
+                "$blocksuite:internal:text$": true,
+                "delta": [
+                  {
+                    "insert": "Nota on GitHub",
+                    "attributes": {
+                      "link": "https://github.com/madcodeorg/nota"
+                    }
+                  }
+                ]
+              },
+              "collapsed": false
+            },
+            "children": []
+          },
+          {
+            "type": "block",
+            "id": "help",
+            "flavour": "affine:paragraph",
+            "version": 1,
+            "props": {
+              "type": "text",
+              "text": {
+                "$blocksuite:internal:text$": true,
+                "delta": [
+                  {
+                    "insert": "Report an issue",
+                    "attributes": {
+                      "link": "https://github.com/madcodeorg/nota/issues"
+                    }
+                  }
+                ]
+              },
+              "collapsed": false
+            },
+            "children": []
+          }
+        ]
+      }
+    ]
+  }
+}

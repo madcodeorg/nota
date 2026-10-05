@@ -1,0 +1,11 @@
+{
+  "name": "@types/nota__env",
+  "private": true,
+  "types": "./__all.d.ts",
+  "type": "module",
+  "dependencies": {
+    "@blocksuite/affine": "workspace:*",
+    "@nota/env": "workspace:*"
+  },
+  "version": "0.26.3"
+}

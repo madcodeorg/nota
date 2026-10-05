@@ -1,0 +1,80 @@
+{
+  "schemaVersion": 1,
+  "reviewedDate": "2026-10-05",
+  "purpose": "Previously referenced PDF export fonts bundled locally for offline use. Font bytes are preserved without Nota edits.",
+  "sources": "Binary URLs are the original PDF exporter CDN sources. License text is retained from the official Sarasa repository revision and Inter 3.3 tag. Embedded font notices are retained in these unmodified files and reproduced below.",
+  "sarasaLicenseSource": {
+    "repository": "https://github.com/be5invis/Sarasa-Gothic",
+    "revision": "f31c230af7fb4854f40d96560e2616eafdd85926",
+    "licenseUrl": "https://raw.githubusercontent.com/be5invis/Sarasa-Gothic/f31c230af7fb4854f40d96560e2616eafdd85926/LICENSE"
+  },
+  "files": [
+    {
+      "path": "blocksuite/affine/shared/src/adapters/pdf/fonts/Inter-Italic.woff",
+      "sourceUrl": "https://cdn.affine.pro/fonts/Inter-Italic.woff",
+      "sizeBytes": 127564,
+      "sha256": "f1427b26200b0f9c25e0898c6dfc146d25c2d1e5dedf052f507a288b0a699b01",
+      "fontFamily": ["Inter"],
+      "fontVersion": ["3.3;20b39288a"],
+      "postscriptName": ["Inter-Italic"],
+      "embeddedCopyright": ["Copyright 2017-2019 The Inter project authors"],
+      "license": "OFL-1.1",
+      "licenseFile": "licenses/fonts/inter-3.3-OFL.txt",
+      "licenseSourceUrl": "https://raw.githubusercontent.com/rsms/inter/v3.3/LICENSE.txt"
+    },
+    {
+      "path": "blocksuite/affine/shared/src/adapters/pdf/fonts/Inter-Regular.woff",
+      "sourceUrl": "https://cdn.affine.pro/fonts/Inter-Regular.woff",
+      "sizeBytes": 116488,
+      "sha256": "64c3218ffd11ddd43442e8ded8cf2bfbdb74324e5f1b38ec86be1be991f144b5",
+      "fontFamily": ["Inter"],
+      "fontVersion": ["3.3;20b39288a"],
+      "postscriptName": ["Inter-Regular"],
+      "embeddedCopyright": ["Copyright 2017-2019 The Inter project authors"],
+      "license": "OFL-1.1",
+      "licenseFile": "licenses/fonts/inter-3.3-OFL.txt",
+      "licenseSourceUrl": "https://raw.githubusercontent.com/rsms/inter/v3.3/LICENSE.txt"
+    },
+    {
+      "path": "blocksuite/affine/shared/src/adapters/pdf/fonts/Inter-SemiBold.woff",
+      "sourceUrl": "https://cdn.affine.pro/fonts/Inter-SemiBold.woff",
+      "sizeBytes": 127652,
+      "sha256": "ad09305d7ab7986623ea6cf6dc188cb3ff80370c2f9ae99aefe8182b3dc894b4",
+      "fontFamily": ["Inter Semi Bold"],
+      "fontVersion": ["3.3;20b39288a"],
+      "postscriptName": ["Inter-SemiBold"],
+      "embeddedCopyright": ["Copyright 2017-2019 The Inter project authors"],
+      "license": "OFL-1.1",
+      "licenseFile": "licenses/fonts/inter-3.3-OFL.txt",
+      "licenseSourceUrl": "https://raw.githubusercontent.com/rsms/inter/v3.3/LICENSE.txt"
+    },
+    {
+      "path": "blocksuite/affine/shared/src/adapters/pdf/fonts/Inter-SemiBoldItalic.woff",
+      "sourceUrl": "https://cdn.affine.pro/fonts/Inter-SemiBoldItalic.woff",
+      "sizeBytes": 136352,
+      "sha256": "decfbb37086ca121cc86b83ae9bf0e460d19c760eca29903281149e3183c4ced",
+      "fontFamily": ["Inter Semi Bold"],
+      "fontVersion": ["3.3;20b39288a"],
+      "postscriptName": ["Inter-SemiBoldItalic"],
+      "embeddedCopyright": ["Copyright 2017-2019 The Inter project authors"],
+      "license": "OFL-1.1",
+      "licenseFile": "licenses/fonts/inter-3.3-OFL.txt",
+      "licenseSourceUrl": "https://raw.githubusercontent.com/rsms/inter/v3.3/LICENSE.txt"
+    },
+    {
+      "path": "blocksuite/affine/shared/src/adapters/pdf/fonts/SarasaGothicCL-Regular.ttf",
+      "sourceUrl": "https://cdn.affine.pro/fonts/SarasaGothicCL-Regular.ttf",
+      "sizeBytes": 13056432,
+      "sha256": "8fcf96cf8b9f93fbc02e05906628d2ee1db24b256d741c598f392f1a503aaa1e",
+      "fontFamily": ["更紗黑體 CL", "Sarasa Gothic CL"],
+      "fontVersion": ["Version 1.0.35"],
+      "postscriptName": ["Sarasa-Gothic-CL-Regular"],
+      "embeddedCopyright": [
+        "Copyright (c) 2015-2025, Renzhi Li (aka. Belleve Invis, belleve@typeof.net). Portions Copyright (c) 2016 The Inter Project Authors. Portions Copyright (c) 2014-2021 Adobe Systems Incorporated (http://www.adobe.com/). Portions Copyright (c) 2012 Google Inc."
+      ],
+      "license": "OFL-1.1",
+      "licenseFile": "licenses/fonts/sarasa-gothic-OFL.txt",
+      "licenseSourceUrl": "https://raw.githubusercontent.com/be5invis/Sarasa-Gothic/f31c230af7fb4854f40d96560e2616eafdd85926/LICENSE"
+    }
+  ]
+}

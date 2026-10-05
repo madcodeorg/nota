@@ -1,0 +1,37 @@
+{
+  "name": "@nota/ai-backend",
+  "version": "0.26.3",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "benchmark:local": "tsx src/benchmark-local.ts",
+    "dev": "tsx watch src/index.ts",
+    "prepare-model-seed": "tsx src/prepare-model-seed.ts",
+    "start": "tsx src/index.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@ai-sdk/anthropic": "^4.0.15",
+    "@ai-sdk/google": "^4.0.17",
+    "@ai-sdk/mcp": "^2.0.14",
+    "@ai-sdk/openai": "^4.0.15",
+    "@ai-sdk/openai-compatible": "^3.0.11",
+    "@huggingface/transformers": "^4.2.0",
+    "ai": "^7.0.29",
+    "cors": "^2.8.5",
+    "express": "^5.2.1",
+    "multer": "^2.0.2",
+    "onnxruntime-node": "1.24.3",
+    "sherpa-onnx-node": "1.13.8",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.0",
+    "@types/multer": "^2.0.0",
+    "@types/node": "^22.0.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.18"
+  }
+}

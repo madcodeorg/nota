@@ -1,0 +1,32 @@
+{
+  "name": "@nota/mobile",
+  "version": "0.26.3",
+  "description": "Nota Mobile Web application",
+  "private": true,
+  "browser": "src/index.tsx",
+  "scripts": {
+    "build": "affine bundle",
+    "dev": "affine bundle --dev"
+  },
+  "dependencies": {
+    "@blocksuite/affine": "workspace:*",
+    "@blocksuite/icons": "^2.2.17",
+    "@nota/component": "workspace:*",
+    "@nota/core": "workspace:*",
+    "@nota/env": "workspace:*",
+    "@nota/i18n": "workspace:*",
+    "@nota/infra": "workspace:*",
+    "@nota/nbstore": "workspace:*",
+    "@nota/track": "workspace:*",
+    "@sentry/react": "^10.40.0",
+    "react": "^19.2.1",
+    "react-dom": "^19.2.1",
+    "react-router-dom": "^6.30.3"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.1",
+    "@types/react-dom": "^19.0.2",
+    "cross-env": "^10.1.0",
+    "typescript": "^5.9.3"
+  }
+}

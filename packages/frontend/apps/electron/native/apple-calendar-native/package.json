@@ -1,0 +1,18 @@
+{
+  "name": "@nota/apple-calendar-native",
+  "private": true,
+  "main": "index.js",
+  "types": "index.d.ts",
+  "napi": {
+    "binaryName": "nota-calendar-native",
+    "targets": [
+      "aarch64-apple-darwin",
+      "x86_64-apple-darwin"
+    ],
+    "constEnum": false
+  },
+  "scripts": {
+    "build": "napi build -p nota_apple_calendar_native --platform --release"
+  },
+  "version": "0.0.0"
+}

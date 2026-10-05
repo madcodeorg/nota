@@ -1,0 +1,16 @@
+{
+  "name": "@nota/copilot-result",
+  "version": "0.26.3",
+  "type": "module",
+  "main": "index.js",
+  "private": true,
+  "description": "Send copilot result to slack",
+  "dependencies": {
+    "@slack/web-api": "^7.8.0",
+    "jsx-slack": "^6.1.2",
+    "marked": "^15.0.12"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0"
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "schemaNamespace": "NotaGraphQL",
+  "input": {
+    "operationSearchPaths": ["../../../common/graphql/src/graphql/**/*.gql"],
+    "schemaSearchPaths": ["../../../backend/server/src/schema.gql"],
+    "schemaCustomization": {
+      "customTypeNames": {
+        "JSON": "[String: Any]"
+      }
+    }
+  },
+  "output": {
+    "testMocks": {
+      "none": {}
+    },
+    "schemaTypes": {
+      "path": "./App/Packages/NotaGraphQL/",
+      "moduleType": {
+        "swiftPackageManager": {}
+      }
+    },
+    "operations": {
+      "inSchemaModule": {}
+    }
+  }
+}

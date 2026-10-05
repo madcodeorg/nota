@@ -1,0 +1,25 @@
+{
+  "name": "@nota/env",
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "vitest": "^4.0.18"
+  },
+  "exports": {
+    "./automation": "./src/automation.ts",
+    "./global": "./src/global.ts",
+    "./constant": "./src/constant.ts",
+    "./workspace": "./src/workspace.ts",
+    "./filter": "./src/filter.ts",
+    "./blocksuite": "./src/blocksuite/index.ts",
+    "./worker": "./src/worker.ts"
+  },
+  "peerDependencies": {
+    "@blocksuite/affine": "workspace:*",
+    "@nota/templates": "workspace:*"
+  },
+  "dependencies": {
+    "zod": "^3.25.76"
+  },
+  "version": "0.26.3"
+}

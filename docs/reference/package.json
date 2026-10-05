@@ -1,0 +1,23 @@
+{
+  "name": "@nota/docs",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build": "typedoc --options ../../typedoc.json",
+    "dev": "nodemon --exec 'typedoc --options ../../typedoc.json' & serve dist/"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.14",
+    "serve": "^14.2.5",
+    "typedoc": "^0.28.17"
+  },
+  "nodemonConfig": {
+    "watch": [
+      "./readme.md",
+      "../../packages/*/*/src/*.ts",
+      "../../**/typedoc{.base,}.json"
+    ],
+    "ext": "ts,md,json"
+  },
+  "version": "0.26.3"
+}

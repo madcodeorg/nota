@@ -1,0 +1,50 @@
+{
+  "name": "@nota/nbstore",
+  "type": "module",
+  "version": "0.26.3",
+  "private": true,
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts",
+    "./worker/client": "./src/worker/client.ts",
+    "./worker/consumer": "./src/worker/consumer.ts",
+    "./idb": "./src/impls/idb/index.ts",
+    "./broadcast-channel": "./src/impls/broadcast-channel/index.ts",
+    "./idb/v1": "./src/impls/idb/v1/index.ts",
+    "./cloud": "./src/impls/cloud/index.ts",
+    "./google-drive": "./src/impls/google-drive/index.ts",
+    "./sqlite": "./src/impls/sqlite/index.ts",
+    "./sqlite/v1": "./src/impls/sqlite/v1/index.ts",
+    "./sync": "./src/sync/index.ts",
+    "./frontend": "./src/frontend/index.ts"
+  },
+  "dependencies": {
+    "@nota/infra": "workspace:*",
+    "@nota/reader": "workspace:*",
+    "eventemitter2": "^6.4.9",
+    "graphemer": "^1.4.0",
+    "lib0": "^0.2.114",
+    "lodash-es": "^4.17.23",
+    "nanoid": "^5.1.6",
+    "rxjs": "^7.8.2",
+    "uuid": "^13.0.0",
+    "y-protocols": "^1.0.6",
+    "yjs": "^13.6.27"
+  },
+  "devDependencies": {
+    "@blocksuite/affine": "workspace:*",
+    "@nota/error": "workspace:*",
+    "@nota/graphql": "workspace:*",
+    "fake-indexeddb": "^6.0.0",
+    "idb": "^8.0.0",
+    "socket.io-client": "^4.8.3",
+    "vitest": "^4.0.18"
+  },
+  "peerDependencies": {
+    "@blocksuite/affine": "workspace:*",
+    "@nota/error": "workspace:*",
+    "@nota/graphql": "workspace:*",
+    "idb": "^8.0.0",
+    "socket.io-client": "^4.8.3"
+  }
+}

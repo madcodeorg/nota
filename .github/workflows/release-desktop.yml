@@ -1,0 +1,436 @@
+name: Release Desktop
+
+on:
+  workflow_call:
+    inputs:
+      build-type:
+        required: true
+        type: string
+      app-version:
+        required: true
+        type: string
+      git-short-hash:
+        required: true
+        type: string
+      desktop_macos:
+        description: 'Desktop - macOS'
+        required: false
+        default: true
+        type: boolean
+      desktop_windows:
+        description: 'Desktop - Windows'
+        required: false
+        default: true
+        type: boolean
+      desktop_linux:
+        description: 'Desktop - Linux'
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  actions: write
+  contents: write
+  security-events: write
+  id-token: write
+  attestations: write
+
+env:
+  BUILD_TYPE: ${{ inputs.build-type }}
+  RELEASE_VERSION: ${{ inputs.app-version }}
+  GOOGLE_AUTH_BROKER_URL: https://thenota.app
+  DEBUG: 'nota:*,napi:*'
+  APP_NAME: nota
+  MACOSX_DEPLOYMENT_TARGET: '14.0'
+
+jobs:
+  before-make:
+    if: ${{ inputs.desktop_macos || inputs.desktop_windows || inputs.desktop_linux }}
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.build-type }}
+    steps:
+      - uses: actions/checkout@v6
+      - name: Setup Version
+        uses: ./.github/actions/setup-version
+        with:
+          app-version: ${{ inputs.app-version }}
+      - name: Setup Node.js
+        uses: ./.github/actions/setup-node
+      - name: Setup @sentry/cli
+        uses: ./.github/actions/setup-sentry
+      - name: generate-assets
+        run: yarn nota @nota/electron generate-assets
+        env:
+          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+          SENTRY_PROJECT: 'nota'
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+          SENTRY_RELEASE: ${{ inputs.app-version }}
+          RELEASE_VERSION: ${{ inputs.app-version }}
+
+      - name: Restore Whistle STT seed cache
+        uses: actions/cache@v5
+        with:
+          path: .nota/models/cactus-whistle
+          key: desktop-local-stt-seed-whistle-${{ hashFiles('packages/backend/ai/src/model-registry.ts') }}
+
+      - name: Prepare verified Whistle STT seed
+        timeout-minutes: 15
+        shell: bash
+        run: |
+          for attempt in 1 2 3; do
+            if yarn workspace @nota/ai-backend prepare-model-seed --model cactus-whistle; then
+              exit 0
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              exit 1
+            fi
+            sleep $((attempt * 5))
+          done
+
+      - name: Upload Whistle STT seed
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-local-stt-seed-whistle
+          path: .nota/models/cactus-whistle
+          compression-level: 0
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 1
+
+      - name: Restore Tiny STT seed cache
+        uses: actions/cache@v5
+        with:
+          path: .nota/models/whisper-tiny-q5-cpp
+          key: desktop-local-stt-seed-whisper-tiny-${{ hashFiles('packages/backend/ai/src/model-registry.ts') }}
+
+      - name: Prepare verified Tiny STT seed
+        timeout-minutes: 15
+        shell: bash
+        run: |
+          for attempt in 1 2 3; do
+            if yarn workspace @nota/ai-backend prepare-model-seed --model whisper-tiny-q5-cpp; then
+              exit 0
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              exit 1
+            fi
+            sleep $((attempt * 5))
+          done
+
+      - name: Upload Tiny STT seed
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-local-stt-seed-whisper-tiny
+          path: .nota/models/whisper-tiny-q5-cpp
+          compression-level: 0
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 1
+
+      - name: Upload web artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-web
+          path: packages/frontend/apps/electron/resources/web-static
+
+  make-distribution-macos:
+    if: ${{ inputs.desktop_macos }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # onnxruntime-node 1.24.3 does not publish a darwin/x64 binding. Do not
+        # advertise an Intel build that cannot run Nota's bundled local AI/STT.
+        spec:
+          - runner: macos-latest
+            platform: darwin
+            arch: arm64
+            target: aarch64-apple-darwin
+    needs: before-make
+    uses: ./.github/workflows/release-desktop-platform.yml
+    secrets: inherit
+    with:
+      build_type: ${{ inputs.build-type }}
+      app_version: ${{ inputs.app-version }}
+      git_short_hash: ${{ inputs.git-short-hash }}
+      runner: ${{ matrix.spec.runner }}
+      platform: ${{ matrix.spec.platform }}
+      arch: ${{ matrix.spec.arch }}
+      target: ${{ matrix.spec.target }}
+      apple_codesign: true
+
+  make-distribution-linux:
+    if: ${{ inputs.desktop_linux }}
+    strategy:
+      fail-fast: false
+      matrix:
+        spec:
+          - runner: ubuntu-latest
+            platform: linux
+            arch: x64
+            target: x86_64-unknown-linux-gnu
+    needs: before-make
+    uses: ./.github/workflows/release-desktop-platform.yml
+    secrets: inherit
+    with:
+      build_type: ${{ inputs.build-type }}
+      app_version: ${{ inputs.app-version }}
+      git_short_hash: ${{ inputs.git-short-hash }}
+      runner: ${{ matrix.spec.runner }}
+      platform: ${{ matrix.spec.platform }}
+      arch: ${{ matrix.spec.arch }}
+      target: ${{ matrix.spec.target }}
+      install_linux_deps: true
+
+  # sherpa-onnx-node has no published Windows ARM64 binding through 1.13.8.
+  # Keep packaging, signing, installers, and release downloads x64-only until
+  # that runtime exists; an ARM64 job would also block the x64 installer chain.
+  package-distribution-windows-x64:
+    if: ${{ inputs.desktop_windows }}
+    needs: before-make
+    uses: ./.github/workflows/release-desktop-platform.yml
+    secrets: inherit
+    with:
+      build_type: ${{ inputs.build-type }}
+      app_version: ${{ inputs.app-version }}
+      git_short_hash: ${{ inputs.git-short-hash }}
+      runner: windows-latest
+      platform: win32
+      arch: x64
+      target: x86_64-pc-windows-msvc
+      enable_scripts: true
+
+  sign-packaged-artifacts-windows_x64:
+    if: ${{ inputs.desktop_windows }}
+    needs: package-distribution-windows-x64
+    uses: ./.github/workflows/windows-signer.yml
+    with:
+      files: ${{ needs.package-distribution-windows-x64.outputs.files_to_be_signed }}
+      artifact-name: packaged-win32-x64
+
+  make-windows-installer:
+    if: ${{ inputs.desktop_windows }}
+    needs:
+      - sign-packaged-artifacts-windows_x64
+    strategy:
+      fail-fast: false
+      matrix:
+        spec:
+          - platform: win32
+            arch: x64
+    runs-on: windows-latest
+    outputs:
+      FILES_TO_BE_SIGNED_x64: ${{ steps.get_files_to_be_signed.outputs.FILES_TO_BE_SIGNED_x64 }}
+    steps:
+      - uses: actions/checkout@v6
+      - name: Setup Version
+        uses: ./.github/actions/setup-version
+        with:
+          app-version: ${{ inputs.app-version }}
+      - name: Setup Node.js
+        timeout-minutes: 10
+        uses: ./.github/actions/setup-node
+        with:
+          extra-flags: workspaces focus @nota/electron @nota/monorepo
+          hard-link-nm: false
+          nmHoistingLimits: workspaces
+        env:
+          npm_config_arch: ${{ matrix.spec.arch }}
+      - name: Download packaged artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: packaged-${{ matrix.spec.platform }}-${{ matrix.spec.arch }}
+          path: packaged-unsigned
+      - name: unzip packaged artifacts
+        run: Expand-Archive -Path packaged-unsigned/archive.zip -DestinationPath packages/frontend/apps/electron/out
+      - name: Download signed packaged file diff
+        uses: actions/download-artifact@v4
+        with:
+          name: signed-packaged-${{ matrix.spec.platform }}-${{ matrix.spec.arch }}
+          path: signed-packaged-diff
+      - name: Apply signed packaged file diff
+        shell: pwsh
+        run: |
+          $DiffRoot = 'signed-packaged-diff/files'
+          $TargetRoot = 'packages/frontend/apps/electron/out'
+          if (!(Test-Path -LiteralPath $DiffRoot)) {
+            throw "Signed diff directory not found: $DiffRoot"
+          }
+
+          Copy-Item -Path (Join-Path $DiffRoot '*') -Destination $TargetRoot -Recurse -Force
+
+          $ManifestPath = 'signed-packaged-diff/manifest.json'
+          if (Test-Path -LiteralPath $ManifestPath) {
+            $ManifestEntries = @(Get-Content -LiteralPath $ManifestPath | ConvertFrom-Json)
+            foreach ($Entry in $ManifestEntries) {
+              $TargetPath = Join-Path $TargetRoot $Entry.path
+              if (!(Test-Path -LiteralPath $TargetPath -PathType Leaf)) {
+                throw "Applied signed file not found: $($Entry.path)"
+              }
+
+              $TargetHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $TargetPath).Hash
+              if ($TargetHash -ne $Entry.sha256) {
+                throw "Signed file hash mismatch: $($Entry.path)"
+              }
+            }
+          }
+
+      - name: Make squirrel.windows installer
+        run: yarn nota @nota/electron make-squirrel --platform=${{ matrix.spec.platform }} --arch=${{ matrix.spec.arch }}
+
+      - name: Make nsis.windows installer
+        run: yarn nota @nota/electron make-nsis --platform=${{ matrix.spec.platform }} --arch=${{ matrix.spec.arch }}
+
+      - name: Zip artifacts for faster upload
+        run: Compress-Archive -CompressionLevel Fastest -Path packages/frontend/apps/electron/out/${{ env.BUILD_TYPE }}/make/* -DestinationPath archive.zip
+
+      - name: get all files to be signed
+        id: get_files_to_be_signed
+        run: |
+          Set-Variable -Name FILES_TO_BE_SIGNED -Value ((Get-ChildItem -Path packages/frontend/apps/electron/out/${{ env.BUILD_TYPE }}/make -Recurse -File | Where-Object { $_.Extension -in @(".exe", ".node", ".dll", ".msi") } | ForEach-Object { '"' + $_.FullName.Replace((Get-Location).Path + '\packages\frontend\apps\electron\out\${{ env.BUILD_TYPE }}\make\', '') + '"' }) -join ' ')
+          "FILES_TO_BE_SIGNED_${{ matrix.spec.arch }}=$FILES_TO_BE_SIGNED" >> $env:GITHUB_OUTPUT
+          echo $FILES_TO_BE_SIGNED
+
+      - name: Save installer for signing
+        uses: actions/upload-artifact@v4
+        with:
+          name: installer-${{ matrix.spec.platform }}-${{ matrix.spec.arch }}
+          path: archive.zip
+
+  sign-installer-artifacts-windows-x64:
+    if: ${{ inputs.desktop_windows }}
+    needs: make-windows-installer
+    uses: ./.github/workflows/windows-signer.yml
+    with:
+      files: ${{ needs.make-windows-installer.outputs.FILES_TO_BE_SIGNED_x64 }}
+      artifact-name: installer-win32-x64
+
+  finalize-installer-windows:
+    if: ${{ inputs.desktop_windows }}
+    needs: [sign-installer-artifacts-windows-x64, before-make]
+    strategy:
+      fail-fast: false
+      matrix:
+        spec:
+          - runner: windows-latest
+            platform: win32
+            arch: x64
+    runs-on: ${{ matrix.spec.runner }}
+    steps:
+      - name: Download installer artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: installer-${{ matrix.spec.platform }}-${{ matrix.spec.arch }}
+          path: installer-unsigned
+      - name: unzip installer artifacts
+        run: Expand-Archive -Path installer-unsigned/archive.zip -DestinationPath packages/frontend/apps/electron/out/${{ env.BUILD_TYPE }}/make
+      - name: Download signed installer file diff
+        uses: actions/download-artifact@v4
+        with:
+          name: signed-installer-${{ matrix.spec.platform }}-${{ matrix.spec.arch }}
+          path: signed-installer-diff
+      - name: Apply signed installer file diff
+        shell: pwsh
+        run: |
+          $DiffRoot = 'signed-installer-diff/files'
+          $TargetRoot = 'packages/frontend/apps/electron/out/${{ env.BUILD_TYPE }}/make'
+          if (!(Test-Path -LiteralPath $DiffRoot)) {
+            throw "Signed diff directory not found: $DiffRoot"
+          }
+
+          Copy-Item -Path (Join-Path $DiffRoot '*') -Destination $TargetRoot -Recurse -Force
+
+          $ManifestPath = 'signed-installer-diff/manifest.json'
+          if (Test-Path -LiteralPath $ManifestPath) {
+            $ManifestEntries = @(Get-Content -LiteralPath $ManifestPath | ConvertFrom-Json)
+            foreach ($Entry in $ManifestEntries) {
+              $TargetPath = Join-Path $TargetRoot $Entry.path
+              if (!(Test-Path -LiteralPath $TargetPath -PathType Leaf)) {
+                throw "Applied signed file not found: $($Entry.path)"
+              }
+
+              $TargetHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $TargetPath).Hash
+              if ($TargetHash -ne $Entry.sha256) {
+                throw "Signed file hash mismatch: $($Entry.path)"
+              }
+            }
+          }
+
+      - name: Save artifacts
+        run: |
+          mkdir -p builds
+          mv packages/frontend/apps/electron/out/*/make/zip/win32/${{ matrix.spec.arch }}/Nota*-win32-${{ matrix.spec.arch }}-*.zip ./builds/nota-${{ env.RELEASE_VERSION }}-${{ env.BUILD_TYPE }}-windows-${{ matrix.spec.arch }}.zip
+          mv packages/frontend/apps/electron/out/*/make/squirrel.windows/${{ matrix.spec.arch }}/*.exe ./builds/nota-${{ env.RELEASE_VERSION }}-${{ env.BUILD_TYPE }}-windows-${{ matrix.spec.arch }}.exe
+          mv packages/frontend/apps/electron/out/*/make/nsis.windows/${{ matrix.spec.arch }}/*.exe ./builds/nota-${{ env.RELEASE_VERSION }}-${{ env.BUILD_TYPE }}-windows-${{ matrix.spec.arch }}.nsis.exe
+
+      - uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: |
+            ./builds/nota-${{ env.RELEASE_VERSION }}-${{ env.BUILD_TYPE }}-windows-${{ matrix.spec.arch }}.zip
+            ./builds/nota-${{ env.RELEASE_VERSION }}-${{ env.BUILD_TYPE }}-windows-${{ matrix.spec.arch }}.exe
+            ./builds/nota-${{ env.RELEASE_VERSION }}-${{ env.BUILD_TYPE }}-windows-${{ matrix.spec.arch }}.nsis.exe
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nota-${{ matrix.spec.platform }}-${{ matrix.spec.arch }}-builds
+          path: builds
+
+  release:
+    if: >-
+      ${{
+        always() &&
+        !contains(needs.*.result, 'failure') &&
+        !contains(needs.*.result, 'cancelled') &&
+        (inputs.desktop_macos || inputs.desktop_linux || inputs.desktop_windows)
+      }}
+    needs:
+      [
+        before-make,
+        make-distribution-macos,
+        make-distribution-linux,
+        finalize-installer-windows,
+      ]
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+      - name: Download Artifacts (macos-arm64)
+        if: ${{ inputs.desktop_macos }}
+        uses: actions/download-artifact@v4
+        with:
+          name: nota-darwin-arm64-builds
+          path: ./release
+      - name: Download Artifacts (windows-x64)
+        if: ${{ inputs.desktop_windows }}
+        uses: actions/download-artifact@v4
+        with:
+          name: nota-win32-x64-builds
+          path: ./release
+      - name: Download Artifacts (linux-x64)
+        if: ${{ inputs.desktop_linux }}
+        uses: actions/download-artifact@v4
+        with:
+          name: nota-linux-x64-builds
+          path: ./release
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 20
+      - name: Copy Selfhost Release Files
+        run: |
+          cp ./.docker/selfhost/compose.yml ./release/docker-compose.yml
+          cp ./.docker/selfhost/.env.example ./release/.env.example
+          cp ./.docker/selfhost/schema.json ./release/config.schema.json
+      - name: Generate Release yml
+        run: |
+          node ./scripts/generate-release-yml.mjs
+        env:
+          RELEASE_VERSION: ${{ env.RELEASE_VERSION }}
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ env.RELEASE_VERSION }}
+          draft: ${{ inputs.build-type == 'stable' }}
+          prerelease: ${{ inputs.build-type != 'stable' }}
+          tag_name: v${{ env.RELEASE_VERSION}}
+          files: ./release/*

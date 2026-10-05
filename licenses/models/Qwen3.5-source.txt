@@ -1,0 +1,3 @@
+Qwen3.5 2B base model license source
+https://huggingface.co/Qwen/Qwen3.5-2B/raw/15852e8c16360a2fea060d615a32b45270f8a8fc/LICENSE
+Fetched October 5, 2026. The pinned onnx-community export does not contain a LICENSE file at its root; the official base-model terms are retained here. This does not replace converter-origin/NOTICE verification.

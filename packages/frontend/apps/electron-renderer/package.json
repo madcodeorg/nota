@@ -1,0 +1,39 @@
+{
+  "name": "@nota/electron-renderer",
+  "private": true,
+  "version": "0.26.5",
+  "type": "module",
+  "scripts": {
+    "build": "affine bundle",
+    "dev": "affine bundle --dev"
+  },
+  "dependencies": {
+    "@blocksuite/affine": "workspace:*",
+    "@emotion/react": "^11.14.0",
+    "@nota/component": "workspace:*",
+    "@nota/core": "workspace:*",
+    "@nota/debug": "workspace:*",
+    "@nota/electron-api": "workspace:*",
+    "@nota/i18n": "workspace:*",
+    "@nota/infra": "workspace:*",
+    "@nota/nbstore": "workspace:*",
+    "@nota/track": "workspace:*",
+    "@sentry/react": "^10.40.0",
+    "@toeverything/theme": "^1.1.23",
+    "@vanilla-extract/css": "^1.17.0",
+    "async-call-rpc": "^6.4.2",
+    "next-themes": "^0.4.4",
+    "react": "^19.2.1",
+    "react-dom": "^19.2.1",
+    "react-router-dom": "^6.30.3",
+    "uuid": "^14.0.1",
+    "webm-muxer": "^5.0.3"
+  },
+  "devDependencies": {
+    "@nota-tools/utils": "workspace:*",
+    "@types/react": "^19.0.1",
+    "@types/react-dom": "^19.0.2",
+    "cross-env": "^10.1.0",
+    "typescript": "^5.9.3"
+  }
+}

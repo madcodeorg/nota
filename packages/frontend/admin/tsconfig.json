@@ -1,0 +1,19 @@
+{
+  "extends": "../../../tsconfig.web.json",
+  "include": ["./src", "./src/config.json"],
+  "compilerOptions": {
+    "types": ["build-config", "nota__env", "node"],
+    "resolveJsonModule": true,
+    "rootDir": "./src",
+    "outDir": "./dist",
+    "tsBuildInfoFile": "./dist/tsconfig.tsbuildinfo"
+  },
+  "references": [
+    { "path": "../component" },
+    { "path": "../core" },
+    { "path": "../../common/error" },
+    { "path": "../../common/graphql" },
+    { "path": "../../common/infra" },
+    { "path": "../routes" }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "name": "@nota-test/nota-desktop",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "e2e": "yarn playwright test --reporter=list"
+  },
+  "devDependencies": {
+    "@nota-test/kit": "workspace:*",
+    "@nota/electron-api": "workspace:*",
+    "@playwright/test": "=1.58.2",
+    "@types/fs-extra": "^11.0.4",
+    "fs-extra": "^11.2.0",
+    "playwright": "=1.58.2"
+  },
+  "version": "0.26.3"
+}

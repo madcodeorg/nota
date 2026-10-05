@@ -1,0 +1,103 @@
+{
+  "name": "@nota/electron",
+  "private": true,
+  "version": "0.26.5",
+  "main": "./dist/main.js",
+  "author": "heyyykk3",
+  "repository": {
+    "url": "https://github.com/madcodeorg/nota",
+    "type": "git"
+  },
+  "description": "Nota Desktop App",
+  "homepage": "https://github.com/madcodeorg/nota",
+  "exports": {
+    "./helper/exposed": "./src/helper/exposed.ts",
+    "./main/exposed": "./src/main/exposed.ts",
+    "./preload/electron-api": "./src/preload/electron-api.ts",
+    "./preload/shared-storage": "./src/preload/shared-storage.ts",
+    "./main/shared-state-schema": "./src/main/shared-state-schema.ts",
+    "./main/updater/event": "./src/main/updater/event.ts",
+    "./main/windows-manager": "./src/main/windows-manager/index.ts"
+  },
+  "scripts": {
+    "start": "electron .",
+    "dev": "cross-env DEV_SERVER_URL=http://localhost:8080 node ../../../../node_modules/tsx/dist/cli.mjs ./scripts/dev.ts",
+    "dev:prod": "node ../../../../node_modules/tsx/dist/cli.mjs ./scripts/dev.ts",
+    "build": "cross-env NODE_ENV=production node ../../../../node_modules/tsx/dist/cli.mjs ./scripts/build-layers.ts",
+    "build:apple-calendar-native": "node ../../../../node_modules/tsx/dist/cli.mjs ./scripts/build-apple-calendar-native.ts",
+    "build:apple-speech-helper": "node ../../../../node_modules/tsx/dist/cli.mjs ./scripts/build-apple-speech-helper.ts",
+    "build:dev": "node ../../../../node_modules/tsx/dist/cli.mjs ./scripts/build-layers.ts",
+    "generate-icons": "node ./scripts/generate-icons.ts",
+    "generate-assets": "node ./scripts/generate-assets.ts",
+    "package": "electron-forge package",
+    "make": "electron-forge make",
+    "make-squirrel": "node ./scripts/make-squirrel.ts",
+    "make-nsis": "node ./scripts/make-nsis.ts"
+  },
+  "devDependencies": {
+    "@electron-forge/cli": "^7.11.2",
+    "@electron-forge/core": "^7.11.2",
+    "@electron-forge/maker-deb": "^7.11.2",
+    "@electron-forge/maker-dmg": "^7.11.2",
+    "@electron-forge/maker-flatpak": "^7.11.2",
+    "@electron-forge/maker-squirrel": "^7.11.2",
+    "@electron-forge/maker-zip": "^7.11.2",
+    "@electron-forge/plugin-auto-unpack-natives": "^7.11.2",
+    "@electron-forge/plugin-fuses": "^7.11.2",
+    "@electron-forge/shared-types": "^7.11.2",
+    "@electron/fuses": "1.8.0",
+    "@electron/notarize": "2.5.0",
+    "@electron/osx-sign": "^1.3.3",
+    "@napi-rs/cli": "3.5.0",
+    "@nota-tools/utils": "workspace:*",
+    "@nota/i18n": "workspace:*",
+    "@nota/infra": "workspace:*",
+    "@nota/native": "workspace:*",
+    "@nota/nbstore": "workspace:*",
+    "@reforged/maker-appimage": "^5.2.0",
+    "@sentry/electron": "^7.15.0",
+    "@sentry/esbuild-plugin": "^5.4.0",
+    "@sentry/react": "^10.62.0",
+    "@types/set-cookie-parser": "^2.4.10",
+    "@vitejs/plugin-react-swc": "^4.0.0",
+    "app-builder-lib": "^26.8.1",
+    "builder-util-runtime": "^9.5.1",
+    "cross-env": "^10.1.0",
+    "debug": "^4.4.0",
+    "electron": "^39.8.10",
+    "electron-log": "^5.4.3",
+    "electron-squirrel-startup": "1.0.1",
+    "electron-window-state": "^5.0.3",
+    "esbuild": "^0.25.0",
+    "fs-extra": "^11.2.0",
+    "glob": "^11.0.0",
+    "lodash-es": "^4.17.23",
+    "msw": "^2.12.4",
+    "nanoid": "^5.1.6",
+    "rxjs": "^7.8.2",
+    "semver": "^7.7.3",
+    "tree-kill": "^1.2.2",
+    "typescript": "^5.9.3",
+    "uuid": "^14.0.1",
+    "vitest": "^4.0.18",
+    "zod": "^3.25.76"
+  },
+  "dependencies": {
+    "async-call-rpc": "^6.4.2",
+    "electron-updater": "^6.8.3",
+    "link-preview-js": "^4.0.4",
+    "next-themes": "^0.4.4",
+    "set-cookie-parser": "^2.7.1",
+    "yjs": "^13.6.27"
+  },
+  "build": {
+    "protocols": [
+      {
+        "name": "nota",
+        "schemes": [
+          "nota"
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "extends": "../../../tsconfig.web.json",
+  "include": ["./src"],
+  "compilerOptions": {
+    "types": ["build-config", "nota__env", "node"],
+    "rootDir": "./src",
+    "outDir": "./dist",
+    "tsBuildInfoFile": "./dist/tsconfig.tsbuildinfo"
+  },
+  "references": [
+    { "path": "../infra" },
+    { "path": "../reader" },
+    { "path": "../../../blocksuite/affine/all" },
+    { "path": "../error" },
+    { "path": "../graphql" }
+  ]
+}

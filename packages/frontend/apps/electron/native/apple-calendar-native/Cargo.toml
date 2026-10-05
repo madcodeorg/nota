@@ -1,0 +1,17 @@
+[package]
+edition = "2024"
+name    = "nota_apple_calendar_native"
+version = "0.0.0"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+block2      = { workspace = true }
+chrono      = { workspace = true }
+napi        = { workspace = true, features = ["napi4"] }
+napi-derive = { workspace = true, features = ["type-def"] }
+objc2       = { workspace = true }
+
+[build-dependencies]
+napi-build = { workspace = true }

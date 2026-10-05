@@ -1,0 +1,16 @@
+{
+  "name": "@nota/error",
+  "version": "0.26.3",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "peerDependencies": {
+    "@nota/graphql": "workspace:*",
+    "graphql": "^16.9.0"
+  },
+  "devDependencies": {
+    "vitest": "^4.0.18"
+  }
+}

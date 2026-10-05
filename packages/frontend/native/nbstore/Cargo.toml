@@ -1,0 +1,57 @@
+[package]
+edition = "2024"
+name    = "nota_nbstore"
+version = "0.0.0"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default    = []
+napi       = []
+use-as-lib = ["napi-derive/noop", "napi/noop"]
+
+[dependencies]
+nota_schema = { path = "../schema" }
+anyhow = { workspace = true }
+bincode = { version = "2.0.1", features = ["serde"] }
+chrono = { workspace = true }
+memory-indexer = { workspace = true }
+napi = { workspace = true }
+napi-derive = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+sqlx = { workspace = true, default-features = false, features = [
+  "chrono",
+  "macros",
+  "migrate",
+  "runtime-tokio",
+  "sqlite",
+  "tls-rustls",
+] }
+thiserror = { workspace = true }
+tempfile = "3.24"
+tokio = { workspace = true, features = ["full"] }
+y-octo = { workspace = true }
+zstd = "0.13"
+
+[target.'cfg(any(target_os = "ios", target_os = "android"))'.dependencies]
+uniffi = { workspace = true }
+
+[build-dependencies]
+nota_schema = { path = "../schema" }
+dotenvy = { workspace = true }
+napi-build = { workspace = true }
+sqlx = { workspace = true, default-features = false, features = [
+  "chrono",
+  "macros",
+  "migrate",
+  "runtime-tokio",
+  "sqlite",
+  "tls-rustls",
+] }
+tokio = { workspace = true, features = ["full"] }
+
+
+[dev-dependencies]
+serde_json = { workspace = true }
+uuid       = { workspace = true, features = ["v4"] }

@@ -1,0 +1,179 @@
+{
+  "type": "page",
+  "meta": {
+    "id": "kV_wO0ALWs",
+    "title": "How to use folder and Tags",
+    "createDate": 1791172800000,
+    "tags": []
+  },
+  "blocks": {
+    "type": "block",
+    "id": "kV_wO0ALWs-page",
+    "flavour": "affine:page",
+    "version": 2,
+    "props": {
+      "title": {
+        "$blocksuite:internal:text$": true,
+        "delta": [
+          {
+            "insert": "How to use folder and Tags"
+          }
+        ]
+      }
+    },
+    "children": [
+      {
+        "type": "block",
+        "id": "kV_wO0ALWs-surface",
+        "flavour": "affine:surface",
+        "version": 5,
+        "props": {
+          "elements": {}
+        },
+        "children": []
+      },
+      {
+        "type": "block",
+        "id": "kV_wO0ALWs-note",
+        "flavour": "affine:note",
+        "version": 1,
+        "props": {
+          "xywh": "[0,0,800,800]",
+          "background": {
+            "dark": "#000000",
+            "light": "#ffffff"
+          },
+          "index": "a0",
+          "lockedBySelf": false,
+          "hidden": false,
+          "displayMode": "both",
+          "edgeless": {
+            "style": {
+              "borderRadius": 8,
+              "borderSize": 4,
+              "borderStyle": "none",
+              "shadowType": "--affine-note-shadow-box"
+            },
+            "collapse": false
+          }
+        },
+        "children": [
+          {
+            "type": "block",
+            "id": "folders-title",
+            "flavour": "affine:paragraph",
+            "version": 1,
+            "props": {
+              "type": "h1",
+              "text": {
+                "$blocksuite:internal:text$": true,
+                "delta": [
+                  {
+                    "insert": "Folders and tags"
+                  }
+                ]
+              },
+              "collapsed": false
+            },
+            "children": []
+          },
+          {
+            "type": "block",
+            "id": "folders",
+            "flavour": "affine:paragraph",
+            "version": 1,
+            "props": {
+              "type": "text",
+              "text": {
+                "$blocksuite:internal:text$": true,
+                "delta": [
+                  {
+                    "insert": "Create a folder in the sidebar to group related pages. A page can also carry tags, so you can find it through more than one topic."
+                  }
+                ]
+              },
+              "collapsed": false
+            },
+            "children": []
+          },
+          {
+            "type": "block",
+            "id": "folder-practice",
+            "flavour": "affine:paragraph",
+            "version": 1,
+            "props": {
+              "type": "h2",
+              "text": {
+                "$blocksuite:internal:text$": true,
+                "delta": [
+                  {
+                    "insert": "Try it"
+                  }
+                ]
+              },
+              "collapsed": false
+            },
+            "children": []
+          },
+          {
+            "type": "block",
+            "id": "folder-step-one",
+            "flavour": "affine:paragraph",
+            "version": 1,
+            "props": {
+              "type": "text",
+              "text": {
+                "$blocksuite:internal:text$": true,
+                "delta": [
+                  {
+                    "insert": "Create a folder for a project and move a page into it."
+                  }
+                ]
+              },
+              "collapsed": false
+            },
+            "children": []
+          },
+          {
+            "type": "block",
+            "id": "folder-step-two",
+            "flavour": "affine:paragraph",
+            "version": 1,
+            "props": {
+              "type": "text",
+              "text": {
+                "$blocksuite:internal:text$": true,
+                "delta": [
+                  {
+                    "insert": "Add a tag from the page properties, then use the tag view to find other pages with that tag."
+                  }
+                ]
+              },
+              "collapsed": false
+            },
+            "children": []
+          },
+          {
+            "type": "block",
+            "id": "linking",
+            "flavour": "affine:paragraph",
+            "version": 1,
+            "props": {
+              "type": "text",
+              "text": {
+                "$blocksuite:internal:text$": true,
+                "delta": [
+                  {
+                    "insert": "Use @ in a page to link related notes. Links and backlinks connect pages without duplicating their content."
+                  }
+                ]
+              },
+              "collapsed": false
+            },
+            "children": []
+          }
+        ]
+      }
+    ]
+  }
+}

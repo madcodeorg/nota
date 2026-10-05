@@ -1,0 +1,39 @@
+import type { DocsService } from '@nota/core/modules/doc';
+import { Service } from '@nota/infra';
+import { map, type Observable } from 'rxjs';
+
+import type { OrderByProvider } from '../../provider';
+import type { OrderByParams } from '../../types';
+
+export class EdgelessThemeOrderByProvider
+  extends Service
+  implements OrderByProvider
+{
+  constructor(private readonly docsService: DocsService) {
+    super();
+  }
+
+  orderBy$(
+    _items$: Observable<Set<string>>,
+    params: OrderByParams
+  ): Observable<string[]> {
+    return this.docsService.propertyValues$('edgelessColorTheme').pipe(
+      map(values => {
+        const docs = Array.from(values).map(([id, value]) => ({
+          id,
+          theme: value ?? 'system',
+        }));
+
+        if (params.desc) {
+          return docs
+            .sort((a, b) => b.theme.localeCompare(a.theme))
+            .map(doc => doc.id);
+        } else {
+          return docs
+            .sort((a, b) => a.theme.localeCompare(b.theme))
+            .map(doc => doc.id);
+        }
+      })
+    );
+  }
+}

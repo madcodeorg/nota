@@ -1,0 +1,61 @@
+name: Bug Report
+description: File a bug report
+title: '[Bug]: '
+labels: ['bug']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to fill out this bug report!
+        Include steps to reproduce the problem and your operating system.
+        Remove API keys, tokens, personal notes and recordings from attachments and logs.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Also tell us, what did you expect to happen?
+      placeholder: Tell us what you see!
+    validations:
+      required: true
+  - type: dropdown
+    id: distribution
+    attributes:
+      label: Distribution version
+      description: What distribution of Nota are you using?
+      options:
+        - macOS ARM64 (Apple Silicon)
+        - Windows x64
+        - Linux x64
+        - Local web development build
+        - Other source build
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: App Version
+      description: What version of Nota are you using?
+      placeholder: (You can find Nota version in [About Nota] setting panel)
+  - type: dropdown
+    id: browsers
+    attributes:
+      label: What browsers are you seeing the problem on if you're using web version?
+      multiple: true
+      options:
+        - Chrome
+        - Microsoft Edge
+        - Firefox
+        - Safari
+        - Other
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant log output
+      description: Please copy and paste any relevant log output. This will be automatically formatted into code, so no need for backticks.
+      render: shell
+  - type: textarea
+    attributes:
+      label: Anything else?
+      description: |
+        Links? References? Anything that will give us more context about the issue you are encountering!
+        Tip: You can attach images here

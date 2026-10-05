@@ -1,0 +1,20 @@
+Nota
+Copyright (c) 2024-present Nota contributors.
+
+Nota derives from MIT-covered portions of AFFiNE.
+Copyright (c) 2022-present TOEVERYTHING PTE. LTD. and its affiliates.
+The upstream MIT notice is retained in LICENSE and LICENSE-MIT.
+
+BlockSuite and y-octo source, and other third-party code retain their original
+notices and licenses. See THIRD_PARTY_NOTICES.md, licenses/, and licenses beside
+the relevant source files. Third-party model weights, fonts, native runtimes,
+and other assets are not relicensed by Nota's application license.
+
+The source publication candidate excludes the removed restricted backend/native
+directories, development Git history, local user data, model weights, built
+installers, and the two unverified checked-in native runtime libraries.
+
+Satoshi font files and externally sourced onboarding media/prose have been
+removed from the source candidate. The compatibility font identifier is retained
+for old documents and renders with Inter. This does not imply endorsement by
+any upstream author or ownership of upstream trademarks.
