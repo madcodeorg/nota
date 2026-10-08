@@ -32,7 +32,7 @@ const appSettingBaseAtom = atomWithStorage<AppSetting>(
     windowFrameStyle: 'frameless',
     enableBlurBackground: BUILD_CONFIG.isElectron && environment.isMacOs,
     enableNoisyBackground: true,
-    autoCheckUpdate: false,
+    autoCheckUpdate: true,
     autoDownloadUpdate: false,
     enableTelemetry: false,
     showLinkedDocInSidebar: true,
