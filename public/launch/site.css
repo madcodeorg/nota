@@ -1258,3 +1258,9 @@ main {
     transform: none;
   }
 }
+
+.button-version {
+  margin-left: 0.5em;
+  opacity: 0.7;
+  font-weight: 400;
+}
