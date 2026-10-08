@@ -12,8 +12,8 @@ export function getBuildConfig(
   buildFlags: BuildFlags
 ): BUILD_CONFIG_TYPE {
   const distribution = PackageToDistribution.get(pkg.name);
-  const productionGoogleAuthBrokerUrl =
-    buildFlags.mode === 'production' ? 'https://thenota.app' : '';
+  // Sign-in goes straight to Google with a desktop client; set GOOGLE_AUTH_BROKER_URL only to use a broker.
+  const productionGoogleAuthBrokerUrl = '';
 
   if (!distribution) {
     throw new Error(`Distribution for ${pkg.name} is not found`);
@@ -57,6 +57,8 @@ export function getBuildConfig(
         CAPTCHA_SITE_KEY: process.env.CAPTCHA_SITE_KEY ?? '',
         SENTRY_DSN: process.env.SENTRY_DSN ?? '',
         googleClientId: process.env.GOOGLE_CLIENT_ID ?? '',
+        // Google desktop-app client secrets are not confidential; Google's token endpoint still requires one.
+        googleClientSecret: process.env.GOOGLE_CLIENT_SECRET ?? '',
         googleAuthBrokerUrl:
           process.env.GOOGLE_AUTH_BROKER_URL ?? productionGoogleAuthBrokerUrl,
       };
