@@ -477,6 +477,9 @@ export class GoogleSession extends Entity {
   ): Promise<GoogleTokens> {
     const params = new URLSearchParams({
       client_id: BUILD_CONFIG.googleClientId,
+      ...(BUILD_CONFIG.googleClientSecret
+        ? { client_secret: BUILD_CONFIG.googleClientSecret }
+        : {}),
       refresh_token: tokens.refreshToken,
       grant_type: 'refresh_token',
     });

@@ -400,6 +400,9 @@ export class GoogleAuthService extends Service {
   ): Promise<void> {
     const tokenParams = new URLSearchParams({
       client_id: BUILD_CONFIG.googleClientId,
+      ...(BUILD_CONFIG.googleClientSecret
+        ? { client_secret: BUILD_CONFIG.googleClientSecret }
+        : {}),
       code,
       code_verifier: codeVerifier,
       grant_type: 'authorization_code',

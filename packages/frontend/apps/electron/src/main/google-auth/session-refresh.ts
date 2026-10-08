@@ -27,6 +27,7 @@ async function refreshCurrentSession(): Promise<StoredGoogleSession | null> {
     const refreshed = await resolveGoogleCalendarSession({
       brokerUrl: BUILD_CONFIG.googleAuthBrokerUrl,
       clientId: BUILD_CONFIG.googleClientId,
+      clientSecret: BUILD_CONFIG.googleClientSecret,
       session: source,
       signal: controller.signal,
     });

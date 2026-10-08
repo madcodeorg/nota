@@ -38,7 +38,8 @@ permissions:
 env:
   BUILD_TYPE: ${{ inputs.build-type }}
   RELEASE_VERSION: ${{ inputs.app-version }}
-  GOOGLE_AUTH_BROKER_URL: https://thenota.app
+  GOOGLE_CLIENT_ID: ${{ secrets.NOTA_GOOGLE_DESKTOP_CLIENT_ID }}
+  GOOGLE_CLIENT_SECRET: ${{ secrets.NOTA_GOOGLE_DESKTOP_CLIENT_SECRET }}
   DEBUG: 'nota:*,napi:*'
   APP_NAME: nota
   MACOSX_DEPLOYMENT_TARGET: '14.0'

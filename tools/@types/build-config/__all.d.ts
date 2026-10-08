@@ -38,6 +38,7 @@ declare interface BUILD_CONFIG_TYPE {
   CAPTCHA_SITE_KEY: string;
   SENTRY_DSN: string;
   googleClientId: string;
+  googleClientSecret: string;
   googleAuthBrokerUrl: string;
 }
 

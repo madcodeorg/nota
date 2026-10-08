@@ -191,6 +191,7 @@ export function isGoogleSessionRevokedError(error: unknown) {
 export async function resolveGoogleCalendarSession(input: {
   brokerUrl: string;
   clientId: string;
+  clientSecret?: string;
   fetchFn?: FetchLike;
   now?: number;
   session: StoredGoogleSession;
@@ -228,6 +229,7 @@ export async function resolveGoogleCalendarSession(input: {
     response = await fetchFn(GOOGLE_TOKEN_ENDPOINT, {
       body: new URLSearchParams({
         client_id: input.clientId,
+        ...(input.clientSecret ? { client_secret: input.clientSecret } : {}),
         grant_type: 'refresh_token',
         refresh_token: input.session.tokens.refreshToken,
       }).toString(),
