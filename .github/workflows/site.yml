@@ -1,0 +1,65 @@
+name: Site
+
+# Deploys thenota.app to GitHub Pages. The page comes from public/, and the
+# update manifest and download redirect come from the latest published release,
+# so publishing a release is all it takes to ship an update.
+on:
+  release:
+    types: [published, edited]
+  push:
+    branches: [main]
+    paths: ['public/**', '.github/workflows/site.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build site
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p _site
+          cp -R public/. _site/
+          cp _site/launch.html _site/index.html
+          echo "thenota.app" > _site/CNAME
+          touch _site/.nojekyll
+
+          # Latest published stable release (drafts and prereleases are skipped by gh).
+          TAG="$(gh release list --exclude-drafts --exclude-pre-releases --limit 1 --json tagName --jq '.[0].tagName' || true)"
+          if [ -n "${TAG}" ] && gh release view "${TAG}" --json assets --jq '.assets[].name' | grep -qx 'latest-mac.yml'; then
+            VERSION="${TAG#v}"
+            BASE="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}"
+            mkdir -p _site/updates/stable _site/download
+            gh release download "${TAG}" --pattern latest-mac.yml --dir /tmp/feed
+            # Point every file at its GitHub release asset so clients download from GitHub.
+            sed -E "s#^([[:space:]]*(- )?(url|path): )(nota-[^ ]*)\$#\1$BASE/\4#" /tmp/feed/latest-mac.yml > _site/updates/stable/latest-mac.yml
+            DMG="$(grep -oE 'url: \S+\.dmg' _site/updates/stable/latest-mac.yml | head -1 | cut -d' ' -f2)"
+            printf '<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="0;url=%s"><title>Nota download</title><a href="%s">Download Nota</a>\n' "${DMG}" "${DMG}" > _site/download/index.html
+            sed -i "s#\(data-nota-version[^>]*>\)[0-9][0-9.]*#\1${VERSION}#" _site/index.html
+            echo "Site will ship ${TAG}"
+          else
+            echo "No published release with latest-mac.yml yet; deploying page only"
+          fi
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v4
