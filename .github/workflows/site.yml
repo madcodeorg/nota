@@ -57,6 +57,23 @@ jobs:
             echo "No published release with latest-mac.yml yet; deploying page only"
           fi
 
+      - name: Add beta update channel
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # Latest published pre-release (tags like v0.2.0-beta.1) feeds the beta channel.
+          TAG="$(gh release list --exclude-drafts --limit 30 --json tagName,isPrerelease --jq 'map(select(.isPrerelease))|.[0].tagName // empty')"
+          if [ -n "${TAG}" ] && gh release view "${TAG}" --json assets --jq '.assets[].name' | grep -qx 'latest-mac.yml'; then
+            BASE="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}"
+            mkdir -p _site/updates/beta
+            gh release download "${TAG}" --pattern latest-mac.yml --dir /tmp/feed-beta
+            sed -E "s#^([[:space:]]*(- )?(url|path): )(nota-[^ ]*)\$#\1$BASE/\4#" /tmp/feed-beta/latest-mac.yml > _site/updates/beta/latest-mac.yml
+            echo "Beta channel ships ${TAG}"
+          else
+            echo "No published beta release yet"
+          fi
+
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
