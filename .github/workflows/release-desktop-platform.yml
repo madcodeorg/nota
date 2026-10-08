@@ -73,7 +73,7 @@ jobs:
       SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
       SENTRY_RELEASE: ${{ inputs.app_version }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Setup Xcode
         if: ${{ inputs.platform == 'darwin' }}
@@ -104,19 +104,19 @@ jobs:
           target: ${{ inputs.target }}
           package: '@nota/native'
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           name: desktop-web
           path: packages/frontend/apps/electron/resources/web-static
 
       - name: Download Whistle STT seed
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: desktop-local-stt-seed-whistle
           path: .nota/models/cactus-whistle
 
       - name: Download Tiny STT seed
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: desktop-local-stt-seed-whisper-tiny
           path: .nota/models/whisper-tiny-q5-cpp
@@ -154,7 +154,7 @@ jobs:
 
       - name: Signing By Apple Developer ID
         if: ${{ inputs.platform == 'darwin' && inputs.apple_codesign }}
-        uses: apple-actions/import-codesign-certs@v6
+        uses: apple-actions/import-codesign-certs@v7
         with:
           p12-file-base64: ${{ secrets.CERTIFICATES_P12 }}
           p12-password: ${{ secrets.CERTIFICATES_P12_PASSWORD }}
@@ -332,7 +332,7 @@ jobs:
 
       - name: Upload Artifact
         if: ${{ inputs.platform == 'darwin' || inputs.platform == 'linux' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: nota-${{ inputs.platform }}-${{ inputs.arch }}-builds
           path: builds
@@ -353,7 +353,7 @@ jobs:
 
       - name: Save packaged artifacts for signing
         if: ${{ inputs.platform == 'win32' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: packaged-${{ inputs.platform }}-${{ inputs.arch }}
           path: |

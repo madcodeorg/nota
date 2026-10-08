@@ -38,7 +38,7 @@ jobs:
       GIT_SHORT_HASH: ${{ steps.prepare.outputs.GIT_SHORT_HASH }}
       BUILD_TYPE: ${{ steps.prepare.outputs.BUILD_TYPE }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Prepare Release
         id: prepare
         uses: ./.github/actions/prepare-release
@@ -55,7 +55,7 @@ jobs:
     steps:
       - name: Decide whether to release
         id: decide
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         with:
           script: |
             const buildType = '${{ needs.prepare.outputs.BUILD_TYPE }}'
