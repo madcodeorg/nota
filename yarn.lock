@@ -8469,6 +8469,7 @@ __metadata:
     oxlint: "npm:^1.47.0"
     prettier: "npm:^3.7.4"
     semver: "npm:^7.7.3"
+    tsx: "npm:^4.21.0"
     typescript: "npm:^5.9.3"
     typescript-eslint: "npm:^8.55.0"
     unplugin-swc: "npm:^1.5.9"
