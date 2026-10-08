@@ -2629,12 +2629,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@capacitor/ios@npm:^8.4.2":
-  version: 8.4.2
-  resolution: "@capacitor/ios@npm:8.4.2"
+"@capacitor/ios@npm:^8.4.3":
+  version: 8.4.3
+  resolution: "@capacitor/ios@npm:8.4.3"
   peerDependencies:
     "@capacitor/core": ^8.4.0
-  checksum: 10/afecf7636eef0949a772663274098c2cddf973bbf16abd63105a495cc816369cfd1e79cf3a99f4022944a34d9cac0c4231845a2f9494fb11b00c0b779f637b4c
+  checksum: 10/f1894c55f0a5b6f71794f7ef880f22cc32c0328d9613ec7fd37c5d4b7a7c730e84fac6db0ad9e9fcf0f3f0083d02e8f6203b092187aa86d7f2112b6369dbbf2f
   languageName: node
   linkType: hard
 
@@ -8333,7 +8333,7 @@ __metadata:
     "@capacitor/cli": "npm:^8.4.2"
     "@capacitor/core": "npm:^8.4.2"
     "@capacitor/haptics": "npm:^8.0.2"
-    "@capacitor/ios": "npm:^8.4.2"
+    "@capacitor/ios": "npm:^8.4.3"
     "@capacitor/keyboard": "npm:^8.0.0"
     "@nota-tools/cli": "workspace:*"
     "@nota-tools/utils": "workspace:*"
