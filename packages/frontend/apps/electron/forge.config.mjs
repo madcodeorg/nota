@@ -73,9 +73,10 @@ const shouldNotarizeMac =
     process.env.APPLE_PASSWORD &&
     process.env.APPLE_TEAM_ID
   );
+// Off by default: encrypting cookies makes macOS ask for the keychain at every
+// launch. Google tokens use safeStorage, which only prompts once on connect.
 const enableCookieEncryption =
-  process.env.NOTA_ENABLE_COOKIE_ENCRYPTION === '1' ||
-  (shouldSignMac && process.env.NOTA_ENABLE_COOKIE_ENCRYPTION !== '0');
+  process.env.NOTA_ENABLE_COOKIE_ENCRYPTION === '1';
 
 const DEFAULT_ELECTRON_LOCALES_KEEP = new Set([
   'en',
