@@ -991,7 +991,7 @@ __metadata:
     "@preact/signals-core": "npm:^1.8.0"
     "@toeverything/theme": "npm:^1.1.23"
     "@types/lodash-es": "npm:^4.17.12"
-    dompurify: "npm:^3.3.0"
+    dompurify: "npm:^3.4.16"
     html2canvas: "npm:^1.4.1"
     lit: "npm:^3.2.0"
     lodash-es: "npm:^4.17.23"
@@ -1840,7 +1840,7 @@ __metadata:
     "@types/mdast": "npm:^4.0.4"
     "@types/pdfmake": "npm:^0.2.12"
     bytes: "npm:^3.1.2"
-    dompurify: "npm:^3.3.0"
+    dompurify: "npm:^3.4.16"
     fractional-indexing: "npm:^3.2.0"
     lit: "npm:^3.2.0"
     lodash-es: "npm:^4.17.23"
@@ -2484,7 +2484,7 @@ __metadata:
     "@types/hast": "npm:^3.0.4"
     "@types/lodash-es": "npm:^4.17.12"
     "@vitest/browser-playwright": "npm:^4.0.18"
-    dompurify: "npm:^3.3.0"
+    dompurify: "npm:^3.4.16"
     fractional-indexing: "npm:^3.2.0"
     lib0: "npm:^0.2.114"
     lit: "npm:^3.2.0"
@@ -19813,7 +19813,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"dompurify@npm:^3.2.5, dompurify@npm:^3.3.0":
+"dompurify@npm:^3.2.5":
   version: 3.3.2
   resolution: "dompurify@npm:3.3.2"
   dependencies:
@@ -19822,6 +19822,18 @@ __metadata:
     "@types/trusted-types":
       optional: true
   checksum: 10/3ca02559677ce6d9583a500f21ffbb6b9e88f1af99f69fa0d0d9442cddbac98810588c869f8b435addb5115492d6e49870024bca322169b941bafedb99c7f281
+  languageName: node
+  linkType: hard
+
+"dompurify@npm:^3.4.16":
+  version: 3.4.16
+  resolution: "dompurify@npm:3.4.16"
+  dependencies:
+    "@types/trusted-types": "npm:^2.0.7"
+  dependenciesMeta:
+    "@types/trusted-types":
+      optional: true
+  checksum: 10/a571d0e2bede4f739666afd640398a86854abd27c71ce0724910249e2fd2ca7ddb8098a9ab579d3a5b39058419af694421f8fe859a81fd6d8acda16019a8ab9d
   languageName: node
   linkType: hard
 
