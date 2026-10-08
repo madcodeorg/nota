@@ -1,3 +1,4 @@
+import { StoreIdentifier } from '@blocksuite/store';
 import { css } from '@emotion/css';
 import { html, type TemplateResult } from 'lit';
 import { repeat } from 'lit/directives/repeat.js';
@@ -9,20 +10,33 @@ import {
 import { DataViewUIBase } from '../../core/view/data-view-base.js';
 import { CardViewUILogic } from '../card-view-ui.js';
 import type { GallerySingleView } from './gallery-view-manager.js';
-import { galleryImageSource } from './image-utils.js';
+import { GalleryImageCache } from './image-utils.js';
 
 export class GalleryViewUILogic extends CardViewUILogic<GallerySingleView> {
   renderer = createUniComponentFromWebComponent(GalleryViewUI);
 }
 
 export class GalleryViewUI extends DataViewUIBase<GalleryViewUILogic> {
+  private imageCache?: GalleryImageCache;
+
   override connectedCallback(): void {
     super.connectedCallback();
     this.logic.ui$.value = this;
     this.classList.add(galleryStyle);
+    this.imageCache = new GalleryImageCache(
+      id =>
+        this.logic.view.serviceGet(StoreIdentifier)?.blobSync.get(id) ??
+        Promise.resolve(null),
+      () => this.requestUpdate()
+    );
+    this.disposables.addFromEvent(window, 'online', () =>
+      this.imageCache?.retryUnavailable()
+    );
   }
 
   override disconnectedCallback(): void {
+    this.imageCache?.dispose();
+    this.imageCache = undefined;
     if (this.logic.ui$.value === this) this.logic.ui$.value = undefined;
     super.disconnectedCallback();
   }
@@ -32,6 +46,10 @@ export class GalleryViewUI extends DataViewUIBase<GalleryViewUILogic> {
     const imageProperty = view.imageProperty$.value;
     const titleProperty = view.mainProperties$.value.titleColumn;
     const readonly = view.readonly$.value;
+    const covers = view.rows$.value.map(
+      row => imageProperty?.cellGetOrCreate(row.rowId).value$.value
+    );
+    this.imageCache?.retain(covers);
     const cardProperties = view.properties$.value.filter(
       property =>
         property.id !== titleProperty && property.id !== imageProperty?.id
@@ -86,7 +104,7 @@ export class GalleryViewUI extends DataViewUIBase<GalleryViewUILogic> {
           row => row.rowId,
           row => {
             const image = imageProperty
-              ? galleryImageSource(
+              ? this.imageCache?.source(
                   imageProperty.cellGetOrCreate(row.rowId).value$.value
                 )
               : undefined;

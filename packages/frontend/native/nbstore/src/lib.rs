@@ -150,7 +150,8 @@ impl DocStoragePool {
     Ok(())
   }
 
-  /// Create and verify a consistent workspace backup, then atomically publish it.
+  /// Create and verify a consistent workspace backup, then atomically publish
+  /// it.
   #[napi]
   pub async fn backup(&self, universal_id: String, destination: String) -> Result<()> {
     self.get(universal_id).await?.backup(destination).await?;
@@ -579,10 +580,139 @@ impl DocStorage {
 
   #[napi]
   pub async fn set_space_id(&self, space_id: String) -> Result<()> {
-    self.storage.connect().await?;
-    self.storage.set_space_id(space_id).await?;
+    let result: error::Result<()> = async {
+      self.storage.connect().await?;
+      self.storage.set_space_id(space_id).await?;
+      // Restore publishes only the main database file. An idle reader can
+      // leave committed identity changes in the WAL after the writer closes.
+      // SQLite reports a busy checkpoint in its result, not as a SQL error.
+      let (busy, log_frames, checkpointed_frames): (i64, i64, i64) = sqlx::query_as("PRAGMA wal_checkpoint(TRUNCATE);")
+        .fetch_one(&self.storage.pool)
+        .await?;
+      if busy != 0 || log_frames != checkpointed_frames {
+        return Err(error::Error::Backup(
+          "The restored workspace checkpoint is busy or incomplete".into(),
+        ));
+      }
+      Ok(())
+    }
+    .await;
     self.storage.close().await;
+    result?;
     Ok(())
+  }
+}
+
+#[cfg(all(test, feature = "use-as-lib"))]
+mod restore_tests {
+  use std::{path::PathBuf, time::Duration};
+
+  use chrono::Utc;
+  use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions};
+
+  use super::{DocRecord, DocStorage, SqliteDocStorage};
+
+  async fn restore_fixture() -> (tempfile::TempDir, PathBuf) {
+    let directory = tempfile::tempdir().unwrap();
+    let source = SqliteDocStorage::new(directory.path().join("source.db").to_str().unwrap().into());
+    source.connect().await.unwrap();
+    source.set_space_id("original-workspace".into()).await.unwrap();
+    source
+      .set_doc_snapshot(DocRecord {
+        doc_id: "original-workspace".into(),
+        bin: vec![0, 0],
+        timestamp: Utc::now().naive_utc(),
+      })
+      .await
+      .unwrap();
+    let staging = directory.path().join("storage.db.importing");
+    source.backup(staging.to_str().unwrap().into()).await.unwrap();
+    source.close().await;
+    let staging_storage = SqliteDocStorage::new(staging.to_str().unwrap().into());
+    staging_storage.connect().await.unwrap();
+    staging_storage.close().await;
+    (directory, staging)
+  }
+
+  #[tokio::test]
+  async fn standalone_identity_migration_persists_without_the_wal() {
+    let (directory, staging) = restore_fixture().await;
+    // An idle reader prevents the writer from being the final connection.
+    // Closing the writer alone therefore cannot ensure a checkpoint.
+    let reader = SqlitePoolOptions::new()
+      .max_connections(1)
+      .connect_with(SqliteConnectOptions::new().filename(&staging).read_only(true))
+      .await
+      .unwrap();
+    sqlx::query("SELECT doc_id FROM snapshots")
+      .fetch_all(&reader)
+      .await
+      .unwrap();
+    let storage = DocStorage::new(staging.to_str().unwrap().into());
+    storage.set_space_id("restored-workspace".into()).await.unwrap();
+    assert!(storage.storage.is_closed());
+
+    // Publication moves only the main file. Recovery must not require its
+    // old staging WAL to retain the migrated root document.
+    let published = directory.path().join("published.db");
+    std::fs::copy(&staging, &published).unwrap();
+    let restored = SqliteDocStorage::new(published.to_str().unwrap().into());
+    restored.connect().await.unwrap();
+    assert!(
+      restored
+        .get_doc_snapshot("restored-workspace".into())
+        .await
+        .unwrap()
+        .is_some()
+    );
+    assert!(
+      restored
+        .get_doc_snapshot("original-workspace".into())
+        .await
+        .unwrap()
+        .is_none()
+    );
+    restored.close().await;
+    reader.close().await;
+  }
+
+  #[tokio::test]
+  async fn standalone_identity_migration_rejects_a_busy_checkpoint_and_closes() {
+    let (_directory, staging) = restore_fixture().await;
+    let reader = SqlitePoolOptions::new()
+      .max_connections(1)
+      .connect_with(SqliteConnectOptions::new().filename(&staging).read_only(true))
+      .await
+      .unwrap();
+    let mut transaction = reader.begin().await.unwrap();
+    sqlx::query("SELECT doc_id FROM snapshots")
+      .fetch_all(&mut *transaction)
+      .await
+      .unwrap();
+    let mut storage = DocStorage::new(staging.to_str().unwrap().into());
+    storage.storage.pool = SqlitePoolOptions::new().max_connections(1).connect_lazy_with(
+      SqliteConnectOptions::new()
+        .filename(&staging)
+        .foreign_keys(false)
+        .journal_mode(SqliteJournalMode::Wal)
+        .busy_timeout(Duration::from_millis(20)),
+    );
+
+    let error = storage.set_space_id("restored-workspace".into()).await.unwrap_err();
+    assert!(error.to_string().contains("checkpoint"));
+    assert!(storage.storage.is_closed());
+    transaction.rollback().await.unwrap();
+    reader.close().await;
+  }
+
+  #[tokio::test]
+  async fn standalone_identity_migration_closes_after_connect_failure() {
+    let directory = tempfile::tempdir().unwrap();
+    let invalid = directory.path().join("invalid.db");
+    std::fs::write(&invalid, b"invalid database").unwrap();
+    let storage = DocStorage::new(invalid.to_str().unwrap().into());
+    assert!(storage.set_space_id("restored-workspace".into()).await.is_err());
+    assert!(storage.storage.is_closed());
   }
 }
 

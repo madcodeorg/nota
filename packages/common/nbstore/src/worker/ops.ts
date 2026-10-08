@@ -1,4 +1,5 @@
 import type { AvailableStorageImplementations } from '../impls';
+import type { GoogleDriveTokens } from '../impls/google-drive';
 import type {
   AggregateResult,
   BlobRecord,
@@ -170,6 +171,11 @@ interface GroupedWorkerOps {
     disableBatterySaveMode: [void, void];
     pauseSync: [void, void];
     resumeSync: [void, void];
+    setGoogleDriveTokens: [
+      { tokens: GoogleDriveTokens | null; workspaceOwner?: string },
+      void,
+    ];
+    googleDriveAuthRequired: [void, void];
   };
 }
 

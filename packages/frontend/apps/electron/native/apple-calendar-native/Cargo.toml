@@ -6,7 +6,7 @@ version = "0.0.0"
 [lib]
 crate-type = ["cdylib"]
 
-[dependencies]
+[target.'cfg(target_os = "macos")'.dependencies]
 block2      = { workspace = true }
 chrono      = { workspace = true }
 napi        = { workspace = true, features = ["napi4"] }

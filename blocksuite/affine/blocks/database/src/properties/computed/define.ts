@@ -16,7 +16,15 @@ export type FormulaData = zod.infer<typeof formulaDataSchema>;
 export const rollupDataSchema = zod.object({
   relationColumnId: zod.string(),
   targetColumnId: zod.string(),
-  operation: zod.enum(['count', 'sum', 'avg', 'min', 'max']),
+  operation: zod.enum([
+    'count',
+    'sum',
+    'avg',
+    'min',
+    'max',
+    'values',
+    'unique',
+  ]),
 });
 export type RollupData = zod.infer<typeof rollupDataSchema>;
 export const relationValueSchema = zod.array(zod.string()).max(10000);
@@ -60,6 +68,7 @@ const valueSchema = zod.union([
   zod.string(),
   zod.boolean(),
   zod.null(),
+  zod.array(zod.string()).max(10000),
   zod.object({ error: zod.string() }),
 ]);
 const computedRawValue = {
@@ -105,12 +114,17 @@ export const rollupPropertyModelConfig = propertyType('rollup').modelConfig({
     }),
   },
   jsonValue: {
-    schema: zod.number().nullable(),
-    type: () => t.number.instance(),
-    isEmpty: ({ value }) => value == null,
+    schema: zod.union([zod.number(), zod.array(zod.string())]).nullable(),
+    type: ({ data }) =>
+      data.operation === 'values' || data.operation === 'unique'
+        ? t.array.instance(t.string.instance())
+        : t.number.instance(),
+    isEmpty: ({ value }) =>
+      value == null || (Array.isArray(value) && !value.length),
   },
   rawValue: {
     ...computedRawValue,
-    toJson: ({ value }) => (typeof value === 'number' ? value : null),
+    toJson: ({ value }) =>
+      typeof value === 'number' || Array.isArray(value) ? value : null,
   },
 });

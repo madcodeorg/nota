@@ -37,6 +37,7 @@ const compareList = <T>(
     const a = listA[i];
     const b = listB[i];
     if (a == null || b == null) {
+      i++;
       continue;
     }
     const result = compare(a, b);
@@ -108,9 +109,12 @@ const compareArray = (type: ArrayTypeInstance, a: unknown, b: unknown) => {
   if (!Array.isArray(b)) {
     return Compare.LT;
   }
-  return compareList(a, b, (a, b) => {
+  if (!a.length && b.length) return Compare.GT;
+  if (a.length && !b.length) return Compare.LT;
+  const prefix = compareList(a, b, (a, b) => {
     return compare(type.element, a, b);
   });
+  return prefix === 0 ? a.length - b.length : prefix;
 };
 const compareAny = (a: unknown, b: unknown) => {
   if (!a) {

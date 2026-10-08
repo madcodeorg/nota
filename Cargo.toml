@@ -150,10 +150,18 @@ lto           = true
 opt-level     = 3
 strip         = "symbols"
 
-# Keep the NAPI library's Mach-O tables aligned for macOS dynamic loading.
-# The release symbol stripper can leave a misaligned LINKEDIT string pool.
-[profile.release.package.nota_native]
-strip = "none"
+  # Host proc-macro libraries must remain loadable by rustc on macOS.
+  # Symbol stripping can leave their Mach-O LINKEDIT string pool misaligned.
+  [profile.release.build-override]
+  strip = "none"
+
+  # Keep the NAPI library's Mach-O tables aligned for macOS dynamic loading.
+  # The release symbol stripper can leave a misaligned LINKEDIT string pool.
+  [profile.release.package.nota_native]
+  strip = "none"
+
+  [profile.release.package.nota_apple_calendar_native]
+  strip = "none"
 
   # android uniffi bindgen requires symbols
   [profile.release.package.nota_mobile_native]

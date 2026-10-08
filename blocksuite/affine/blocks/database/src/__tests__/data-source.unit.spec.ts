@@ -1,15 +1,15 @@
+import type { DatabaseBlockModel } from '@blocksuite/affine-model';
 import {
-  DatabaseBlockModel,
   DatabaseBlockSchemaExtension,
   NoteBlockSchemaExtension,
   ParagraphBlockSchemaExtension,
   RootBlockSchemaExtension,
 } from '@blocksuite/affine-model';
 import { replaceIdMiddleware } from '@blocksuite/affine-shared/adapters';
-import { Slice, Text } from '@blocksuite/store';
 import type { TableViewData } from '@blocksuite/data-view/view-presets';
+import { Slice, Text, type Workspace } from '@blocksuite/store';
 import { TestWorkspace } from '@blocksuite/store/test';
-import { afterEach, describe, expect, test } from 'vitest';
+import { afterEach, describe, expect, test, vi } from 'vitest';
 
 import { DatabaseBlockDataSource } from '../data-source.js';
 
@@ -41,6 +41,313 @@ function setup(id = 'source-doc') {
 afterEach(() => workspaces.splice(0).forEach(workspace => workspace.dispose()));
 
 describe('derived values in the real local database model', () => {
+  test('waits for chained cross-page rollups and releases descendant targets when their source relation disappears', async () => {
+    const { workspace, database } = setup();
+    const targetDatabase = (docId: string) => {
+      const doc = workspace.createDoc(docId);
+      doc.load();
+      const store = doc.getStore();
+      const page = store.addBlock('affine:page');
+      const note = store.addBlock('affine:note', {}, page);
+      const id = store.addBlock('affine:database', {}, note);
+      const model = store.getModelById<DatabaseBlockModel>(id)!;
+      const source = new DatabaseBlockDataSource(model);
+      return { doc, source, model, row: source.rowAdd('end') };
+    };
+    const leaf = targetDatabase('leaf');
+    const number = leaf.source.propertyAdd('end', { type: 'number' })!;
+    leaf.source.cellValueChange(leaf.row, number, 8);
+    const middle = targetDatabase('middle');
+    const relation = middle.source.propertyAdd('end', { type: 'relation' })!;
+    middle.source.propertyDataSet(relation, {
+      targetDocId: leaf.doc.id,
+      targetDatabaseId: leaf.model.id,
+    });
+    middle.source.cellValueChange(middle.row, relation, [leaf.row]);
+    const rollup = middle.source.propertyAdd('end', { type: 'rollup' })!;
+    middle.source.propertyDataSet(rollup, {
+      relationColumnId: relation,
+      targetColumnId: number,
+      operation: 'sum',
+    });
+    const { source } = database();
+    const row = source.rowAdd('end');
+    const outerRelation = source.propertyAdd('end', { type: 'relation' })!;
+    source.propertyDataSet(outerRelation, {
+      targetDocId: middle.doc.id,
+      targetDatabaseId: middle.model.id,
+    });
+    source.cellValueChange(row, outerRelation, [middle.row]);
+    const outerRollup = source.propertyAdd('end', { type: 'rollup' })!;
+    source.propertyDataSet(outerRollup, {
+      relationColumnId: outerRelation,
+      targetColumnId: rollup,
+      operation: 'sum',
+    });
+    const releases = new Map<string, ReturnType<typeof vi.fn>>();
+    const finish = new Map<string, () => void>();
+    (workspace as Workspace).acquireDoc = id => {
+      const release = vi.fn();
+      releases.set(id, release);
+      const ready = new Promise<void>(resolve => {
+        finish.set(id, resolve);
+      });
+      return { ready, release };
+    };
+    const targets = source.acquireRelationTargets();
+    const value = source.cellValueGet$(row, outerRollup);
+    expect(value.value).toEqual({ error: 'Related database is loading' });
+    finish.get('middle')!();
+    await vi.waitFor(() => expect(finish.has('leaf')).toBe(true));
+    expect(value.value).toEqual({ error: 'Related database is loading' });
+    finish.get('leaf')!();
+    await targets.ready;
+    expect(value.value).toBe(8);
+    const targetView = source.relationTarget({
+      targetDocId: middle.doc.id,
+      targetDatabaseId: middle.model.id,
+    })!;
+    expect(targetView.readonly$.value).toBe(true);
+    targetView.cellValueChange(middle.row, relation, []);
+    expect(middle.source.cellValueGet(middle.row, relation)).toEqual([
+      leaf.row,
+    ]);
+    leaf.source.cellValueChange(leaf.row, number, 12);
+    expect(source.cellValueGet(row, outerRollup)).toBe(12);
+    expect(value.value).toBe(12);
+    middle.source.propertyDelete(relation);
+    expect(value.value).toEqual({ error: 'Relation property is missing' });
+    expect(releases.get('leaf')).toHaveBeenCalledOnce();
+    targets.release();
+    expect(releases.get('middle')).toHaveBeenCalledOnce();
+  });
+
+  test('retains targets for concurrent editor/export readers and releases/reacquires on final close before loading finishes', async () => {
+    const { workspace, database } = setup();
+    const target = workspace.createDoc('pending-target');
+    const releases: ReturnType<typeof vi.fn>[] = [];
+    const finishes: (() => void)[] = [];
+    const acquire = vi.fn(() => {
+      const release = vi.fn();
+      releases.push(release);
+      const ready = new Promise<void>(resolve => {
+        finishes.push(resolve);
+      });
+      return { ready, release };
+    });
+    (workspace as Workspace).acquireDoc = acquire;
+    const { model, source } = database();
+    const relation = source.propertyAdd('end', { type: 'relation' })!;
+    source.propertyDataSet(relation, {
+      targetDocId: target.id,
+      targetDatabaseId: 'db',
+    });
+    const first = source.acquireRelationTargets();
+    const second = new DatabaseBlockDataSource(model).acquireRelationTargets();
+    expect(acquire).toHaveBeenCalledTimes(1);
+    first.release();
+    expect(releases[0]).not.toHaveBeenCalled();
+    second.release();
+    second.release();
+    expect(releases[0]).toHaveBeenCalledOnce();
+    await Promise.all([first.ready, second.ready]);
+    finishes[0]!();
+    await Promise.resolve();
+    expect(acquire).toHaveBeenCalledTimes(1);
+    const reopened = source.acquireRelationTargets();
+    expect(acquire).toHaveBeenCalledTimes(2);
+    expect(
+      source.relationTargetStatus({
+        targetDocId: target.id,
+        targetDatabaseId: 'db',
+      })
+    ).toBe('loading');
+    reopened.release();
+    await reopened.ready;
+    expect(releases[1]).toHaveBeenCalledOnce();
+  });
+
+  test('loads a closed target through the local lease, observes edits and releases retargeted/deleted columns', async () => {
+    const { workspace, database } = setup();
+    const targetDoc = workspace.createDoc('closed-target');
+    let finish!: () => void;
+    const ready = new Promise<void>(resolve => {
+      finish = resolve;
+    });
+    const release = vi.fn();
+    const acquire = vi.fn(() => ({ ready, release }));
+    (workspace as Workspace).acquireDoc = acquire;
+    const { source } = database();
+    const row = source.rowAdd('end');
+    const relation = source.propertyAdd('end', { type: 'relation' })!;
+    source.propertyDataSet(relation, {
+      targetDocId: targetDoc.id,
+      targetDatabaseId: 'external-db',
+    });
+    source.cellValueChange(row, relation, ['external-row']);
+    const rollup = source.propertyAdd('end', { type: 'rollup' })!;
+    source.propertyDataSet(rollup, {
+      relationColumnId: relation,
+      targetColumnId: '',
+      operation: 'count',
+    });
+    const value = source.cellValueGet$(row, rollup);
+    const targets = source.acquireRelationTargets();
+    expect(value.value).toEqual({ error: 'Related database is loading' });
+    expect(acquire).toHaveBeenCalledExactlyOnceWith(targetDoc.id);
+    expect(source.relationOptions(relation)).toBeUndefined();
+    targetDoc.load();
+    const targetStore = targetDoc.getStore();
+    const page = targetStore.addBlock('affine:page');
+    const note = targetStore.addBlock('affine:note', {}, page);
+    const id = targetStore.addBlock(
+      'affine:database',
+      { id: 'external-db' },
+      note
+    );
+    targetStore.addBlock(
+      'affine:paragraph',
+      { id: 'external-row', text: new Text('Loaded row') },
+      id
+    );
+    expect(value.value).toEqual({ error: 'Related database is loading' });
+    finish();
+    await targets.ready;
+    expect(value.value).toBe(1);
+    expect(source.relationOptions(relation)).toEqual([
+      { id: 'external-row', title: 'Loaded row' },
+    ]);
+    (targetStore.getModelById('external-row')!.text as Text).insert(
+      ' edited',
+      10
+    );
+    expect(source.relationOptions(relation)?.[0]?.title).toBe(
+      'Loaded row edited'
+    );
+    source.propertyDataSet(relation, {
+      targetDocId: 'missing-target',
+      targetDatabaseId: 'external-db',
+    });
+    expect(value.value).toEqual({ error: 'Related database is unavailable' });
+    expect(release).toHaveBeenCalledTimes(1);
+    source.propertyDataSet(relation, {
+      targetDocId: targetDoc.id,
+      targetDatabaseId: id,
+    });
+    await source.waitForRelationTargets();
+    expect(value.value).toBe(1);
+    source.propertyDelete(relation);
+    expect(release).toHaveBeenCalledTimes(2);
+  });
+
+  test('failed target loading stays unavailable even with an empty relation; store disposal releases it', async () => {
+    const { workspace, store, database } = setup();
+    const targetDoc = workspace.createDoc('cannot-load');
+    const release = vi.fn();
+    (workspace as Workspace).acquireDoc = () => ({
+      ready: Promise.reject(new Error('local read failed')),
+      release,
+    });
+    const { source } = database();
+    const row = source.rowAdd('end');
+    const relation = source.propertyAdd('end', { type: 'relation' })!;
+    source.propertyDataSet(relation, {
+      targetDocId: targetDoc.id,
+      targetDatabaseId: 'db',
+    });
+    const rollup = source.propertyAdd('end', { type: 'rollup' })!;
+    source.propertyDataSet(rollup, {
+      relationColumnId: relation,
+      targetColumnId: '',
+      operation: 'count',
+    });
+    const value = source.cellValueGet$(row, rollup);
+    const targets = source.acquireRelationTargets();
+    expect(value.value).toEqual({ error: 'Related database is loading' });
+    await targets.ready;
+    expect(value.value).toEqual({ error: 'Related database is unavailable' });
+    store.dispose();
+    expect(release).toHaveBeenCalledOnce();
+  });
+
+  test('list rollups use selected choice labels and support reactive sorting, filters and readonly readable conversion', () => {
+    const { store, database } = setup();
+    const target = database();
+    const first = target.source.rowAdd('end');
+    const second = target.source.rowAdd('end');
+    const choice = target.source.propertyAdd('end', { type: 'multi-select' })!;
+    target.source.propertyDataSet(choice, {
+      options: [
+        { id: 'z', value: 'Zulu', color: 'red' },
+        { id: 'a', value: 'Alpha', color: 'blue' },
+      ],
+    });
+    target.source.cellValueChange(first, choice, ['z', 'a']);
+    target.source.cellValueChange(second, choice, ['a']);
+    const { source, model } = database();
+    const row = source.rowAdd('end');
+    const empty = source.rowAdd('end');
+    const alpha = source.rowAdd('end');
+    const relation = source.propertyAdd('end', { type: 'relation' })!;
+    source.propertyDataSet(relation, {
+      targetDocId: store.doc.id,
+      targetDatabaseId: target.model.id,
+    });
+    source.cellValueChange(row, relation, [first, second]);
+    source.cellValueChange(alpha, relation, [second]);
+    const rollup = source.propertyAdd('end', { type: 'rollup' })!;
+    source.propertyDataSet(rollup, {
+      relationColumnId: relation,
+      targetColumnId: choice,
+      operation: 'values',
+    });
+    const value = source.cellValueGet$(row, rollup);
+    expect(value.value).toEqual(['Zulu', 'Alpha', 'Alpha']);
+    source.propertyDataSet(rollup, {
+      relationColumnId: relation,
+      targetColumnId: choice,
+      operation: 'unique',
+    });
+    expect(value.value).toEqual(['Zulu', 'Alpha']);
+    expect(source.cellValueGet(empty, rollup)).toEqual([]);
+    const view = source.viewManager.viewGet(
+      source.viewManager.viewAdd('table')
+    )!;
+    source.viewDataUpdate<TableViewData>(view.id, () => ({
+      sort: {
+        sortBy: [{ ref: { type: 'ref', name: rollup }, desc: false }],
+        manuallySort: [],
+      },
+    }));
+    expect(view.rows$.value.map(row => row.rowId)).toEqual([alpha, row, empty]);
+    source.viewDataUpdate<TableViewData>(view.id, () => ({
+      filter: {
+        type: 'group',
+        op: 'and',
+        conditions: [
+          {
+            type: 'filter',
+            left: { type: 'ref', name: rollup },
+            function: 'containsValue',
+            args: [{ type: 'literal', value: 'Zulu' }],
+          },
+        ],
+      },
+    }));
+    expect(view.rows$.value.map(row => row.rowId)).toEqual([row]);
+    target.source.cellValueChange(first, choice, ['a']);
+    expect(value.value).toEqual(['Alpha']);
+    expect(view.rows$.value).toEqual([]);
+    const meta = source.propertyMetaGet('rollup')!;
+    expect(
+      meta.config.rawValue.toString({
+        value: value.value,
+        data: source.propertyDataGet(rollup),
+      })
+    ).toBe('Alpha');
+    source.cellValueChange(row, rollup, ['replacement']);
+    expect(model.props.cells[row]?.[rollup]).toBeUndefined();
+  });
   test('formula tracks edits and renames, and computed writes are rejected', () => {
     const { database } = setup();
     const { model, source } = database();
@@ -177,6 +484,15 @@ describe('derived values in the real local database model', () => {
       targetColumnId: formula,
       operation: 'sum',
     });
+    const list = tasks.source.propertyAdd('end', {
+      type: 'rollup',
+      name: 'Selected values',
+    })!;
+    tasks.source.propertyDataSet(list, {
+      relationColumnId: relation,
+      targetColumnId: formula,
+      operation: 'unique',
+    });
     const snapshot = store.getTransformer().docToSnapshot(store)!;
     const transformer = store.getTransformer([
       replaceIdMiddleware(workspace.idGenerator),
@@ -209,6 +525,16 @@ describe('derived values in the real local database model', () => {
     expect(
       relatedSource.cellValueGet(related.children[0]!.id, rollupColumn.id)
     ).toBe(6);
+    const listColumn = related.props.columns.find(
+      column => column.data.operation === 'unique'
+    )!;
+    expect(listColumn.data.relationColumnId).toBe(relationColumn.id);
+    expect(listColumn.data.targetColumnId).toBe(
+      target.props.columns.find(column => column.type === 'formula')!.id
+    );
+    expect(
+      relatedSource.cellValueGet(related.children[0]!.id, listColumn.id)
+    ).toEqual(['6']);
 
     // Template duplication imports slices into an existing page, without page beforeImport.
     const destination = workspace.createDoc('template-copy');

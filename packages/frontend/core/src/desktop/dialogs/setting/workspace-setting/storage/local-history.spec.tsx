@@ -57,13 +57,11 @@ describe('local history storage cleanup', () => {
           waitForUpdated: vi.fn().mockResolvedValue(undefined),
           storage: {
             isHistorySupported: vi.fn().mockResolvedValue(true),
-            getHistoryStorageUsage: vi
-              .fn()
-              .mockResolvedValue({
-                versions: 4,
-                historyBytes: 1024 * 1024,
-                retainedRemovedBlobBytes: 2 * 1024 * 1024,
-              }),
+            getHistoryStorageUsage: vi.fn().mockResolvedValue({
+              versions: 4,
+              historyBytes: 1024 * 1024,
+              retainedRemovedBlobBytes: 2 * 1024 * 1024,
+            }),
             clearHistories: vi.fn().mockResolvedValue(undefined),
           },
         },

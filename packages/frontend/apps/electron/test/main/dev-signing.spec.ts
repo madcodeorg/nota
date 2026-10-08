@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { posix } from 'node:path';
 import { runInNewContext } from 'node:vm';
 
 import ts from 'typescript';
@@ -344,7 +344,8 @@ function fixture({
     `${preparationCode}\n({ prepare: prepareDevElectronForMacOSPermissions, recover: recoverDevElectronAppPromotion })`,
     {
       Buffer,
-      resolve,
+      // This sandbox simulates macOS even when Vitest runs on Windows.
+      resolve: posix.resolve,
       parseDevCodeSigningIdentities,
       parseDevSigningIdentity,
       selectDevSigningIdentity,

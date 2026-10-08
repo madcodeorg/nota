@@ -23,7 +23,7 @@ config:
     Upload: File
     SafeInt: number
 overwrite: true
-schema: ../../backend/server/src/schema.gql
+schema: ${NOTA_LEGACY_GRAPHQL_SCHEMA_PATH}
 documents: ./src/**/*.gql
 generates:
   ./src/schema.ts:

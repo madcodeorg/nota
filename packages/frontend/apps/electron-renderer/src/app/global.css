@@ -6,6 +6,12 @@ textarea
   -webkit-app-region: no-drag;
 }
 
+html[data-nota-onboarding-overlay='true'],
+html[data-nota-onboarding-overlay='true'] body,
+html[data-nota-onboarding-overlay='true'] #app {
+  background: transparent !important;
+}
+
 #webpack-dev-server-client-overlay,
 #rspack-dev-server-client-overlay {
   -webkit-app-region: no-drag;

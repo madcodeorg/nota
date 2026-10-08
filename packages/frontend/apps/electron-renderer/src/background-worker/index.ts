@@ -4,6 +4,7 @@ import { apis } from '@nota/electron-api';
 import { OpConsumer } from '@nota/infra/op';
 import { broadcastChannelStorages } from '@nota/nbstore/broadcast-channel';
 import { cloudStorages } from '@nota/nbstore/cloud';
+import { googleDriveStorages } from '@nota/nbstore/google-drive';
 import { bindNativeDBApis, sqliteStorages } from '@nota/nbstore/sqlite';
 import { bindNativeDBV1Apis, sqliteV1Storages } from '@nota/nbstore/sqlite/v1';
 import {
@@ -21,6 +22,7 @@ const storeManager = new StoreManagerConsumer([
   ...sqliteV1Storages,
   ...broadcastChannelStorages,
   ...cloudStorages,
+  ...googleDriveStorages,
 ]);
 
 window.addEventListener('message', ev => {

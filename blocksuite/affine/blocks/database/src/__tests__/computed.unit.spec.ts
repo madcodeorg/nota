@@ -2,6 +2,7 @@ import { describe, expect, test } from 'vitest';
 
 import {
   aggregateRollup,
+  computedText,
   evaluateFormula,
 } from '../properties/computed/evaluate.js';
 
@@ -70,6 +71,24 @@ describe('bounded database formulas', () => {
 });
 
 describe('numeric database rollups', () => {
+  test('lists readable values and removes duplicates only for unique values', () => {
+    expect(
+      aggregateRollup('values', [['Done', 'Review'], null, 'Done', ''])
+    ).toEqual(['Done', 'Review', 'Done', '']);
+    expect(
+      aggregateRollup('unique', [['Done', 'Review'], null, 'Done'])
+    ).toEqual(['Done', 'Review']);
+    expect(aggregateRollup('values', [])).toEqual([]);
+    expect(aggregateRollup('values', [4])).toEqual({
+      error: 'Rollup requires readable values',
+    });
+    expect(
+      aggregateRollup('values', [Array.from({ length: 10001 }, () => 'x')])
+    ).toEqual({
+      error: 'Rollup value limit exceeded',
+    });
+    expect(computedText(['Done', 'Review'])).toBe('Done, Review');
+  });
   test('counts rows and aggregates numeric values without treating null as zero', () => {
     expect(aggregateRollup('count', [null, 0, 4])).toBe(3);
     expect(aggregateRollup('sum', [null, 0, 4])).toBe(4);

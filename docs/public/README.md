@@ -2,6 +2,8 @@
 
 ## Choose a release
 
+Nota is currently a source preview, with no published public installers. The installation steps below apply when a tested release becomes available.
+
 Open [GitHub Releases](https://github.com/madcodeorg/nota/releases). Each published release lists its installers, supported operating systems and architectures, checksums, and known limitations. If your platform has no asset, there is no public installer for that platform in that release.
 
 The source code includes web, desktop, and mobile packages. Platform source or CI configuration does not establish public download availability. Use the [build guide](../BUILDING.md) if you want to work from source.

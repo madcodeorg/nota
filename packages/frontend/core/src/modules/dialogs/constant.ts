@@ -3,6 +3,7 @@ import type { DocMode } from '@blocksuite/affine/model';
 import type { WorkspaceMetadata } from '../workspace';
 
 export type SettingTab =
+  | 'setup'
   | 'shortcuts'
   | 'notifications'
   | 'ai'

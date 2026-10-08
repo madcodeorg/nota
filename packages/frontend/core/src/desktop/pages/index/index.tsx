@@ -4,6 +4,7 @@ import { WorkspacesService } from '@nota/core/modules/workspace';
 import {
   buildShowcaseWorkspace,
   createFirstAppData,
+  isFirstAppOpen,
 } from '@nota/core/utils/first-app-data';
 import { ServerFeature } from '@nota/graphql';
 import { useLiveData, useService, useServiceOptional } from '@nota/infra';
@@ -43,6 +44,9 @@ export const Component = ({
   // navigating and creating may be slow, to avoid flickering, we show workspace fallback
   const [navigating, setNavigating] = useState(true);
   const [creating, setCreating] = useState(false);
+  const [creationError, setCreationError] = useState(false);
+  const [creationAttempt, setCreationAttempt] = useState(0);
+  const createLocalOnceRef = useRef(false);
   const authService = useService(AuthService);
   const defaultServerService = useService(DefaultServerService);
 
@@ -92,7 +96,11 @@ export const Component = ({
     }
 
     if (!enableLocalWorkspace && !loggedIn) {
-      localStorage.removeItem('last_workspace_id');
+      try {
+        localStorage.removeItem('last_workspace_id');
+      } catch {
+        // The sign-in route does not depend on optional local preferences.
+      }
       jumpToSignIn();
       return;
     }
@@ -118,7 +126,12 @@ export const Component = ({
         return;
       }
       // open last workspace
-      const lastId = localStorage.getItem('last_workspace_id');
+      let lastId: string | null = null;
+      try {
+        lastId = localStorage.getItem('last_workspace_id');
+      } catch {
+        // Use the first saved workspace when preferences are unavailable.
+      }
 
       const openWorkspace = list.find(w => w.id === lastId) ?? list[0];
       openPage(openWorkspace.id, defaultIndexRoute, RouteLogic.REPLACE);
@@ -137,34 +150,54 @@ export const Component = ({
   ]);
 
   const desktopApi = useServiceOptional(DesktopApiService);
+  const needsFirstWorkspace =
+    enableLocalWorkspace && list.length === 0 && isFirstAppOpen();
 
   useEffect(() => {
-    desktopApi?.handler.ui.pingAppLayoutReady().catch(console.error);
-  }, [desktopApi]);
+    if (
+      !navigating &&
+      !creating &&
+      !listIsLoading &&
+      !needsFirstWorkspace &&
+      !creationError
+    ) {
+      desktopApi?.handler.ui.pingAppLayoutReady().catch(console.error);
+    }
+  }, [
+    desktopApi,
+    navigating,
+    creating,
+    listIsLoading,
+    needsFirstWorkspace,
+    creationError,
+  ]);
 
   useEffect(() => {
-    if (listIsLoading || list.length > 0 || !enableLocalWorkspace) {
+    if (listIsLoading || !needsFirstWorkspace || createLocalOnceRef.current) {
       return;
     }
 
+    createLocalOnceRef.current = true;
+    setCreating(true);
+    setCreationError(false);
     createFirstAppData(workspacesService)
       .then(createdWorkspace => {
-        if (createdWorkspace) {
-          if (createdWorkspace.defaultPageId) {
-            jumpToPage(
-              createdWorkspace.meta.id,
-              createdWorkspace.defaultPageId
-            );
-          } else {
-            openPage(createdWorkspace.meta.id, 'all');
-          }
+        if (!createdWorkspace) {
+          setCreating(false);
+          return;
+        }
+        // The workspace route loads lazily. Keep the loading fallback until the
+        // router leaves this page instead of briefly mounting the selector.
+        if (createdWorkspace.defaultPageId) {
+          jumpToPage(createdWorkspace.meta.id, createdWorkspace.defaultPageId);
+        } else {
+          openPage(createdWorkspace.meta.id, 'all');
         }
       })
       .catch(err => {
-        console.error('Failed to create first app data', err);
-      })
-      .finally(() => {
+        setCreationError(true);
         setCreating(false);
+        console.error('Failed to create first app data', err);
       });
   }, [
     jumpToPage,
@@ -174,10 +207,31 @@ export const Component = ({
     loggedIn,
     listIsLoading,
     list,
-    enableLocalWorkspace,
+    needsFirstWorkspace,
+    creationAttempt,
   ]);
 
-  if (navigating || creating) {
+  if (creationError) {
+    return (
+      <AppContainer fallback>
+        <div role="alert" style={{ padding: 32 }}>
+          <p>Nota couldn’t finish creating your local workspace. Try again.</p>
+          <button
+            type="button"
+            onClick={() => {
+              createLocalOnceRef.current = false;
+              setCreationError(false);
+              setCreationAttempt(attempt => attempt + 1);
+            }}
+          >
+            Try again
+          </button>
+        </div>
+      </AppContainer>
+    );
+  }
+
+  if (navigating || creating || listIsLoading || needsFirstWorkspace) {
     return fallback ?? <AppContainer fallback />;
   }
 

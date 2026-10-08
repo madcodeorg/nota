@@ -20,6 +20,23 @@ const resourceDir = path.join(electronDir, 'resources', 'native');
 const binaryBaseName = 'nota-calendar-native';
 const targetArch = process.env.NOTA_ELECTRON_TARGET_ARCH ?? makeArch;
 
+export async function verifyCalendarNativeBinding(binaryPath: string) {
+  // Load only: never request access or read the user's calendar during a build.
+  await execFileAsync(
+    process.execPath,
+    [
+      '-e',
+      `const assert = require('node:assert/strict');
+const binding = require(process.argv[1]);
+for (const name of ['getAppleCalendarStatus', 'requestAppleCalendarAccess', 'listAppleCalendars', 'listAppleCalendarEvents']) {
+  assert.equal(typeof binding[name], 'function', 'Missing Calendar native API: ' + name);
+}`,
+      binaryPath,
+    ],
+    { cwd: rootDir, maxBuffer: 1024 * 1024 }
+  );
+}
+
 function napiBinaryPath() {
   return path.join(
     path.dirname(require.resolve('@napi-rs/cli/package.json')),
@@ -119,6 +136,9 @@ export async function buildAppleCalendarNative() {
     );
 
     const builtBinaryPath = await findBuiltBinary(outputDir);
+    if (targetArch === process.arch) {
+      await verifyCalendarNativeBinding(builtBinaryPath);
+    }
     const destinationPath = path.join(
       resourceDir,
       path.basename(builtBinaryPath)

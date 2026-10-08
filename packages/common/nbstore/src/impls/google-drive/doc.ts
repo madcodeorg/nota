@@ -7,6 +7,8 @@ import {
   type DocUpdate,
 } from '../../storage';
 import {
+  type DriveFile,
+  driveQueryValue,
   getOrCreateGoogleDriveConnection,
   type GoogleDriveConnection,
   type GoogleDriveTokens,
@@ -14,248 +16,204 @@ import {
 
 type GoogleDriveDocStorageOptions = DocStorageOptions & {
   deviceId?: string;
+  pollingIntervalMs?: number;
+  accountId?: string;
   tokens?: GoogleDriveTokens | null;
 };
 
-function generateUUID(): string {
-  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-    return crypto.randomUUID();
-  }
-  // Fallback for environments without crypto.randomUUID
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
-    const r = (Math.random() * 16) | 0;
-    const v = c === 'x' ? r : (r & 0x3) | 0x8;
-    return v.toString(16);
-  });
+export async function driveContentHash(content: Uint8Array): Promise<string> {
+  const hash = await crypto.subtle.digest('SHA-256', content.slice().buffer);
+  return [...new Uint8Array(hash)]
+    .map(byte => byte.toString(16).padStart(2, '0'))
+    .join('');
 }
 
-function getDeviceId(deviceId?: string): string {
-  if (deviceId) return deviceId;
-
-  const KEY = 'nota:gdrive:deviceId';
-  try {
-    if (typeof localStorage === 'undefined') return generateUUID();
-    const stored = localStorage.getItem(KEY);
-    if (stored) return stored;
-    const id = generateUUID();
-    localStorage.setItem(KEY, id);
-    return id;
-  } catch {
-    // localStorage unavailable (e.g. SSR / tests)
-    return generateUUID();
-  }
+function fileClock(files: DriveFile[]): Date {
+  // Counts distinguish concurrent files with the same millisecond timestamp.
+  // Updates are append-only; clocks are discovery hints, never deletion authority.
+  return new Date(
+    Math.max(
+      0,
+      ...files.map(file =>
+        file.modifiedTime ? new Date(file.modifiedTime).getTime() : 0
+      )
+    ) + files.length
+  );
 }
 
 export class GoogleDriveDocStorage extends DocStorageBase<GoogleDriveDocStorageOptions> {
   static readonly identifier = 'google-drive:doc';
-
   readonly connection: GoogleDriveConnection;
-
-  private readonly deviceId: string;
 
   constructor(options: GoogleDriveDocStorageOptions) {
     super(options);
-    this.deviceId = getDeviceId(options.deviceId);
     this.connection = getOrCreateGoogleDriveConnection({
+      accountId: options.accountId,
+      connectionKey: options.id,
       tokens: options.tokens,
     });
   }
 
-  // ── File name helpers ────────────────────────────────────────────────────────
-
-  private snapshotName(docId: string): string {
-    return `ws_${this.spaceId}_doc_${docId}_snapshot`;
-  }
-
-  private updateNamePrefix(docId: string): string {
-    return `ws_${this.spaceId}_doc_${docId}_update_`;
-  }
-
-  private updateName(docId: string, timestamp: number): string {
-    return `${this.updateNamePrefix(docId)}${timestamp}_${this.deviceId}`;
-  }
-
-  // ── DocStorageBase protected abstract implementation ─────────────────────────
-
-  protected override async getDocSnapshot(
-    docId: string
-  ): Promise<DocRecord | null> {
-    const name = this.snapshotName(docId);
-    const files = await this.connection.searchFiles(
-      `name = '${name}' and trashed = false`
+  override subscribeDocUpdate(
+    callback: (update: DocRecord, origin?: string) => void
+  ): () => void {
+    const off = super.subscribeDocUpdate(callback);
+    const known = new Map<string, number>();
+    let disposed = false;
+    let running = false;
+    const poll = async () => {
+      if (disposed || running || this.connection.status !== 'connected') return;
+      running = true;
+      try {
+        const clocks = await this.getDocTimestamps();
+        for (const [docId, timestamp] of Object.entries(clocks)) {
+          if (disposed) return;
+          if (known.get(docId) === timestamp.getTime()) continue;
+          const record = await this.getDoc(docId);
+          if (record && !disposed) {
+            known.set(docId, record.timestamp.getTime());
+            callback(record);
+          }
+        }
+      } catch {
+        // nbstore retries remote connection failures independently from local saving.
+      } finally {
+        running = false;
+      }
+    };
+    const timer = setInterval(
+      () => void poll(),
+      this.options.pollingIntervalMs ?? 10000
     );
-
-    if (!files.length) return null;
-
-    const file = files[0];
-    const bin = await this.connection.downloadFile(file.id);
-
-    return {
-      docId,
-      bin,
-      timestamp: file.modifiedTime ? new Date(file.modifiedTime) : new Date(0),
+    poll().catch(() => undefined);
+    return () => {
+      disposed = true;
+      clearInterval(timer);
+      off();
     };
   }
 
+  private prefix(docId: string): string {
+    return `ws_${this.spaceId}_doc_${docId}`;
+  }
+
+  private async files(docId: string): Promise<DriveFile[]> {
+    const prefix = this.prefix(docId);
+    const files = await this.connection.searchFiles(
+      `name contains '${driveQueryValue(prefix)}' and trashed = false`
+    );
+    return files.filter(
+      file =>
+        file.name === `${prefix}_snapshot` ||
+        file.name.startsWith(`${prefix}_update_`)
+    );
+  }
+
+  /** Read-only merge: a process-local lock cannot safely compact two devices. */
+  override async getDoc(docId: string): Promise<DocRecord | null> {
+    const files = await this.files(docId);
+    if (!files.length) return null;
+    const updates = await Promise.all(
+      files.map(file => this.connection.downloadFile(file.id))
+    );
+    return {
+      docId,
+      bin: await this.mergeUpdates(updates),
+      timestamp: fileClock(files),
+    };
+  }
+
+  protected override async getDocSnapshot(
+    _docId: string
+  ): Promise<DocRecord | null> {
+    return null;
+  }
   protected override async setDocSnapshot(
-    snapshot: DocRecord,
-    _prevSnapshot: DocRecord | null
+    _snapshot: DocRecord,
+    _previous: DocRecord | null
   ): Promise<boolean> {
-    const name = this.snapshotName(snapshot.docId);
-    const existing = await this.connection.searchFiles(
-      `name = '${name}' and trashed = false`
-    );
-
-    if (existing.length) {
-      // Only overwrite if incoming snapshot is newer
-      const existingTs = existing[0].modifiedTime
-        ? new Date(existing[0].modifiedTime).getTime()
-        : 0;
-      if (snapshot.timestamp.getTime() < existingTs) {
-        return false;
-      }
-      await this.connection.updateFile(existing[0].id, snapshot.bin);
-    } else {
-      await this.connection.createFile(name, snapshot.bin);
-    }
-
-    this.emit('snapshot', snapshot, _prevSnapshot);
-    return true;
+    return false;
   }
-
-  protected override async getDocUpdates(docId: string): Promise<DocRecord[]> {
-    const prefix = this.updateNamePrefix(docId);
-    const files = await this.connection.searchFiles(
-      `name contains '${prefix}' and trashed = false`
-    );
-
-    const records: DocRecord[] = [];
-    for (const file of files) {
-      const bin = await this.connection.downloadFile(file.id);
-      records.push({
-        docId,
-        bin,
-        timestamp: file.modifiedTime
-          ? new Date(file.modifiedTime)
-          : new Date(0),
-      });
-    }
-
-    // Sort ascending by timestamp so squash works correctly
-    records.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
-    return records;
+  protected override async getDocUpdates(_docId: string): Promise<DocRecord[]> {
+    return [];
   }
-
   protected override async markUpdatesMerged(
-    docId: string,
-    updates: DocRecord[]
+    _docId: string,
+    _updates: DocRecord[]
   ): Promise<number> {
-    if (!updates.length) return 0;
-
-    // Find update files whose timestamps match those of the merged records
-    const prefix = this.updateNamePrefix(docId);
-    const files = await this.connection.searchFiles(
-      `name contains '${prefix}' and trashed = false`
-    );
-
-    const mergedTs = new Set(updates.map(u => u.timestamp.getTime()));
-    let deleted = 0;
-
-    await Promise.all(
-      files.map(async file => {
-        const ts = file.modifiedTime
-          ? new Date(file.modifiedTime).getTime()
-          : 0;
-        if (mergedTs.has(ts)) {
-          await this.connection.deleteFile(file.id);
-          deleted++;
-        }
-      })
-    );
-
-    return deleted;
+    return 0;
   }
-
-  // ── DocStorage public abstract implementation ────────────────────────────────
 
   override async pushDocUpdate(
     update: DocUpdate,
-    _origin?: string
+    origin?: string
   ): Promise<DocClock> {
-    const timestamp = Date.now();
-    const name = this.updateName(update.docId, timestamp);
-    await this.connection.createFile(name, update.bin);
-
-    const clock: DocClock = {
+    const hash = await driveContentHash(update.bin);
+    const name = `${this.prefix(update.docId)}_update_sha256_${hash}`;
+    const existing = await this.connection.searchFiles(
+      `name = '${driveQueryValue(name)}' and trashed = false`
+    );
+    if (!existing.length) {
+      await this.connection.createFile(
+        name,
+        update.bin,
+        'application/octet-stream',
+        {
+          workspaceId: this.spaceId,
+          docId: update.docId,
+          sha256: hash,
+        }
+      );
+    } else {
+      // An indeterminate upload is retried by nbstore. Verify before acknowledging.
+      const content = await this.connection.downloadFile(existing[0].id);
+      if ((await driveContentHash(content)) !== hash)
+        throw new Error('Drive update content does not match its identity.');
+    }
+    const clock = {
       docId: update.docId,
-      timestamp: new Date(timestamp),
+      timestamp: fileClock(await this.files(update.docId)),
     };
-
     this.emit(
       'update',
       { ...clock, bin: update.bin, editor: update.editor },
-      _origin
+      origin
     );
-
     return clock;
   }
 
   override async getDocTimestamp(docId: string): Promise<DocClock | null> {
-    const snapshot = await this.getDocSnapshot(docId);
-    const updates = await this.getDocUpdates(docId);
-
-    const all = [...(snapshot ? [snapshot] : []), ...updates];
-    if (!all.length) return null;
-
-    const latest = all.reduce((best, cur) =>
-      cur.timestamp > best.timestamp ? cur : best
-    );
-
-    return { docId, timestamp: latest.timestamp };
+    const files = await this.files(docId);
+    return files.length ? { docId, timestamp: fileClock(files) } : null;
   }
 
-  override async getDocTimestamps(after?: Date): Promise<DocClocks> {
-    // List all snapshot files for this workspace
+  override async getDocTimestamps(_after?: Date): Promise<DocClocks> {
     const prefix = `ws_${this.spaceId}_doc_`;
-    const snapshotSuffix = '_snapshot';
     const files = await this.connection.searchFiles(
-      `name contains '${prefix}' and name contains '${snapshotSuffix}' and trashed = false`
+      `name contains '${driveQueryValue(prefix)}' and trashed = false`
     );
-
-    const clocks: DocClocks = {};
-
+    const groups = new Map<string, DriveFile[]>();
     for (const file of files) {
-      // Extract docId from name: ws_{spaceId}_doc_{docId}_snapshot
-      const withoutPrefix = file.name.slice(prefix.length);
-      const withoutSuffix = withoutPrefix.endsWith(snapshotSuffix)
-        ? withoutPrefix.slice(0, -snapshotSuffix.length)
-        : null;
-      if (!withoutSuffix) continue;
-
-      const ts = file.modifiedTime ? new Date(file.modifiedTime) : new Date(0);
-      if (after && ts <= after) continue;
-
-      clocks[withoutSuffix] = ts;
+      if (!file.name.startsWith(prefix)) continue;
+      const rest = file.name.slice(prefix.length);
+      const docId =
+        file.properties?.['docId'] ??
+        (rest.endsWith('_snapshot')
+          ? rest.slice(0, -9)
+          : rest.slice(0, rest.lastIndexOf('_update_')));
+      if (!docId) continue;
+      const group = groups.get(docId) ?? [];
+      group.push(file);
+      groups.set(docId, group);
     }
-
-    return clocks;
+    return Object.fromEntries(
+      [...groups].map(([id, files]) => [id, fileClock(files)])
+    );
   }
 
-  override async deleteDoc(docId: string): Promise<void> {
-    const snapshotName = this.snapshotName(docId);
-    const updatePrefix = this.updateNamePrefix(docId);
-
-    const [snapshots, updates] = await Promise.all([
-      this.connection.searchFiles(
-        `name = '${snapshotName}' and trashed = false`
-      ),
-      this.connection.searchFiles(
-        `name contains '${updatePrefix}' and trashed = false`
-      ),
-    ]);
-
-    await Promise.all(
-      [...snapshots, ...updates].map(f => this.connection.deleteFile(f.id))
+  override async deleteDoc(_docId: string): Promise<void> {
+    throw new Error(
+      'Permanent Drive document removal is unavailable. Move the page to workspace Trash.'
     );
   }
 }

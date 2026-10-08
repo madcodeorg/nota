@@ -8,6 +8,7 @@ import { dateFilter } from './date.js';
 import { multiTagFilter } from './multi-tag.js';
 import { numberFilter } from './number.js';
 import { stringFilter } from './string.js';
+import { stringListFilter } from './string-list.js';
 import { tagFilter } from './tag.js';
 import { unknownFilter } from './unknown.js';
 
@@ -16,6 +17,7 @@ const allFilter = [
   ...multiTagFilter,
   ...numberFilter,
   ...stringFilter,
+  ...stringListFilter,
   ...tagFilter,
   ...booleanFilter,
   ...unknownFilter,

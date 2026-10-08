@@ -106,6 +106,8 @@ export const registerHandlers = () => {
       return await handleIpcMessage(e, ...args);
     } catch (error) {
       logger.error(`error in ipc handler when calling ${args[0]}`, error);
+      // First launch must receive failure so the welcome can remain retryable.
+      if (args[0] === 'ui:handleOpenMainApp') throw error;
       return null;
     }
   });

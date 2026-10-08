@@ -92,6 +92,38 @@ beforeEach(() => {
 });
 
 describe('basic', () => {
+  it('keeps staging documents and attachments detached from the destination', async () => {
+    const collection = new TestWorkspace(createTestOptions());
+    collection.storeExtensions = extensions;
+    collection.meta.initialize();
+    collection.createDoc('existing');
+    const staging = collection.createStagingWorkspace();
+    try {
+      staging.createDoc('imported');
+      await staging.blobSync.set(
+        'staged-asset',
+        new Blob(['staged attachment'])
+      );
+
+      expect(staging.doc).not.toBe(collection.doc);
+      expect(staging.storeExtensions).toEqual(extensions);
+      expect(staging.meta.docMetas.map(meta => meta.id)).toEqual(['imported']);
+      expect(collection.meta.docMetas.map(meta => meta.id)).toEqual([
+        'existing',
+      ]);
+      expect(collection.getDoc('imported')).toBeNull();
+      expect(await collection.blobSync.get('staged-asset')).toBeNull();
+      expect(await (await staging.blobSync.get('staged-asset'))?.text()).toBe(
+        'staged attachment'
+      );
+    } finally {
+      staging.dispose();
+      staging.doc.destroy();
+      collection.dispose();
+      collection.doc.destroy();
+    }
+  });
+
   it('can init collection', () => {
     const options = createTestOptions();
     const collection = new TestWorkspace(options);

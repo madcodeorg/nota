@@ -66,17 +66,50 @@ export async function buildShowcaseWorkspace(
 }
 
 const logger = new DebugLogger('createFirstAppData');
+let firstWorkspaceCreated = false;
+
+export function isFirstAppOpen() {
+  if (firstWorkspaceCreated) return false;
+  try {
+    return localStorage.getItem('is-first-open') === null;
+  } catch {
+    return true;
+  }
+}
+
+const firstWorkspaceCreations = new WeakMap<
+  WorkspacesService,
+  Promise<{
+    meta: Awaited<ReturnType<WorkspacesService['create']>>;
+    defaultPageId: string | undefined;
+  }>
+>();
 
 export async function createFirstAppData(workspacesService: WorkspacesService) {
-  if (localStorage.getItem('is-first-open') !== null) {
+  const pending = firstWorkspaceCreations.get(workspacesService);
+  if (pending) return pending;
+  if (!isFirstAppOpen()) {
     return;
   }
-  localStorage.setItem('is-first-open', 'false');
-  const { meta, defaultDocId } = await buildShowcaseWorkspace(
-    workspacesService,
-    'local',
-    DEFAULT_WORKSPACE_NAME
-  );
-  logger.info('create first workspace', defaultDocId);
-  return { meta, defaultPageId: defaultDocId };
+  const creation = (async () => {
+    const { meta, defaultDocId } = await buildShowcaseWorkspace(
+      workspacesService,
+      'local',
+      DEFAULT_WORKSPACE_NAME
+    );
+    firstWorkspaceCreated = true;
+    try {
+      localStorage.setItem('is-first-open', 'false');
+    } catch {
+      // Workspace data is already saved; an optional preference cannot undo it.
+    }
+    logger.info('create first workspace', defaultDocId);
+    return { meta, defaultPageId: defaultDocId };
+  })();
+  firstWorkspaceCreations.set(workspacesService, creation);
+  try {
+    return await creation;
+  } finally {
+    firstWorkspaceCreations.delete(workspacesService);
+  }
 }

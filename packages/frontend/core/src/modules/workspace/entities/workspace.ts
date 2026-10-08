@@ -68,6 +68,10 @@ export class Workspace extends Entity {
           this.engine.awareness.connectAwareness(awareness),
         onCreateDoc: docId =>
           this.docs.createDoc({ id: docId, skipInit: true }).id,
+        acquireDoc: docId => {
+          const { doc, release } = this.docs.open(docId);
+          return { ready: doc.waitForSyncReady(), release };
+        },
       });
     }
     return this._docCollection;

@@ -2,6 +2,7 @@ import { OpConsumer } from '@nota/infra/op';
 import { Observable } from 'rxjs';
 
 import { type StorageConstructor } from '../impls';
+import { GoogleDriveConnection } from '../impls/google-drive';
 import { SpaceStorage } from '../storage';
 import type { AwarenessRecord } from '../storage/awareness';
 import { Sync } from '../sync';
@@ -172,6 +173,22 @@ class StoreConsumer {
   private disableBatterySaveMode() {
     console.log('[IndexerSync] disable battery save mode');
     this.indexerSync.disableBatterySaveMode();
+  }
+
+  private driveConnections(): GoogleDriveConnection[] {
+    return [
+      ...new Set(
+        Object.values(this.storages.remotes).flatMap(remote => {
+          return [
+            remote.get('doc')?.connection,
+            remote.get('blob')?.connection,
+          ].filter(
+            (connection): connection is GoogleDriveConnection =>
+              connection instanceof GoogleDriveConnection
+          );
+        })
+      ),
+    ];
   }
 
   private registerHandlers(consumer: OpConsumer<WorkerOps>) {
@@ -376,6 +393,23 @@ class StoreConsumer {
       'sync.disableBatterySaveMode': () => this.disableBatterySaveMode(),
       'sync.pauseSync': () => this.pauseSync(),
       'sync.resumeSync': () => this.resumeSync(),
+      'sync.setGoogleDriveTokens': ({ tokens, workspaceOwner }) => {
+        if (tokens && workspaceOwner && tokens.accountId !== workspaceOwner)
+          throw new Error(
+            'Google credentials do not match the verified workspace owner.'
+          );
+        for (const connection of this.driveConnections()) {
+          if (workspaceOwner) connection.bindWorkspaceOwner(workspaceOwner);
+          connection.setTokenSnapshot(tokens);
+        }
+      },
+      'sync.googleDriveAuthRequired': () =>
+        new Observable<void>(subscriber => {
+          const off = this.driveConnections().map(connection =>
+            connection.onAuthRequired(() => subscriber.next())
+          );
+          return () => off.forEach(dispose => dispose());
+        }),
     });
   }
 }

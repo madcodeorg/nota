@@ -5,7 +5,12 @@ import type {
 } from '@nota/nbstore/worker/client';
 
 import type { FeatureFlagService } from '../../feature-flag';
+import { GoogleAuthService } from '../../google-auth';
 import type { NbstoreService } from '../../storage';
+import {
+  getGoogleDriveWorkspaceOwner,
+  isGoogleDriveWorkspaceSyncPaused,
+} from '../../workspace-engine/impls/google-drive';
 import { WorkspaceEngineBeforeStart } from '../events';
 import { isServerBackedWorkspaceFlavour } from '../metadata';
 import type { WorkspaceService } from '../services/workspace';
@@ -53,6 +58,68 @@ export class WorkspaceEngine extends Entity<{
     return this.client.awarenessFrontend;
   }
 
+  private bindGoogleDriveSession(store: StoreClient) {
+    const session = this.framework.get(GoogleAuthService).session;
+    const workspaceId = this.workspaceService.workspace.id;
+
+    let disposed = false;
+    let generation = 0;
+    const publish = async (forceRefresh = false) => {
+      const current = ++generation;
+      const owner = getGoogleDriveWorkspaceOwner(workspaceId);
+      const user = session.userInfo$.value;
+      const allowed =
+        user?.sub === owner && !isGoogleDriveWorkspaceSyncPaused(workspaceId);
+      // Clear old worker credentials before asynchronous refresh/account replacement.
+      if (!allowed) {
+        await store.setGoogleDriveTokens(null);
+        return;
+      }
+      const accessToken = await session.getAccessToken(forceRefresh);
+      if (disposed || current !== generation) return;
+      const tokens = session.getTokensSnapshot();
+      const currentUser = session.userInfo$.value;
+      await store.setGoogleDriveTokens(
+        accessToken && tokens && currentUser?.sub === owner
+          ? {
+              accessToken,
+              expiresAt: tokens.expiresAt,
+              accountId: owner,
+            }
+          : null,
+        owner
+      );
+    };
+    const update = () =>
+      void publish().catch(error =>
+        console.error('Unable to refresh Drive sync credentials', error)
+      );
+    const subscriptions = [
+      session.status$.subscribe(update),
+      session.userInfo$.subscribe(update),
+    ];
+    let lastRefresh = 0;
+    subscriptions.push(
+      store.googleDriveAuthRequired$().subscribe(() => {
+        if (Date.now() - lastRefresh < 30000) return;
+        lastRefresh = Date.now();
+        void publish(true).catch(error =>
+          console.error('Unable to refresh Drive sync authorization', error)
+        );
+      })
+    );
+    const timer = setInterval(update, 30000);
+    const channel = new BroadcastChannel('nota-google-drive-workspace-changed');
+    channel.addEventListener('message', update);
+    this.disposables.push(() => {
+      disposed = true;
+      generation++;
+      clearInterval(timer);
+      channel.close();
+      subscriptions.forEach(subscription => subscription.unsubscribe());
+    });
+  }
+
   start() {
     if (this.started) {
       throw new Error('Engine is already started');
@@ -73,6 +140,8 @@ export class WorkspaceEngine extends Entity<{
       });
     }
     this.client = store;
+    if (this.workspaceService.workspace.flavour === 'google-drive')
+      this.bindGoogleDriveSession(store);
     this.disposables.push(dispose);
     this.eventBus.emit(WorkspaceEngineBeforeStart, this);
 

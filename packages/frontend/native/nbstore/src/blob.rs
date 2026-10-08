@@ -6,7 +6,8 @@ impl SqliteDocStorage {
   pub async fn get_blob(&self, key: String) -> Result<Option<Blob>> {
     let result = sqlx::query_as!(
       Blob,
-      "SELECT key, data, size, mime, created_at FROM blobs WHERE key = ? AND (deleted_at IS NULL OR EXISTS (SELECT 1 FROM doc_history))",
+      "SELECT key, data, size, mime, created_at FROM blobs WHERE key = ? AND (deleted_at IS NULL OR EXISTS (SELECT 1 \
+       FROM doc_history))",
       key
     )
     .fetch_optional(&self.pool)

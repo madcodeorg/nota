@@ -209,7 +209,13 @@ type Provider = {
   installedLanguages?: string[];
   systemLocale?: string;
   readiness: {
-    status: 'available' | 'missing_model' | 'unsupported' | 'planned';
+    status:
+      | 'available'
+      | 'failed'
+      | 'missing_model'
+      | 'missing_runtime'
+      | 'unsupported'
+      | 'planned';
     reason?: string;
   };
   transcriptMode: 'native-streaming' | 'unavailable' | 'vad-chunk';
@@ -244,6 +250,8 @@ const readyNemotron: Provider = {
   transcriptMode: 'native-streaming',
 };
 const autoError = 'No automatic transcription model is ready.';
+const missingModelDiagnostic =
+  'whisper-base-q5-cpp is not downloaded yet. POST /v1/local/models/whisper-base-q5-cpp/download, then check GET /v1/local/models/whisper-base-q5-cpp. Local path: /Users/example/Library/Application Support/Nota/.nota/models/whisper-base-q5-cpp';
 
 function model(
   downloadStatus:
@@ -905,6 +913,74 @@ describe('meeting permission settings', () => {
 });
 
 describe('meeting transcription settings', () => {
+  test('shows a missing model as a normal download step without raw diagnostics or an alert', async () => {
+    settings.meetings.sttProviderId = nemotron.id;
+    settings.meetings.sttProviders = [
+      {
+        ...nemotron,
+        readiness: { status: 'missing_model', reason: missingModelDiagnostic },
+      },
+    ];
+    runtime = backendRuntime(null, settings.meetings.sttProviders, nemotron.id);
+    await mountSettings();
+
+    const selected = screen.getByLabelText('Selected transcription model');
+    expect(
+      within(selected).getByText(
+        'Download this model to use it for transcription.'
+      )
+    ).toBeTruthy();
+    expect(
+      within(selected).getAllByRole('button', { name: /Download/ })
+    ).toHaveLength(1);
+    expect(within(selected).getByText('Not downloaded')).toBeTruthy();
+    expect(screen.queryByText(missingModelDiagnostic)).toBeNull();
+    expect(screen.queryByText('Technical details')).toBeNull();
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  test.each([
+    { status: 'failed', downloadStatus: 'downloaded' },
+    { status: 'missing_runtime', downloadStatus: 'downloaded' },
+    { status: 'failed', downloadStatus: 'not_started' },
+    { status: 'missing_runtime', downloadStatus: 'not_started' },
+  ] as const)(
+    'keeps a real $status runtime failure actionable when the model is $downloadStatus',
+    async ({ status, downloadStatus }) => {
+      settings.meetings.sttProviderId = nemotron.id;
+      settings.meetings.localModels = [model(downloadStatus)];
+      settings.meetings.sttProviders = [
+        {
+          ...nemotron,
+          readiness: {
+            status,
+            reason:
+              'Runtime failed at /Users/example/Library/Application Support/Nota/runtime',
+          },
+        },
+      ];
+      runtime = backendRuntime(
+        null,
+        settings.meetings.sttProviders,
+        nemotron.id
+      );
+      await mountSettings();
+
+      const selected = screen.getByLabelText('Selected transcription model');
+      expect(selected.textContent).toContain(
+        'choose another transcription model.'
+      );
+      expect(
+        within(selected).queryByText(
+          'Download this model to use it for transcription.'
+        )
+      ).toBeNull();
+      const details = selected.querySelector('details')!;
+      expect(details.open).toBe(false);
+      expect(details.textContent).toContain('/Users/example/');
+    }
+  );
+
   test('labels the Arabic model token accurately and preserves it when saving', async () => {
     settings.meetings.sttProviderId = nemotron.id;
     settings.meetings.localModels[0].languages = ['ar-AR', 'en-US'];
@@ -1046,8 +1122,8 @@ describe('meeting transcription settings', () => {
     expect(
       screen.getByRole('button', { name: 'Transcription language' }).textContent
     ).toBe('English (United States)');
-    expect(screen.getByRole('alert').textContent).toBe(
-      'Language setting could not be saved.'
+    expect(screen.getByRole('alert').firstElementChild?.textContent).toBe(
+      'Your transcription language could not be saved. Refresh the status and try again.'
     );
     expect(requests('/v1/stt/runtime/preload')).toHaveLength(0);
   });
@@ -1236,9 +1312,10 @@ describe('meeting transcription settings', () => {
 
   test.each([
     'Download the selected transcription model before recording.',
+    missingModelDiagnostic,
     null,
   ])(
-    'saves before preloading and shows an unavailable preload inline: %s',
+    'saves before preloading and treats an unavailable missing model as setup: %s',
     async message => {
       await mountSettings();
       const save = Promise.withResolvers<Response>();
@@ -1303,9 +1380,11 @@ describe('meeting transcription settings', () => {
           })
         );
       });
-      expect(screen.getByRole('alert').textContent).toBe(
-        message ?? 'Selection saved. Transcription is not ready yet.'
-      );
+      expect(screen.queryByRole('alert')).toBeNull();
+      expect(screen.queryByText(missingModelDiagnostic)).toBeNull();
+      expect(
+        screen.getByText('Download this model to use it for transcription.')
+      ).toBeTruthy();
       expect(
         screen.getByRole('button', { name: 'Transcription model' }).textContent
       ).toBe(nemotron.name);
@@ -1574,11 +1653,12 @@ describe('meeting transcription settings', () => {
     expect(requests('/api/ai/settings')).toHaveLength(3);
     expect(requests('/v1/stt/runtime')).toHaveLength(2);
     expect(requests('/v1/stt/runtime/preload')).toHaveLength(0);
-    expect(screen.getByRole('alert').textContent).toBe(
-      'AI backend returned HTTP 500'
+    expect(screen.getByRole('alert').firstElementChild?.textContent).toBe(
+      'Your transcription selection could not be saved. Refresh the status and try again.'
     );
     expect(mocks.notify.error).toHaveBeenCalledExactlyOnceWith({
-      title: 'AI backend returned HTTP 500',
+      title:
+        'Your transcription selection could not be saved. Refresh the status and try again.',
     });
     expect(mocks.notify.success).not.toHaveBeenCalled();
     expect(screen.queryByText('Saving and preparing model...')).toBeNull();
@@ -1620,13 +1700,22 @@ describe('meeting transcription settings', () => {
       });
       const expected =
         outcome === 'failure'
-          ? `Selection saved. Model could not load: ${message}`
-          : message;
-      expect(screen.getByRole('alert').textContent).toBe(expected);
+          ? 'Your selection was saved, but the model could not load. Restart Nota or choose another transcription model.'
+          : 'This model could not start. Restart Nota or choose another transcription model.';
+      const hasError = outcome === 'failure' || outcome === 'unsupported';
+      if (hasError)
+        expect(screen.getByRole('alert').firstElementChild?.textContent).toBe(
+          expected
+        );
+      else expect(screen.queryByRole('alert')).toBeNull();
       expect(mocks.notify.success).not.toHaveBeenCalled();
 
       await poll();
-      expect(screen.getByRole('alert').textContent).toBe(expected);
+      if (hasError)
+        expect(screen.getByRole('alert').firstElementChild?.textContent).toBe(
+          expected
+        );
+      else expect(screen.queryByRole('alert')).toBeNull();
       models = [model('downloaded', 1)];
       runtime = backendRuntime(
         readyNemotron,
@@ -1645,10 +1734,12 @@ describe('meeting transcription settings', () => {
         expect(screen.queryByRole('alert')).toBeNull();
         expect(mocks.notify.error).not.toHaveBeenCalled();
       } else {
-        expect(screen.getByRole('alert').textContent).toBe(expected);
+        expect(screen.getByRole('alert').firstElementChild?.textContent).toBe(
+          expected
+        );
         if (outcome === 'failure') {
           expect(mocks.notify.error).toHaveBeenCalledExactlyOnceWith({
-            title: `Provider saved, preload failed: ${message}`,
+            title: expected,
           });
         }
       }
@@ -1658,6 +1749,10 @@ describe('meeting transcription settings', () => {
   );
 
   test('hides an unavailable preload warning after the saved provider changes', async () => {
+    settings.meetings.sttProviders = [
+      { ...nemotron, readiness: { status: 'missing_runtime' } },
+      apple,
+    ];
     await mountSettings();
     fetchMock
       .mockImplementationOnce(async () => {
@@ -1682,8 +1777,8 @@ describe('meeting transcription settings', () => {
     await act(async () => {
       fireEvent.click(screen.getByRole('menuitem', { name: /Nemotron 3.5/ }));
     });
-    expect(screen.getByRole('alert').textContent).toBe(
-      'Nemotron is not ready.'
+    expect(screen.getByRole('alert').firstElementChild?.textContent).toBe(
+      'This model is not ready. Refresh the status or choose another transcription model.'
     );
 
     settings.meetings.sttProviderId = 'auto';
@@ -1741,9 +1836,16 @@ describe('meeting transcription settings', () => {
       expect(
         requests(`/v1/stt/models/${nemotron.modelId}/download`)
       ).toHaveLength(1);
-      expect(screen.getByRole('alert').textContent).toBe(download.message);
+      const alert = screen.getByRole('alert');
+      expect(alert.firstElementChild?.textContent).toBe(
+        'The model download could not start. Check your connection and try Download again.'
+      );
+      const details = alert.querySelector('details')!;
+      expect(details.open).toBe(false);
+      expect(details.textContent).toContain(download.message);
       expect(mocks.notify.error).toHaveBeenCalledWith({
-        title: download.message,
+        title:
+          'The model download could not start. Check your connection and try Download again.',
       });
       expect(mocks.notify.success).not.toHaveBeenCalled();
       expect(
@@ -1807,8 +1909,8 @@ describe('meeting transcription settings', () => {
       else runtimeHttpStatus = 503;
       await poll();
 
-      expect(screen.getByRole('alert').textContent).toBe(
-        'Download status could not be refreshed.'
+      expect(screen.getByRole('alert').firstElementChild?.textContent).toBe(
+        'Download status could not be refreshed. Check your connection and refresh the status.'
       );
       expect(screen.getByRole('progressbar').getAttribute('value')).toBe('25');
 
@@ -1880,7 +1982,9 @@ describe('meeting transcription settings', () => {
 
     expect(screen.getByText('Offline')).toBeTruthy();
     expect(
-      screen.getByText('Transcription status returned HTTP 503')
+      screen.getByText(
+        'The transcription service could not be reached. Restart Nota, then refresh the status.'
+      )
     ).toBeTruthy();
     expect(
       (

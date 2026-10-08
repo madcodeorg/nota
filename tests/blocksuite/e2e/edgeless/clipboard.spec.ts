@@ -174,18 +174,15 @@ test.describe('frame clipboard', () => {
 
 test.describe('pasting URLs', () => {
   test.beforeEach(async ({ page }) => {
-    await page.route(
-      'https://affine-worker.toeverything.workers.dev/api/worker/link-preview',
-      async route => {
-        await route.fulfill({
-          json: {},
-          headers: {
-            'Access-Control-Allow-Origin': '*',
-            'Content-Type': 'application/json',
-          },
-        });
-      }
-    );
+    await page.route('**/api/worker/link-preview', async route => {
+      await route.fulfill({
+        json: {},
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Content-Type': 'application/json',
+        },
+      });
+    });
   });
 
   test('pasting github pr url', async ({ page }) => {

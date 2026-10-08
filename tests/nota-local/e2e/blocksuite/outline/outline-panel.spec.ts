@@ -22,12 +22,6 @@ import {
   type,
   waitForEditorLoad,
 } from '@nota-test/kit/utils/page-logic';
-import {
-  closeSettingModal,
-  confirmExperimentalPrompt,
-  openExperimentalFeaturesPanel,
-  openSettingModal,
-} from '@nota-test/kit/utils/setting';
 import { openRightSideBar } from '@nota-test/kit/utils/sidebar';
 import { expect, type Locator, type Page } from '@playwright/test';
 
@@ -483,12 +477,15 @@ test.describe('drag and drop note in outline panel', () => {
 
 test.describe('advanced visibility control', () => {
   test.beforeEach(async ({ page }) => {
-    await openSettingModal(page);
-    await openExperimentalFeaturesPanel(page);
-    await confirmExperimentalPrompt(page);
-    await page.getByTestId('enable_advanced_block_visibility').click();
-    await closeSettingModal(page);
+    // The experimental Settings tab is no longer part of Nota's UI.
+    await page.evaluate(() => {
+      localStorage.setItem(
+        'global-state:affine-flag:enable_advanced_block_visibility',
+        'true'
+      );
+    });
     await page.reload();
+    await waitForEditorLoad(page);
   });
 
   test('should update notes when change note display mode from note toolbar', async ({

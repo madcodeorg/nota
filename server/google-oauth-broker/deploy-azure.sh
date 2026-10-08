@@ -99,8 +99,10 @@ cp \
   server/google-oauth-broker/Dockerfile \
   server/google-oauth-broker/calendar.cjs \
   server/google-oauth-broker/standalone.cjs \
+  server/google-oauth-broker/updates.cjs \
   server/google-oauth-broker/shared.cjs \
   "${BUILD_CONTEXT}/server/google-oauth-broker/"
+cp -R server/google-oauth-broker/updates "${BUILD_CONTEXT}/server/google-oauth-broker/updates"
 
 echo "Creating/updating Azure resource group: ${AZURE_RESOURCE_GROUP} (${AZURE_LOCATION})"
 az group create \

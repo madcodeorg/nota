@@ -7,7 +7,11 @@ import {
   type DocStorage,
   type ListedBlobRecord,
 } from '@nota/nbstore';
-import { getOrCreateGoogleDriveConnection } from '@nota/nbstore/google-drive';
+import {
+  driveQueryValue,
+  GoogleDriveConnection,
+  type GoogleDriveTokens,
+} from '@nota/nbstore/google-drive';
 import {
   IndexedDBBlobStorage,
   IndexedDBBlobSyncStorage,
@@ -29,7 +33,7 @@ import { nanoid } from 'nanoid';
 import { Observable } from 'rxjs';
 import { Doc as YDoc, encodeStateAsUpdate } from 'yjs';
 
-import { GoogleAuthService, type GoogleTokens } from '../../google-auth';
+import { GoogleAuthService } from '../../google-auth';
 import type {
   WorkspaceFlavourProvider,
   WorkspaceFlavoursProvider,
@@ -52,10 +56,13 @@ const GOOGLE_DRIVE_DEVICE_ID_KEY = 'nota:gdrive:deviceId';
 
 const logger = new DebugLogger('google-drive-workspace');
 
-type GoogleDriveWorkerTokens = GoogleTokens;
+type GoogleDriveWorkerTokens = GoogleDriveTokens;
 
 type GoogleDriveWorkspaceMeta = {
   id: string;
+  accountId?: string;
+  syncPaused?: boolean;
+  hidden?: boolean;
   name?: string;
   avatar?: string;
   createdAt: string;
@@ -129,7 +136,33 @@ function setGoogleDriveWorkspaceMetadata(
     );
   } catch (e) {
     logger.error('Failed to set google drive workspace metadata', e);
+    throw new Error(
+      'Google Drive workspace preferences could not be saved. Free local storage and try again.'
+    );
   }
+}
+
+export function getGoogleDriveWorkspaceOwner(id: string): string | undefined {
+  return getGoogleDriveWorkspaceMetadata()[id]?.accountId;
+}
+
+export function isGoogleDriveWorkspaceSyncPaused(id: string): boolean {
+  return getGoogleDriveWorkspaceMetadata()[id]?.syncPaused === true;
+}
+
+export function setGoogleDriveWorkspaceSyncPaused(
+  id: string,
+  paused: boolean
+): void {
+  setGoogleDriveWorkspaceMetadata(current => ({
+    ...current,
+    [id]: { ...current[id], id, syncPaused: paused },
+  }));
+  const channel = new BroadcastChannel(
+    GOOGLE_DRIVE_WORKSPACE_CHANGED_BROADCAST_CHANNEL_KEY
+  );
+  channel.postMessage(id);
+  channel.close();
 }
 
 function generateUUID(): string {
@@ -157,23 +190,54 @@ function getGoogleDriveDeviceId(): string {
   }
 }
 
-class GoogleDriveWorkspaceFlavourProvider implements WorkspaceFlavourProvider {
+export class GoogleDriveWorkspaceFlavourProvider implements WorkspaceFlavourProvider {
   private readonly googleAuthService: GoogleAuthService;
 
   constructor(framework: FrameworkProvider) {
     this.googleAuthService = framework.get(GoogleAuthService);
-    void this.syncWorkspaceIndexFromDrive().catch(() => undefined);
+    if (this.googleAuthService.session.userInfo$.value) this.revalidate();
   }
 
   readonly flavour = 'google-drive';
-  private readonly driveConnection = getOrCreateGoogleDriveConnection();
+  private driveConnection = new GoogleDriveConnection();
+  private remoteTask: Promise<unknown> = Promise.resolve();
+  private driveAccountId: string | undefined;
+  private disposed = false;
+  private readonly revalidationTimer = setInterval(() => {
+    if (this.googleAuthService.session.userInfo$.value) this.revalidate();
+  }, 60000);
+
+  dispose(): void {
+    this.disposed = true;
+    clearInterval(this.revalidationTimer);
+    this.driveConnection.setTokenSnapshot(null);
+    this.driveConnection.disconnect(true);
+    this.notifyChannel.close();
+  }
+
+  onSessionChanged(): void {
+    if (
+      this.googleAuthService.session.userInfo$.value?.sub !==
+      this.driveAccountId
+    )
+      this.driveConnection.setTokenSnapshot(null);
+  }
 
   private readonly notifyChannel = new BroadcastChannel(
     GOOGLE_DRIVE_WORKSPACE_CHANGED_BROADCAST_CHANNEL_KEY
   );
 
   private getGoogleTokens(): GoogleDriveWorkerTokens | null {
-    return this.googleAuthService.session.getTokensSnapshot();
+    const session = this.googleAuthService.session;
+    const tokens = session.getTokensSnapshot();
+    const accountId = session.userInfo$.value?.sub;
+    return tokens && accountId
+      ? {
+          accessToken: tokens.accessToken,
+          expiresAt: tokens.expiresAt,
+          accountId,
+        }
+      : null;
   }
 
   // Local storage types — same platform-conditional pattern as LocalWorkspaceFlavourProvider
@@ -243,10 +307,6 @@ class GoogleDriveWorkspaceFlavourProvider implements WorkspaceFlavourProvider {
     return `ws_${workspaceId}_meta.json`;
   }
 
-  private workspaceFilePrefix(workspaceId: string): string {
-    return `ws_${workspaceId}_`;
-  }
-
   private getWorkspaceName(docCollection: WorkspaceImpl): string | undefined {
     const name = docCollection.doc.getMap('meta').get('name');
     return typeof name === 'string' && name.trim().length > 0
@@ -261,32 +321,67 @@ class GoogleDriveWorkspaceFlavourProvider implements WorkspaceFlavourProvider {
     const now = new Date().toISOString();
     return {
       id: workspaceId,
+      accountId: this.googleAuthService.session.userInfo$.value?.sub,
       name: this.getWorkspaceName(docCollection),
       createdAt: now,
       updatedAt: now,
     };
   }
 
-  private async withDriveConnection<T>(task: () => Promise<T>): Promise<T> {
-    (
-      this.driveConnection as {
-        setTokenSnapshot?: (tokens?: GoogleDriveWorkerTokens | null) => void;
+  private async withDriveConnection<T>(
+    task: () => Promise<T>,
+    expectedAccountId?: string
+  ): Promise<T> {
+    const execute = async () => {
+      if (this.disposed)
+        throw new Error('Drive workspace provider is disposed.');
+      const session = this.googleAuthService.session;
+      const accountId = session.userInfo$.value?.sub;
+      if (!accountId) throw new Error('Connect Google Drive first.');
+      if (expectedAccountId && accountId !== expectedAccountId)
+        throw new Error('Google account changed. Original workspace retained.');
+      await session.getAccessToken();
+      if (this.disposed)
+        throw new Error('Drive workspace provider is disposed.');
+      const tokens = this.getGoogleTokens();
+      if (!tokens || tokens.accountId !== accountId)
+        throw new Error('Google account changed. Try again.');
+      const connection = new GoogleDriveConnection({ accountId, tokens });
+      this.driveConnection = connection;
+      this.driveAccountId = accountId;
+      connection.connect();
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 15000);
+      try {
+        await connection.waitForConnected(controller.signal);
+        const result = await task();
+        if (session.userInfo$.value?.sub !== accountId)
+          throw new Error('Google account changed. Try again.');
+        return result;
+      } finally {
+        clearTimeout(timer);
+        connection.setTokenSnapshot(null);
+        connection.disconnect(true);
       }
-    ).setTokenSnapshot?.(this.getGoogleTokens());
-    this.driveConnection.connect();
-    await this.driveConnection.waitForConnected();
-    try {
-      return await task();
-    } finally {
-      this.driveConnection.disconnect();
-    }
+    };
+    const next = this.remoteTask.then(execute, execute);
+    this.remoteTask = next.catch(() => undefined);
+    return next;
   }
 
   private async upsertWorkspaceMeta(meta: GoogleDriveWorkspaceMeta) {
+    if (
+      !meta.accountId ||
+      meta.accountId !== this.driveAccountId ||
+      this.googleAuthService.session.userInfo$.value?.sub !== meta.accountId
+    )
+      throw new Error(
+        'Google workspace owner changed. Metadata was not uploaded.'
+      );
     const name = this.workspaceMetaName(meta.id);
     const content = new TextEncoder().encode(JSON.stringify(meta));
     const existing = await this.driveConnection.searchFiles(
-      `name = '${name}' and trashed = false`
+      `name = '${driveQueryValue(name)}' and trashed = false`
     );
 
     if (existing.length > 0) {
@@ -324,7 +419,8 @@ class GoogleDriveWorkspaceFlavourProvider implements WorkspaceFlavourProvider {
         ) as Partial<GoogleDriveWorkspaceMeta>;
         const modifiedAt = file.modifiedTime ?? new Date().toISOString();
         metas.push({
-          id: parsed.id ?? workspaceId,
+          id: workspaceId,
+          accountId: this.googleAuthService.session.userInfo$.value?.sub,
           name: parsed.name,
           avatar: parsed.avatar,
           createdAt: parsed.createdAt ?? modifiedAt,
@@ -342,25 +438,57 @@ class GoogleDriveWorkspaceFlavourProvider implements WorkspaceFlavourProvider {
   }
 
   private async syncWorkspaceIndexFromDrive() {
+    if (
+      this.disposed ||
+      this.isRevalidating$.value ||
+      !this.googleAuthService.session.userInfo$.value
+    )
+      return;
     this.isRevalidating$.next(true);
     try {
       const remoteMetas = await this.withDriveConnection(async () => {
-        return await this.listRemoteWorkspaceMetas();
+        const remote = await this.listRemoteWorkspaceMetas();
+        const accountId = this.googleAuthService.session.userInfo$.value?.sub;
+        // Initial metadata uploads may be interrupted. Retry only explicitly owned caches.
+        for (const meta of Object.values(getGoogleDriveWorkspaceMetadata())) {
+          if (
+            meta.accountId === accountId &&
+            !meta.hidden &&
+            !meta.syncPaused &&
+            !remote.some(item => item.id === meta.id)
+          ) {
+            await this.upsertWorkspaceMeta(meta);
+          }
+        }
+        return remote;
       });
 
+      const accountId = this.googleAuthService.session.userInfo$.value?.sub;
+      const accepted = remoteMetas.filter(
+        meta =>
+          !getGoogleDriveWorkspaceMetadata()[meta.id]?.hidden &&
+          meta.accountId === accountId &&
+          (!getGoogleDriveWorkspaceOwner(meta.id) ||
+            getGoogleDriveWorkspaceOwner(meta.id) === accountId)
+      );
       setGoogleDriveWorkspaceIds(ids => [
         ...ids,
-        ...remoteMetas.map(meta => meta.id),
+        ...accepted.map(meta => meta.id),
       ]);
       setGoogleDriveWorkspaceMetadata(current => ({
         ...current,
-        ...Object.fromEntries(remoteMetas.map(meta => [meta.id, meta])),
+        ...Object.fromEntries(
+          accepted.map(meta => [
+            meta.id,
+            { ...meta, syncPaused: current[meta.id]?.syncPaused },
+          ])
+        ),
       }));
     } catch (error) {
       logger.error('Failed to sync Google Drive workspace index', error);
     } finally {
       this.isRevalidating$.next(false);
-      this.notifyChannel.postMessage(null);
+      if (!this.disposed) this.notifyChannel.postMessage(null);
     }
   }
 
@@ -371,6 +499,11 @@ class GoogleDriveWorkspaceFlavourProvider implements WorkspaceFlavourProvider {
       docStorage: DocStorage
     ) => Promise<void>
   ): Promise<WorkspaceMetadata> {
+    const accountId = this.googleAuthService.session.userInfo$.value?.sub;
+    if (!accountId || !(await this.googleAuthService.session.getAccessToken()))
+      throw new Error(
+        'Connect Google Drive before creating a synced workspace.'
+      );
     const id = nanoid();
 
     // Initialise local storage for the new workspace
@@ -427,10 +560,15 @@ class GoogleDriveWorkspaceFlavourProvider implements WorkspaceFlavourProvider {
     try {
       await initial(docCollection, blobStorage, docStorage);
 
-      const workspaceMeta = this.workspaceMetaFromDocCollection(
-        id,
-        docCollection
-      );
+      if (this.googleAuthService.session.userInfo$.value?.sub !== accountId)
+        throw new Error(
+          'Google account changed while copying. Original workspace retained.'
+        );
+      const workspaceMeta = {
+        ...this.workspaceMetaFromDocCollection(id, docCollection),
+        accountId,
+      };
+      docList.add(docCollection.doc);
 
       for (const subdoc of docList) {
         await docStorage.pushDocUpdate({
@@ -442,6 +580,10 @@ class GoogleDriveWorkspaceFlavourProvider implements WorkspaceFlavourProvider {
       docStorage.connection.disconnect();
       blobStorage.connection.disconnect();
 
+      if (this.googleAuthService.session.userInfo$.value?.sub !== accountId)
+        throw new Error(
+          'Google account changed while copying. Original workspace retained.'
+        );
       // Persist workspace id locally
       setGoogleDriveWorkspaceIds(ids => [...ids, id]);
       setGoogleDriveWorkspaceMetadata(current => ({
@@ -452,7 +594,7 @@ class GoogleDriveWorkspaceFlavourProvider implements WorkspaceFlavourProvider {
       try {
         await this.withDriveConnection(async () => {
           await this.upsertWorkspaceMeta(workspaceMeta);
-        });
+        }, accountId);
       } catch (error) {
         logger.error(
           `Failed to write Google Drive workspace meta for ${id}`,
@@ -462,6 +604,8 @@ class GoogleDriveWorkspaceFlavourProvider implements WorkspaceFlavourProvider {
 
       this.notifyChannel.postMessage(id);
     } finally {
+      docStorage.connection.disconnect();
+      blobStorage.connection.disconnect();
       docCollection.dispose();
     }
 
@@ -470,27 +614,13 @@ class GoogleDriveWorkspaceFlavourProvider implements WorkspaceFlavourProvider {
 
   async deleteWorkspace(id: string): Promise<void> {
     setGoogleDriveWorkspaceIds(ids => ids.filter(x => x !== id));
-    setGoogleDriveWorkspaceMetadata(current => {
-      const next = { ...current };
-      delete next[id];
-      return next;
-    });
+    setGoogleDriveWorkspaceMetadata(current => ({
+      ...current,
+      [id]: { ...current[id], id, hidden: true },
+    }));
     this.notifyChannel.postMessage(id);
 
-    try {
-      await this.withDriveConnection(async () => {
-        const files = await this.driveConnection.searchFiles(
-          `name contains '${this.workspaceFilePrefix(id)}' and trashed = false`
-        );
-        await Promise.all(
-          files.map((file: { id: string }) =>
-            this.driveConnection.deleteFile(file.id)
-          )
-        );
-      });
-    } catch (error) {
-      logger.error(`Failed to delete Google Drive workspace ${id}`, error);
-    }
+    // Removing the cached workspace never deletes the user's Drive files.
   }
 
   async getWorkspaceProfile(
@@ -571,6 +701,14 @@ class GoogleDriveWorkspaceFlavourProvider implements WorkspaceFlavourProvider {
   }
 
   getEngineWorkerInitOptions(workspaceId: string): WorkerInitOptions {
+    const accountId = getGoogleDriveWorkspaceOwner(workspaceId);
+    const tokens = this.getGoogleTokens();
+    const allowedTokens =
+      accountId &&
+      tokens?.accountId === accountId &&
+      !isGoogleDriveWorkspaceSyncPaused(workspaceId)
+        ? tokens
+        : null;
     return {
       local: {
         doc: {
@@ -637,15 +775,17 @@ class GoogleDriveWorkspaceFlavourProvider implements WorkspaceFlavourProvider {
               flavour: this.flavour,
               type: 'workspace',
               deviceId: getGoogleDriveDeviceId(),
-              tokens: this.getGoogleTokens(),
-            } as any,
+              accountId,
+              tokens: allowedTokens,
+            },
           },
           blob: {
             name: 'google-drive:blob',
             opts: {
               id: workspaceId,
-              tokens: this.getGoogleTokens(),
-            } as any,
+              accountId,
+              tokens: allowedTokens,
+            },
           },
         },
       },
@@ -653,25 +793,26 @@ class GoogleDriveWorkspaceFlavourProvider implements WorkspaceFlavourProvider {
   }
 }
 
-/**
- * Provides Google Drive–backed workspaces.
- *
- * The provider is only active when the user has connected their Google account
- * (GoogleAuthService.session.status$ === 'connected'). While disconnected the
- * flavour list is empty so no Google Drive workspaces are surfaced.
- */
+/** Cached workspaces remain visible and writable without an authenticated account. */
 export class GoogleDriveWorkspaceFlavoursProvider
   extends Service
   implements WorkspaceFlavoursProvider
 {
-  private readonly googleAuthService = this.framework.get(GoogleAuthService);
-
-  workspaceFlavours$ = LiveData.from<WorkspaceFlavourProvider[]>(
-    this.googleAuthService.session.status$.map(status =>
-      status === 'connected'
-        ? [new GoogleDriveWorkspaceFlavourProvider(this.framework)]
-        : []
-    ),
-    []
+  private readonly provider = new GoogleDriveWorkspaceFlavourProvider(
+    this.framework
   );
+  workspaceFlavours$ = new LiveData<WorkspaceFlavourProvider[]>([
+    this.provider,
+  ]);
+  private readonly authSubscription = this.framework
+    .get(GoogleAuthService)
+    .session.userInfo$.subscribe(user => {
+      this.provider.onSessionChanged();
+      if (user) this.provider.revalidate();
+    });
+  override dispose(): void {
+    this.authSubscription.unsubscribe();
+    this.provider.dispose();
+    super.dispose();
+  }
 }

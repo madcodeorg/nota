@@ -2,1159 +2,571 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1, viewport-fit=cover"
-    />
-    <title>Nota | The Note Becomes The Room</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#f8f6ef" />
     <meta
       name="description"
-      content="Nota is a local-first workspace for notes, canvas, AI, and meetings. Write and sketch in one surface, run AI through your own models, and record meetings that turn into editable pages — all stored on your device."
+      content="A calmer place for notes and meetings. Write, sketch, capture conversations, and find answers with local AI in Nota, a local-first desktop workspace."
     />
-    <style>
-      :root {
-        --bg: #10110f;
-        --surface: rgba(26, 27, 23, 0.86);
-        --surface-strong: #181915;
-        --border: rgba(207, 197, 169, 0.18);
-        --text: #ebe4d5;
-        --muted: #aca38f;
-        --accent: #aeb165;
-        --accent-strong: #d4ce77;
-        --shadow: 0 36px 120px rgba(0, 0, 0, 0.38);
-        --serif: "Iowan Old Style", "Palatino Linotype", "Book Antiqua",
-          Baskerville, Georgia, serif;
-        --sans: "SF Pro Display", "Avenir Next", "Segoe UI", "Helvetica Neue",
-          Arial, sans-serif;
-        --transition: 220ms cubic-bezier(0.16, 1, 0.3, 1);
-      }
-
-      * {
-        box-sizing: border-box;
-      }
-
-      html {
-        background: var(--bg);
-        scroll-behavior: smooth;
-      }
-
-      body {
-        margin: 0;
-        min-height: 100dvh;
-        background:
-          radial-gradient(
-            circle at top left,
-            rgba(112, 120, 74, 0.2),
-            transparent 34%
-          ),
-          radial-gradient(
-            circle at 78% 18%,
-            rgba(221, 213, 174, 0.12),
-            transparent 24%
-          ),
-          linear-gradient(180deg, #141512 0%, var(--bg) 52%, #0d0d0c 100%);
-        color: var(--text);
-        font-family: var(--sans);
-        overflow-x: hidden;
-      }
-
-      a {
-        color: inherit;
-        text-decoration: none;
-      }
-
-      img {
-        display: block;
-        max-width: 100%;
-      }
-
-      @keyframes fade-up {
-        from {
-          opacity: 0;
-          transform: translateY(22px);
-        }
-
-        to {
-          opacity: 1;
-          transform: translateY(0);
-        }
-      }
-
-      @keyframes hero-float {
-        0%,
-        100% {
-          transform: translateY(0);
-        }
-
-        50% {
-          transform: translateY(-8px);
-        }
-      }
-
-      .page {
-        width: min(1480px, calc(100vw - 40px));
-        margin: 0 auto;
-        padding: 28px 0 80px;
-      }
-
-      .nav {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 24px;
-        padding: 8px 0 24px;
-        animation: fade-up 700ms cubic-bezier(0.16, 1, 0.3, 1) both;
-      }
-
-      .brand {
-        display: inline-flex;
-        align-items: center;
-        gap: 12px;
-        font-size: 16px;
-        font-weight: 600;
-        letter-spacing: 0.02em;
-      }
-
-      .brand-mark {
-        width: 18px;
-        height: 18px;
-        border-radius: 5px;
-        background: linear-gradient(
-          145deg,
-          rgba(174, 177, 101, 0.95),
-          rgba(114, 120, 68, 0.95)
-        );
-        box-shadow: 0 10px 24px rgba(104, 108, 52, 0.35);
-        position: relative;
-      }
-
-      .brand-mark::after {
-        content: "";
-        position: absolute;
-        inset: 4px;
-        border-radius: 3px;
-        border: 1px solid rgba(16, 17, 15, 0.42);
-      }
-
-      .nav-links {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        flex-wrap: wrap;
-      }
-
-      .nav-link {
-        color: var(--muted);
-        font-size: 14px;
-        line-height: 1;
-        padding: 12px 16px;
-        border-radius: 999px;
-        border: 1px solid transparent;
-        transition:
-          transform var(--transition),
-          border-color var(--transition),
-          background-color var(--transition),
-          color var(--transition);
-      }
-
-      .nav-link:hover {
-        transform: translateY(-1px);
-        border-color: var(--border);
-        background: rgba(255, 255, 255, 0.04);
-        color: var(--text);
-      }
-
-      .hero {
-        display: grid;
-        grid-template-columns: minmax(0, 0.84fr) minmax(0, 1.16fr);
-        gap: 44px;
-        align-items: start;
-        padding: 18px 0 56px;
-      }
-
-      .hero-copy {
-        max-width: 560px;
-        animation: fade-up 780ms cubic-bezier(0.16, 1, 0.3, 1) both;
-      }
-
-      .hero-title {
-        margin: 0;
-        font-family: var(--serif);
-        font-size: clamp(3.6rem, 8vw, 6.9rem);
-        line-height: 0.94;
-        letter-spacing: -0.045em;
-        color: var(--accent-strong);
-        text-wrap: balance;
-      }
-
-      .hero-body {
-        margin: 24px 0 0;
-        font-size: clamp(1.05rem, 1.7vw, 1.22rem);
-        line-height: 1.72;
-        color: var(--muted);
-        max-width: 44rem;
-      }
-
-      .hero-actions {
-        display: flex;
-        gap: 14px;
-        flex-wrap: wrap;
-        margin-top: 32px;
-      }
-
-      .action {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        gap: 10px;
-        min-height: 52px;
-        padding: 0 22px;
-        border-radius: 999px;
-        font-size: 14px;
-        font-weight: 600;
-        letter-spacing: 0.01em;
-        transition:
-          transform var(--transition),
-          border-color var(--transition),
-          background-color var(--transition),
-          color var(--transition);
-      }
-
-      .action:hover {
-        transform: translateY(-2px);
-      }
-
-      .action:active {
-        transform: translateY(0) scale(0.985);
-      }
-
-      .action-primary {
-        background: linear-gradient(
-          145deg,
-          rgba(174, 177, 101, 0.92),
-          rgba(132, 137, 76, 0.92)
-        );
-        color: #161710;
-        box-shadow: 0 16px 34px rgba(89, 93, 43, 0.34);
-      }
-
-      .action-secondary {
-        border: 1px solid var(--border);
-        background: rgba(255, 255, 255, 0.03);
-      }
-
-      .hero-meta {
-        margin: 18px 0 0;
-        font-size: 13px;
-        letter-spacing: 0.03em;
-        text-transform: uppercase;
-        color: rgba(235, 228, 213, 0.58);
-      }
-
-      .hero-visual {
-        margin: 0;
-        padding: 16px;
-        border-radius: 34px;
-        border: 1px solid var(--border);
-        background: linear-gradient(
-          180deg,
-          rgba(33, 34, 28, 0.84) 0%,
-          rgba(17, 17, 15, 0.92) 100%
-        );
-        box-shadow: var(--shadow);
-        backdrop-filter: blur(18px);
-        position: relative;
-        animation:
-          fade-up 920ms cubic-bezier(0.16, 1, 0.3, 1) both,
-          hero-float 7.2s ease-in-out 1.2s infinite;
-      }
-
-      .hero-chrome {
-        display: flex;
-        gap: 8px;
-        padding: 2px 0 12px 6px;
-      }
-
-      .chrome-dot {
-        width: 10px;
-        height: 10px;
-        border-radius: 50%;
-        background: rgba(235, 228, 213, 0.22);
-      }
-
-      .hero-image {
-        width: 100%;
-        border-radius: 24px;
-        border: 1px solid rgba(255, 255, 255, 0.05);
-        background: #0b0b0a;
-      }
-
-      .section {
-        padding: 32px 0 72px;
-      }
-
-      .section-intro {
-        display: grid;
-        grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
-        gap: 28px;
-        align-items: end;
-        margin-bottom: 28px;
-      }
-
-      .section-title {
-        margin: 0;
-        font-family: var(--serif);
-        font-size: clamp(2.2rem, 4vw, 4.2rem);
-        line-height: 0.98;
-        letter-spacing: -0.04em;
-        max-width: 14ch;
-      }
-
-      .section-body {
-        margin: 0;
-        font-size: 16px;
-        line-height: 1.8;
-        color: var(--muted);
-        max-width: 38rem;
-      }
-
-      .showcase-grid {
-        display: grid;
-        grid-template-columns: minmax(0, 1.15fr) minmax(280px, 0.85fr);
-        gap: 22px;
-        align-items: start;
-      }
-
-      .panel {
-        background: linear-gradient(
-          180deg,
-          rgba(25, 26, 22, 0.88) 0%,
-          rgba(15, 16, 14, 0.94) 100%
-        );
-        border: 1px solid var(--border);
-        border-radius: 30px;
-        box-shadow: 0 28px 80px rgba(0, 0, 0, 0.24);
-        overflow: hidden;
-        position: relative;
-      }
-
-      .panel::after {
-        content: "";
-        position: absolute;
-        inset: 0;
-        border-radius: 30px;
-        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
-        pointer-events: none;
-      }
-
-      .lead-panel {
-        display: grid;
-        grid-template-rows: minmax(280px, 420px) auto;
-        grid-row: 1 / span 2;
-      }
-
-      .lead-image-frame {
-        padding: 14px;
-        background:
-          radial-gradient(
-            circle at 20% 0%,
-            rgba(174, 177, 101, 0.12),
-            transparent 34%
-          ),
-          rgba(11, 11, 10, 0.92);
-      }
-
-      .lead-image {
-        width: 100%;
-        height: 100%;
-        min-height: 280px;
-        object-fit: cover;
-        object-position: center top;
-        border-radius: 22px;
-      }
-
-      .panel-copy {
-        padding: 28px 28px 30px;
-      }
-
-      .panel-title {
-        margin: 0;
-        font-family: var(--serif);
-        font-size: clamp(1.7rem, 2.6vw, 2.4rem);
-        line-height: 1.04;
-        letter-spacing: -0.03em;
-      }
-
-      .panel-body {
-        margin: 14px 0 0;
-        font-size: 15px;
-        line-height: 1.76;
-        color: var(--muted);
-        max-width: 44rem;
-      }
-
-      .quote-panel {
-        min-height: 176px;
-        padding: 28px;
-        display: flex;
-        align-items: flex-end;
-        background:
-          radial-gradient(
-            circle at top right,
-            rgba(174, 177, 101, 0.16),
-            transparent 32%
-          ),
-          linear-gradient(
-            180deg,
-            rgba(29, 30, 25, 0.88),
-            rgba(15, 16, 14, 0.94)
-          );
-      }
-
-      .quote {
-        margin: 0;
-        font-family: var(--serif);
-        font-size: clamp(1.65rem, 2.4vw, 2.3rem);
-        line-height: 1.1;
-        letter-spacing: -0.03em;
-        color: var(--accent-strong);
-        max-width: 15ch;
-      }
-
-      .note-panel {
-        padding: 8px 28px;
-      }
-
-      .note-row {
-        display: grid;
-        grid-template-columns: 68px minmax(0, 1fr);
-        gap: 12px;
-        padding: 22px 0;
-        border-top: 1px solid rgba(207, 197, 169, 0.14);
-      }
-
-      .note-row:first-child {
-        border-top: 0;
-      }
-
-      .note-index {
-        margin: 0;
-        font-size: 13px;
-        letter-spacing: 0.18em;
-        text-transform: uppercase;
-        color: rgba(235, 228, 213, 0.48);
-      }
-
-      .note-title {
-        margin: 0;
-        font-size: 20px;
-        line-height: 1.2;
-        letter-spacing: -0.02em;
-      }
-
-      .note-body {
-        margin: 10px 0 0;
-        font-size: 15px;
-        line-height: 1.74;
-        color: var(--muted);
-      }
-
-      .system {
-        display: grid;
-        grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
-        gap: 42px;
-        padding: 18px 0 76px;
-      }
-
-      .system-intro {
-        position: sticky;
-        top: 28px;
-        align-self: start;
-      }
-
-      .system-list {
-        border-top: 1px solid rgba(207, 197, 169, 0.14);
-      }
-
-      .system-row {
-        display: grid;
-        grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
-        gap: 22px;
-        align-items: start;
-        padding: 24px 0 28px;
-        border-bottom: 1px solid rgba(207, 197, 169, 0.14);
-      }
-
-      .system-title {
-        margin: 0;
-        font-family: var(--serif);
-        font-size: clamp(1.45rem, 2.2vw, 2rem);
-        line-height: 1.08;
-        letter-spacing: -0.03em;
-      }
-
-      .system-body {
-        margin: 0;
-        font-size: 15px;
-        line-height: 1.8;
-        color: var(--muted);
-      }
-
-      .cta-card {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) auto;
-        gap: 24px;
-        align-items: center;
-        padding: 34px;
-      }
-
-      .cta-title {
-        margin: 0;
-        font-family: var(--serif);
-        font-size: clamp(2rem, 3.4vw, 3.4rem);
-        line-height: 0.98;
-        letter-spacing: -0.04em;
-        max-width: 14ch;
-      }
-
-      .cta-body {
-        margin: 16px 0 0;
-        font-size: 15px;
-        line-height: 1.8;
-        color: var(--muted);
-        max-width: 38rem;
-      }
-
-      .cta-actions {
-        display: flex;
-        gap: 12px;
-        flex-wrap: wrap;
-      }
-
-      .footer {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 18px;
-        padding-top: 28px;
-        color: rgba(235, 228, 213, 0.48);
-        font-size: 13px;
-        letter-spacing: 0.04em;
-        text-transform: uppercase;
-      }
-
-      .platforms {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        flex-wrap: wrap;
-        margin-top: 16px;
-        font-size: 13px;
-        color: var(--muted);
-      }
-
-      .platform-tag {
-        display: inline-flex;
-        align-items: center;
-        gap: 7px;
-        padding: 7px 13px;
-        border-radius: 999px;
-        border: 1px solid var(--border);
-        background: rgba(255, 255, 255, 0.03);
-        letter-spacing: 0.01em;
-        transition:
-          transform var(--transition),
-          border-color var(--transition),
-          color var(--transition);
-      }
-
-      .platform-tag:hover {
-        transform: translateY(-1px);
-        border-color: rgba(207, 197, 169, 0.34);
-        color: var(--text);
-      }
-
-      .feature-grid {
-        display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 18px;
-      }
-
-      .feature {
-        padding: 26px 24px 28px;
-        border-radius: 24px;
-        border: 1px solid var(--border);
-        background: linear-gradient(
-          180deg,
-          rgba(25, 26, 22, 0.74) 0%,
-          rgba(15, 16, 14, 0.9) 100%
-        );
-        transition:
-          transform var(--transition),
-          border-color var(--transition);
-      }
-
-      .feature:hover {
-        transform: translateY(-3px);
-        border-color: rgba(207, 197, 169, 0.32);
-      }
-
-      .feature-eyebrow {
-        margin: 0 0 14px;
-        font-size: 12px;
-        letter-spacing: 0.18em;
-        text-transform: uppercase;
-        color: var(--accent);
-      }
-
-      .feature-title {
-        margin: 0;
-        font-family: var(--serif);
-        font-size: 1.5rem;
-        line-height: 1.1;
-        letter-spacing: -0.03em;
-      }
-
-      .feature-body {
-        margin: 12px 0 0;
-        font-size: 14.5px;
-        line-height: 1.74;
-        color: var(--muted);
-      }
-
-      .faq-list {
-        border-top: 1px solid rgba(207, 197, 169, 0.14);
-      }
-
-      .faq-row {
-        display: grid;
-        grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
-        gap: 22px;
-        align-items: start;
-        padding: 24px 0 26px;
-        border-bottom: 1px solid rgba(207, 197, 169, 0.14);
-      }
-
-      .faq-q {
-        margin: 0;
-        font-family: var(--serif);
-        font-size: clamp(1.3rem, 1.9vw, 1.65rem);
-        line-height: 1.12;
-        letter-spacing: -0.03em;
-      }
-
-      .faq-a {
-        margin: 0;
-        font-size: 15px;
-        line-height: 1.8;
-        color: var(--muted);
-      }
-
-      .footer-links {
-        display: flex;
-        gap: 18px;
-        flex-wrap: wrap;
-      }
-
-      .footer-links a {
-        color: rgba(235, 228, 213, 0.6);
-        transition: color var(--transition);
-      }
-
-      .footer-links a:hover {
-        color: var(--text);
-      }
-
-      @media (max-width: 1100px) {
-        .hero {
-          grid-template-columns: 1fr;
-          gap: 28px;
-          padding-top: 12px;
-        }
-
-        .feature-grid {
-          grid-template-columns: repeat(2, minmax(0, 1fr));
-        }
-
-        .faq-row {
-          grid-template-columns: 1fr;
-          gap: 8px;
-        }
-
-        .section-intro,
-        .showcase-grid,
-        .system {
-          grid-template-columns: 1fr;
-        }
-
-        .lead-panel {
-          grid-row: auto;
-        }
-
-        .system-intro {
-          position: static;
-        }
-      }
-
-      @media (max-width: 900px) {
-        .cta-card {
-          grid-template-columns: 1fr;
-        }
-      }
-
-      @media (max-width: 767px) {
-        .page {
-          width: calc(100vw - 24px);
-          padding-top: 26px;
-          padding-bottom: 48px;
-        }
-
-        .nav {
-          align-items: flex-start;
-          flex-direction: column;
-          gap: 14px;
-          padding-bottom: 18px;
-        }
-
-        .nav-links {
-          order: 1;
-        }
-
-        .brand {
-          order: 2;
-          margin-top: 2px;
-        }
-
-        .hero {
-          padding-bottom: 36px;
-        }
-
-        .hero-visual {
-          padding: 10px;
-          border-radius: 22px;
-        }
-
-        .hero-image {
-          border-radius: 16px;
-        }
-
-        .section {
-          padding-top: 12px;
-          padding-bottom: 52px;
-        }
-
-        .note-row,
-        .system-row {
-          grid-template-columns: 1fr;
-          gap: 10px;
-        }
-
-        .feature-grid {
-          grid-template-columns: 1fr;
-        }
-
-        .cta-card,
-        .panel-copy,
-        .quote-panel,
-        .note-panel {
-          padding-left: 20px;
-          padding-right: 20px;
-        }
-
-        .footer {
-          flex-direction: column;
-          align-items: flex-start;
-        }
-      }
-
-      @media (prefers-reduced-motion: reduce) {
-        html {
-          scroll-behavior: auto;
-        }
-
-        .nav,
-        .hero-copy,
-        .hero-visual {
-          animation: none;
-        }
-
-        .action,
-        .nav-link {
-          transition: none;
-        }
-      }
-    </style>
+    <meta
+      property="og:title"
+      content="Nota | A calmer place for notes and meetings"
+    />
+    <meta
+      property="og:description"
+      content="Notes, canvas, meetings, and local AI. One workspace on your device."
+    />
+    <meta property="og:type" content="website" />
+    <title>Nota | A calmer place for notes and meetings</title>
+    <link rel="icon" href="/launch/nota-mark.png" type="image/png" />
+    <link
+      rel="preload"
+      href="/launch/fonts/Tinos-Regular.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+    <link
+      rel="preload"
+      href="/launch/fonts/Inter-Regular.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+    <link rel="stylesheet" href="/launch/site.css?rev=01198420a3" />
+    <script src="/launch/site.js?rev=2d9d7f3f37" defer></script>
   </head>
   <body>
-    <main class="page" id="top">
-      <header class="nav">
-        <a class="brand" href="#top">
-          <span class="brand-mark" aria-hidden="true"></span>
-          <span>Nota</span>
-        </a>
-
-        <nav class="nav-links" aria-label="Primary">
-          <a class="nav-link" href="#inside">Features</a>
-          <a class="nav-link" href="#system">How it works</a>
-          <a class="nav-link" href="#faq">FAQ</a>
-          <a class="nav-link" href="#launch">Download</a>
-        </nav>
-      </header>
-
-      <section class="hero">
-        <div class="hero-copy">
-          <h1 class="hero-title">The note becomes the room.</h1>
-          <p class="hero-body">
-            Nota is a local-first workspace for writing, drawing, meetings, and
-            AI. It opens with atmosphere, keeps the tools in one surface, and
-            lets the work stay yours.
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="site-header wrap" id="top">
+      <a class="brand" href="#top" aria-label="Nota home"
+        ><img
+          src="/launch/nota-mark-transparent.webp"
+          width="200"
+          height="200"
+          alt=""
+        /><span>Nota</span></a
+      >
+      <nav class="navigation" id="navigation" aria-label="Main navigation">
+        <a href="#notes">Notes</a><a href="#meetings">Meetings</a
+        ><a href="#capture">Capture</a><a href="#ai">AI</a
+        ><a href="https://github.com/madcodeorg/nota">Open source</a>
+      </nav>
+      <a
+        class="button button-small header-download"
+        href="https://github.com/madcodeorg/nota/releases"
+        >Download for Mac</a
+      >
+      <button
+        class="menu-toggle"
+        type="button"
+        aria-label="Open navigation"
+        aria-expanded="false"
+        aria-controls="navigation"
+      >
+        <img
+          class="menu-icon"
+          src="/launch/icons/menu.svg"
+          width="24"
+          height="24"
+          alt=""
+        /><img
+          class="close-icon"
+          src="/launch/icons/x.svg"
+          width="24"
+          height="24"
+          alt=""
+        />
+      </button>
+    </header>
+    <main id="main">
+      <section class="hero" aria-labelledby="hero-title">
+        <div class="hero-copy wrap">
+          <h1 id="hero-title">
+            A calmer place for<br class="desktop-break" />
+            notes and meetings.
+          </h1>
+          <p class="hero-lead">
+            Write, sketch, capture conversations, and find answers<br
+              class="wide-break"
+            />
+            with local AI. One workspace on your device.
           </p>
-
           <div class="hero-actions">
-            <a
-              class="action action-primary"
-              href="https://github.com/madcodeorg/nota/releases"
-            >
-              <span>Download Nota</span>
-              <span aria-hidden="true">-></span>
-            </a>
-            <a class="action action-secondary" href="#atmosphere">
-              <span>See features</span>
-              <span aria-hidden="true">/</span>
-            </a>
+            <a class="button" href="https://github.com/madcodeorg/nota/releases"
+              >Download for Mac</a
+            ><a class="text-link" href="#meetings"
+              >See how it works
+              <img
+                src="/launch/icons/arrow-right.svg"
+                width="18"
+                height="18"
+                alt=""
+            /></a>
           </div>
-
-          <div class="platforms">
-            <a
-              class="platform-tag"
-              href="https://github.com/madcodeorg/nota/releases"
-              >macOS · Apple Silicon beta</a
-            >
-            <a
-              class="platform-tag"
-              href="https://github.com/madcodeorg/nota/releases"
-              >Windows · release validation</a
-            >
-            <a
-              class="platform-tag"
-              href="https://github.com/madcodeorg/nota/releases"
-              >Linux · release validation</a
-            >
-          </div>
-
-          <p class="hero-meta">
-            Desktop beta. No account needed. Model downloads and optional
-            Google connections require internet access. Check GitHub Releases
-            for installer availability.
+          <p class="availability">
+            Mac only for now. Public installers aren’t available yet.
           </p>
         </div>
-
-        <figure class="hero-visual" id="launch">
-          <div class="hero-chrome" aria-hidden="true">
-            <span class="chrome-dot"></span>
-            <span class="chrome-dot"></span>
-            <span class="chrome-dot"></span>
-          </div>
+        <div class="hero-stage">
           <img
-            alt="Nota workspace cover and note view"
-            class="hero-image"
-            loading="eager"
-            src="./launch/new-note-cover.png"
+            class="landscape hero-current"
+            src="/launch/paper-current.webp"
+            width="1774"
+            height="887"
+            alt=""
+            aria-hidden="true"
+          />
+          <figure class="hero-preview wrap">
+            <img
+              class="product-image"
+              src="/launch/hero-workspace.webp"
+              width="1619"
+              height="971"
+              srcset="
+                /launch/hero-workspace-small.webp  800w,
+                /launch/hero-workspace.webp       1619w
+              "
+              sizes="(max-width: 760px) calc(100vw - 32px), (max-width: 1430px) 88vw, 1260px"
+              fetchpriority="high"
+              alt="Nota note view: a landscape cover, a good week of ideas, and a checklist beside the local workspace sidebar."
+            />
+            <figcaption class="sr-only">
+              Illustrative preview of the Nota desktop workspace.
+            </figcaption>
+          </figure>
+        </div>
+        <div class="pillars wrap" aria-label="Three ways to work in Nota">
+          <a href="#notes"
+            ><img
+              src="/launch/icons/edit-3.svg"
+              width="28"
+              height="28"
+              alt=""
+            />Write and draw</a
+          ><a href="#capture"
+            ><img
+              src="/launch/icons/mic.svg"
+              width="28"
+              height="28"
+              alt=""
+            />Capture meetings</a
+          ><a href="#ai"
+            ><img
+              src="/launch/icons/cpu.svg"
+              width="28"
+              height="28"
+              alt=""
+            />Ask your workspace</a
+          >
+        </div>
+      </section>
+      <section
+        class="feature-section split wrap"
+        id="notes"
+        aria-labelledby="notes-title"
+      >
+        <div class="section-copy">
+          <p class="eyebrow">Notes &amp; canvas</p>
+          <h2 id="notes-title">
+            From a thought<br />
+            to a whole picture.
+          </h2>
+          <p>
+            Write a page. Sketch a connection. Move between notes and canvas
+            without moving your ideas elsewhere.
+          </p>
+        </div>
+        <figure class="feature-preview">
+          <img
+            class="product-image"
+            src="/launch/canvas-workspace.webp"
+            width="1448"
+            height="1086"
+            loading="lazy"
+            alt="Nota canvas with a landscape, an editable note, and connected ideas for writing, exploring, and reviewing."
           />
         </figure>
       </section>
-
-      <section class="section" id="atmosphere">
-        <div class="section-intro">
-          <h2 class="section-title">
-            Every note opens like a room you want to work in.
+      <section
+        class="meetings-section"
+        id="meetings"
+        aria-labelledby="meetings-title"
+      >
+        <div class="section-intro wrap">
+          <p class="eyebrow">Meetings</p>
+          <h2 id="meetings-title">
+            Be in the meeting.<br />
+            Keep what matters.
           </h2>
-          <p class="section-body">
-            Each note can lead with cover art, a date, and context — so you land
-            in a space that already has shape instead of a blinking cursor on an
-            empty page. Documents and freeform canvas live side by side.
+          <p>
+            Capture audio locally, follow the transcript, and turn<br
+              class="wide-break"
+            />
+            the conversation into editable notes.
           </p>
         </div>
-
-        <div class="showcase-grid">
-          <article class="panel lead-panel">
-            <div class="lead-image-frame">
-              <img
-                alt="Nota workspace cover detail"
-                class="lead-image"
-                loading="lazy"
-                src="./launch/new-note-cover.png"
-              />
-            </div>
-            <div class="panel-copy">
-              <h3 class="panel-title">
-                Start with a cover, not a blank rectangle.
-              </h3>
-              <p class="panel-body">
-                Give a note a cover image, a title, and a date, and it becomes
-                something you actually want to return to. Browse your workspace
-                like a gallery instead of scrolling a list of filenames.
+        <div class="meeting-stage">
+          <img
+            class="landscape meeting-current"
+            src="/launch/conversation-current.webp"
+            width="1774"
+            height="887"
+            loading="lazy"
+            alt=""
+            aria-hidden="true"
+          />
+          <figure class="meeting-preview wrap">
+            <img
+              class="product-image"
+              src="/launch/meeting-workspace.webp?rev=41598793c9"
+              width="1635"
+              height="962"
+              loading="lazy"
+              alt="Nota recording a product meeting locally, with an elapsed timer, timestamped transcript, and Stop and Pause controls."
+            />
+            <figcaption class="sr-only">
+              Illustrative preview of local meeting recording. Recording needs
+              operating-system permissions and a speech model.
+            </figcaption>
+          </figure>
+        </div>
+        <div class="meeting-flow wrap">
+          <ol>
+            <li>Record locally</li>
+            <li>Keep the transcript</li>
+            <li>Save as a note</li>
+            <li>Summarize when you choose</li>
+          </ol>
+          <p>
+            Keep the transcript, summary, decisions, and next steps in your
+            workspace.
+          </p>
+          <p class="fine-print">
+            Recording requires permissions and model setup.
+          </p>
+        </div>
+      </section>
+      <section
+        class="capture-section wrap"
+        id="capture"
+        aria-labelledby="capture-title"
+      >
+        <div class="capture-intro">
+          <p class="eyebrow">A block for the conversation</p>
+          <h2 id="capture-title">
+            Record once.<br />
+            Keep the whole thread.
+          </h2>
+          <p>
+            Drop a capture card beside your notes. The recording, transcript,
+            decisions, and next steps stay together on your canvas.
+          </p>
+        </div>
+        <div class="capture-board" data-capture-board>
+          <div class="capture-board-toolbar">
+            <span class="capture-board-title">Product sync</span>
+            <span class="capture-board-mode">On this Mac</span>
+          </div>
+          <div class="capture-board-content">
+            <article class="capture-card" data-capture-card data-state="ready">
+              <div class="capture-card-header">
+                <div>
+                  <span class="capture-kicker">Meeting capture</span>
+                  <h3>Product sync</h3>
+                </div>
+                <span
+                  class="capture-status"
+                  data-capture-status
+                  role="status"
+                  aria-live="polite"
+                  >Ready</span
+                >
+              </div>
+              <div class="capture-timer" data-record-timer aria-hidden="true">
+                00:18
+              </div>
+              <div class="capture-wave" aria-hidden="true">
+                <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i
+                ><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+              </div>
+              <p class="capture-transcript">
+                “Let’s keep the decision next to the conversation, so we can
+                return to the source later.”
               </p>
-            </div>
-          </article>
-
-          <article class="panel quote-panel">
-            <p class="quote">
-              "Write, draw, plan, and ask AI — without ever leaving the note."
-            </p>
-          </article>
-
-          <article class="panel note-panel">
-            <div class="note-row">
-              <p class="note-index">01</p>
-              <div>
-                <h3 class="note-title">Cover-led writing</h3>
-                <p class="note-body">
-                  A note can open like a room. Artwork, date, context, and
-                  structure all arrive before the first sentence does.
-                </p>
+              <div class="capture-card-footer">
+                <span class="capture-source">Mic + system audio</span>
+                <button
+                  class="capture-record-button"
+                  type="button"
+                  data-record-demo
+                  aria-pressed="false"
+                  aria-label="Play recording demo"
+                  aria-describedby="capture-disclaimer"
+                >
+                  <span class="capture-record-dot" aria-hidden="true"></span>
+                  <span data-record-label>Record</span>
+                </button>
               </div>
-            </div>
-
-            <div class="note-row">
-              <p class="note-index">02</p>
-              <div>
-                <h3 class="note-title">Canvas and document together</h3>
-                <p class="note-body">
-                  Write, sketch, collect, and arrange without leaving the
-                  workspace or forcing the idea into separate tools.
-                </p>
-              </div>
-            </div>
-
-            <div class="note-row">
-              <p class="note-index">03</p>
-              <div>
-                <h3 class="note-title">AI with your routing</h3>
-                <p class="note-body">
-                  Ask from the workspace, route through your own models or keys,
-                  and keep the answer anchored to real source material.
-                </p>
-              </div>
-            </div>
-          </article>
-        </div>
-      </section>
-
-      <section class="section" id="inside">
-        <div class="section-intro">
-          <h2 class="section-title">What's inside the workspace.</h2>
-          <p class="section-body">
-            Notes and canvas are just the start. Nota runs AI on-device,
-            searches your whole workspace by meaning, and turns meetings into
-            pages you can edit.
-          </p>
-        </div>
-
-        <div class="feature-grid">
-          <article class="feature">
-            <p class="feature-eyebrow">Local AI</p>
-            <h3 class="feature-title">AI that runs on your device</h3>
-            <p class="feature-body">
-              On-device models handle chat, summaries, and note actions without
-              the cloud — or plug in your own OpenAI, Anthropic, or Google key
-              when you want more power.
-            </p>
-          </article>
-
-          <article class="feature">
-            <p class="feature-eyebrow">Semantic search</p>
-            <h3 class="feature-title">Ask your workspace anything</h3>
-            <p class="feature-body">
-              Search by meaning, not just keywords. Nota finds the right note,
-              block, or canvas and keeps AI answers grounded in your own
-              material.
-            </p>
-          </article>
-
-          <article class="feature">
-            <p class="feature-eyebrow">Meetings</p>
-            <h3 class="feature-title">Record, transcribe, summarize</h3>
-            <p class="feature-body">
-              Capture a meeting, get a transcript and summary, then save the
-              outcome as a workspace page you can search, link, and revise.
-            </p>
-          </article>
-
-          <article class="feature">
-            <p class="feature-eyebrow">Canvas + docs</p>
-            <h3 class="feature-title">One surface for everything</h3>
-            <p class="feature-body">
-              Write structured documents and sketch on a freeform canvas in the
-              same note — no switching between separate apps to think.
-            </p>
-          </article>
-
-          <article class="feature">
-            <p class="feature-eyebrow">Your keys, your data</p>
-            <h3 class="feature-title">Bring your own models</h3>
-            <p class="feature-body">
-              Hosted providers are opt-in. Your API keys stay on your machine in
-              a local file — never sent to or managed by a Nota server.
-            </p>
-          </article>
-
-          <article class="feature">
-            <p class="feature-eyebrow">Tools &amp; agents</p>
-            <h3 class="feature-title">Connect MCP tools</h3>
-            <p class="feature-body">
-              Attach MCP tools and let AI take real actions inside your
-              workspace, all routed through the same provider setup you control.
-            </p>
-          </article>
-        </div>
-      </section>
-
-      <section class="system" id="system">
-        <div class="system-intro">
-          <h2 class="section-title">
-            Everything you need, in one local-first workspace.
-          </h2>
-          <p class="section-body">
-            Your notes stay on your device. AI runs through your own models or
-            keys. Meetings turn into editable pages. Documents and canvas share
-            one interface — so nothing lives in a separate tool.
-          </p>
-        </div>
-
-        <div class="system-list">
-          <article class="system-row">
-            <h3 class="system-title">Local-first by default</h3>
-            <p class="system-body">
-              Your workspace stays canonical on your device. Sync, export, and
-              cloud providers layer on top instead of taking ownership away.
-            </p>
-          </article>
-
-          <article class="system-row">
-            <h3 class="system-title">Connect Google when you need it</h3>
-            <p class="system-body">
-              Google Drive backup and Calendar access are optional. Supported
-              builds open your browser to request the permissions you choose.
-              Your local workspace remains usable without a Google account.
-            </p>
-          </article>
-
-          <article class="system-row">
-            <h3 class="system-title">Meetings become editable pages</h3>
-            <p class="system-body">
-              Capture, transcribe, summarize, and save the outcome as workspace
-              content that can be searched, linked, and revised later.
-            </p>
-          </article>
-
-          <article class="system-row">
-            <h3 class="system-title">One surface for thought</h3>
-            <p class="system-body">
-              Notes, canvases, AI, and planning sit inside the same product
-              grammar so the landing page feels like the app itself.
-            </p>
-          </article>
-
-          <article class="system-row">
-            <h3 class="system-title">AI on your terms</h3>
-            <p class="system-body">
-              Ask questions and draft from inside the workspace, routed through
-              your own models or API keys. Answers stay anchored to your real
-              notes — not someone else's cloud.
-            </p>
-          </article>
-        </div>
-      </section>
-
-      <section class="section" id="faq">
-        <div class="section-intro">
-          <h2 class="section-title">Before you download.</h2>
-          <p class="section-body">
-            The short answers to the things people ask first.
-          </p>
-        </div>
-
-        <div class="faq-list">
-          <article class="faq-row">
-            <h3 class="faq-q">Do I need an account?</h3>
-            <p class="faq-a">
-              No. You can write locally as soon as Nota opens. A Google
-              connection for Drive backup or Calendar access is optional and
-              depends on the build configuration.
-            </p>
-          </article>
-
-          <article class="faq-row">
-            <h3 class="faq-q">Does the AI work offline?</h3>
-            <p class="faq-a">
-              Yes, after downloading a local text model in AI Settings. The
-              first download needs internet access; chat, summaries, and note
-              actions then run on your device. Your provider key is optional
-              and only used when you choose a hosted provider.
-            </p>
-          </article>
-
-          <article class="faq-row">
-            <h3 class="faq-q">Where is my data stored?</h3>
-            <p class="faq-a">
-              On your device. Your workspace stays canonical locally; sync,
-              export, and cloud backup layer on top instead of taking ownership
-              away.
-            </p>
-          </article>
-
-          <article class="faq-row">
-            <h3 class="faq-q">Which platforms are supported?</h3>
-            <p class="faq-a">
-              The first public beta targets macOS on Apple Silicon. Windows
-              x64 and Linux x64 builds need release validation. Available
-              installers and updates are listed on GitHub Releases; automatic
-              updates are not enabled yet.
-            </p>
-          </article>
-        </div>
-      </section>
-
-      <section class="section">
-        <div class="panel cta-card">
-          <div>
-            <h2 class="cta-title">
-              Your notes, AI, and meetings — all in one place.
-            </h2>
-            <p class="cta-body">
-              Download the desktop app and start with a workspace that stays on
-              your device. Connect Google Drive through the browser whenever you
-              want a backup.
-            </p>
-          </div>
-
-          <div class="cta-actions">
-            <a
-              class="action action-primary"
-              href="https://github.com/madcodeorg/nota/releases"
+            </article>
+            <section
+              class="capture-followups"
+              aria-labelledby="capture-followups-title"
             >
-              <span>Download Nota</span>
-              <span aria-hidden="true">-></span>
-            </a>
-            <a class="action action-secondary" href="#atmosphere">
-              <span>See features</span>
-              <span aria-hidden="true">/</span>
-            </a>
+              <h3 id="capture-followups-title" class="sr-only">
+                Meeting follow-ups
+              </h3>
+              <article class="followup-card followup-decision">
+                <span class="followup-label">Decision</span>
+                <p>Keep the first-run setup focused on Mac.</p>
+                <span class="followup-source">From 00:18</span>
+              </article>
+              <article class="followup-card followup-next">
+                <span class="followup-label">Next step</span>
+                <p>Build the capture block into the workspace canvas.</p>
+                <span class="followup-source">Open in notes</span>
+              </article>
+            </section>
+          </div>
+          <p class="capture-disclaimer" id="capture-disclaimer">
+            Demo preview. The Mac app asks for Microphone and Screen Recording
+            permission before a real capture.
+          </p>
+        </div>
+      </section>
+      <section
+        class="feature-section split wrap"
+        id="ai"
+        aria-labelledby="ai-title"
+      >
+        <div class="section-copy">
+          <p class="eyebrow">Nota AI</p>
+          <h2 id="ai-title">
+            Ask your notes.<br />
+            Find your next step.
+          </h2>
+          <p>
+            Find answers across your workspace, with sources you can return to.
+          </p>
+          <p class="supporting-copy">
+            Local AI after model setup. Your own cloud provider keys, only if
+            you choose.
+          </p>
+        </div>
+        <figure class="feature-preview">
+          <img
+            class="product-image"
+            src="/launch/ai-workspace.webp"
+            width="1518"
+            height="1036"
+            loading="lazy"
+            alt="An illustrative Nota AI answer to a question about product sync, with a source pointing back to the meeting note."
+          />
+        </figure>
+      </section>
+      <section
+        class="feature-section split wrap organization"
+        id="organize"
+        aria-labelledby="organize-title"
+      >
+        <div class="section-copy">
+          <p class="eyebrow">A little structure</p>
+          <h2 id="organize-title">
+            Make space<br />
+            for what matters.
+          </h2>
+          <p>
+            Organize pages in folders. Turn plans into collections, tables, and
+            boards.
+          </p>
+        </div>
+        <figure class="feature-preview">
+          <img
+            class="product-image"
+            src="/launch/collection-workspace.webp"
+            width="1536"
+            height="1024"
+            loading="lazy"
+            alt="Nota Projects collection, with table and board views and three projects organized by status and next step."
+          />
+        </figure>
+      </section>
+      <section
+        class="ownership-section"
+        id="ownership"
+        aria-labelledby="ownership-title"
+      >
+        <div class="wrap ownership-content">
+          <h2 id="ownership-title">
+            Your workspace,<br />
+            on your terms.
+          </h2>
+          <div class="ownership-columns">
+            <div class="ownership-item">
+              <img
+                class="ownership-icon"
+                src="/launch/icons/monitor.svg"
+                width="42"
+                height="42"
+                alt=""
+              />
+              <div>
+                <h3>On your device</h3>
+                <p>
+                  Your notes and meeting content stay in your local workspace.
+                  No account needed to start.
+                </p>
+              </div>
+            </div>
+            <div class="ownership-item">
+              <img
+                class="ownership-icon"
+                src="/launch/icons/hard-drive.svg"
+                width="42"
+                height="42"
+                alt=""
+              />
+              <div>
+                <h3>Your own Google Drive</h3>
+                <p>
+                  Optional sync in your own Google Drive. Connect only when you
+                  want it.
+                </p>
+              </div>
+            </div>
+            <div class="ownership-item">
+              <img
+                class="ownership-icon"
+                src="/launch/icons/file-text.svg"
+                width="42"
+                height="42"
+                alt=""
+              />
+              <div>
+                <h3>Bring your notes along</h3>
+                <p>
+                  Import notes from Markdown, Notion, and CSV. Export your work
+                  when you want to take it elsewhere.
+                </p>
+              </div>
+            </div>
           </div>
         </div>
       </section>
-
-      <footer class="footer">
-        <span>Nota — local-first workspace for notes, AI, canvas &amp; meetings</span>
-        <nav class="footer-links" aria-label="Footer">
-          <a href="#inside">Features</a>
-          <a href="#faq">FAQ</a>
-          <a href="https://github.com/madcodeorg/nota">Source on GitHub</a>
-          <a href="https://github.com/madcodeorg/nota/blob/main/docs/PRIVACY.md">Privacy</a>
-          <a href="https://github.com/madcodeorg/nota/releases">Download</a>
-        </nav>
-      </footer>
+      <section class="faq-section wrap" id="faq" aria-labelledby="faq-title">
+        <h2 id="faq-title">
+          A few things<br />
+          you might wonder.
+        </h2>
+        <div class="faq-list">
+          <details open>
+            <summary>
+              Does Nota work offline?<img
+                src="/launch/icons/chevron-down.svg"
+                width="20"
+                height="20"
+                alt=""
+              />
+            </summary>
+            <p>
+              Notes work offline. Local AI works after you install its models.
+              Initial model downloads need an internet connection.
+            </p>
+          </details>
+          <details open>
+            <summary>
+              Do I need an account?<img
+                src="/launch/icons/chevron-down.svg"
+                width="20"
+                height="20"
+                alt=""
+              />
+            </summary>
+            <p>No. Google connection is optional for Drive sync.</p>
+          </details>
+          <details open>
+            <summary>
+              Can I use my own AI provider?<img
+                src="/launch/icons/chevron-down.svg"
+                width="20"
+                height="20"
+                alt=""
+              />
+            </summary>
+            <p>
+              Yes. Use your own provider keys when you choose. Hosted providers
+              need internet access and receive the context you send them.
+            </p>
+          </details>
+          <details open>
+            <summary>
+              Where can I get the desktop app?<img
+                src="/launch/icons/chevron-down.svg"
+                width="20"
+                height="20"
+                alt=""
+              />
+            </summary>
+            <p>
+              Nota currently supports Mac only. Public installers aren’t
+              published yet. Check
+              <a href="https://github.com/madcodeorg/nota/releases"
+                >GitHub Releases</a
+              >
+              for Mac installer updates.
+            </p>
+          </details>
+        </div>
+      </section>
+      <section
+        class="download-section"
+        id="download"
+        aria-labelledby="download-title"
+      >
+        <div class="download-layout wrap">
+          <div class="download-copy">
+            <h2 id="download-title">
+              Make room for<br />
+              your next good idea.
+            </h2>
+            <p>Notes, canvas, meetings, and local AI. Together in Nota.</p>
+            <a class="button" href="https://github.com/madcodeorg/nota/releases"
+              >Download for Mac</a
+            >
+            <p class="availability">
+              Mac only for now. Public installers aren’t available yet.
+            </p>
+          </div>
+          <img
+            class="download-idea"
+            src="/launch/paper-idea.webp"
+            width="1280"
+            height="1280"
+            loading="lazy"
+            alt=""
+            aria-hidden="true"
+          />
+        </div>
+      </section>
     </main>
+    <footer class="site-footer wrap">
+      <div class="footer-brand">
+        <a class="brand" href="#top" aria-label="Nota home"
+          ><img
+            src="/launch/nota-mark-transparent.webp"
+            width="200"
+            height="200"
+            alt=""
+          /><span>Nota</span></a
+        >
+        <p>A local workspace for thoughtful work.</p>
+      </div>
+      <nav aria-label="Footer navigation">
+        <a href="https://github.com/madcodeorg/nota">GitHub</a
+        ><a href="https://github.com/madcodeorg/nota/releases">Release notes</a
+        ><a href="/privacy.html">Privacy</a><a href="/terms.html">Terms</a>
+      </nav>
+      <p class="copyright">© 2026 Nota</p>
+    </footer>
   </body>
 </html>

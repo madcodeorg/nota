@@ -3,7 +3,6 @@ import { getLinkPreview } from 'link-preview-js';
 import { map, shareReplay } from 'rxjs';
 
 import { isMacOS } from '../../shared/utils';
-import { persistentConfig } from '../config-storage/persist';
 import { logger } from '../logger';
 import { openExternalSafely } from '../security/open-external';
 import { resolveAndValidateUrlForPreview } from '../security/url-safety';
@@ -17,15 +16,13 @@ import {
   closeTab,
   ensureTabLoaded,
   getMainWindow,
-  getOnboardingWindow,
   getTabsStatus,
   getTabViewsMeta,
   getWorkbenchMeta,
   handleWebContentsResize,
-  initAndShowMainWindow,
   isActiveTab,
-  launchStage,
   moveTab,
+  openMainAppFromOnboarding,
   pingAppLayoutReady,
   showDevTools,
   showTab,
@@ -118,21 +115,7 @@ export const uiHandlers = {
     return getChallengeResponse(challenge);
   },
   handleOpenMainApp: async () => {
-    if (launchStage.value === 'onboarding') {
-      launchStage.value = 'main';
-      persistentConfig.patch('onBoarding', false);
-    }
-
-    try {
-      const onboarding = await getOnboardingWindow();
-      onboarding?.hide();
-      await initAndShowMainWindow();
-      // need to destroy onboarding window after main window is ready
-      // otherwise the main window will be closed as well
-      onboarding?.destroy();
-    } catch (err) {
-      logger.error('handleOpenMainApp', err);
-    }
+    await openMainAppFromOnboarding();
   },
   getBookmarkDataByLink: async (_, link: string) => {
     try {

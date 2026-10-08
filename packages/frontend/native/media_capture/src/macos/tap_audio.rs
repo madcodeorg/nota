@@ -87,8 +87,9 @@ fn invalid_audio_object(status: OSStatus) -> bool {
 }
 
 fn audio_object_is_gone(id: AudioObjectID) -> bool {
-  // An IO-proc error alone does not prove the device disappeared. In particular,
-  // a stopped/not-ready device still owns resources that need releasing.
+  // An IO-proc error alone does not prove the device disappeared. In
+  // particular, a stopped/not-ready device still owns resources that need
+  // releasing.
   let mut class: u32 = 0;
   let mut size = std::mem::size_of_val(&class) as u32;
   let status = unsafe {
@@ -408,8 +409,8 @@ impl AggregateDevice {
     };
 
     // Restore the activation logic as it seems necessary for audio flow
-    // Configure the aggregate device to ensure proper handling of both input and
-    // output
+    // Configure the aggregate device to ensure proper handling of both input
+    // and output
     device.get_aggregate_device_stats()?;
 
     // Activate both the input and output devices and store their proc IDs

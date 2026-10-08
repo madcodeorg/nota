@@ -30,10 +30,10 @@ it('prefers the canonical rebuilt native addon over legacy staging aliases', () 
     affineBinaryName: 'affine.darwin-arm64.node',
   });
   expect(Array.from(candidates)).toEqual([
-    '/native/nota.darwin-arm64.node',
-    '/dist/nota.darwin-arm64.node',
-    '/native/affine.darwin-arm64.node',
-    '/dist/affine.darwin-arm64.node',
+    path.join('/native', 'nota.darwin-arm64.node'),
+    path.join('/dist', 'nota.darwin-arm64.node'),
+    path.join('/native', 'affine.darwin-arm64.node'),
+    path.join('/dist', 'affine.darwin-arm64.node'),
   ]);
 });
 
@@ -49,6 +49,7 @@ const fixture = vi.hoisted(() => ({
   files: new Map<string, string>(),
   modelRoots: new Set<string>(),
   missingFiles: new Set<string>(),
+  calendarLoadError: null as Error | null,
 }));
 
 vi.mock('node:fs', async importOriginal => ({
@@ -76,6 +77,12 @@ vi.mock('node:fs', async importOriginal => ({
 }));
 vi.mock('node:child_process', () => ({
   execFileSync: () => '{"NSAllowsLocalNetworking":true}',
+  execFile: (
+    _file: string,
+    _args: string[],
+    _options: unknown,
+    callback: (error: Error | null, stdout: string, stderr: string) => void
+  ) => callback(fixture.calendarLoadError, '', ''),
 }));
 vi.mock('@electron/asar', () => ({
   default: {
@@ -84,6 +91,7 @@ vi.mock('@electron/asar', () => ({
   },
 }));
 vi.mock('../../scripts/make-env', () => ({
+  arch: process.arch,
   buildType: 'canary',
   productName: 'Nota-canary',
 }));
@@ -475,9 +483,12 @@ describe('desktop STT release packaging', () => {
 
 describe('macOS release-critical seed validation', () => {
   async function check(mutate?: () => void, critical = true) {
+    // Match the checker's absolute output root, including the Windows drive.
+    fixture.root = path.resolve('/nota-release-fixture');
     fixture.files.clear();
     fixture.modelRoots.clear();
     fixture.missingFiles.clear();
+    fixture.calendarLoadError = null;
     for (const id of seeds) {
       const root = path.join(fixture.root, 'local-models', id);
       fixture.modelRoots.add(root);
@@ -499,6 +510,16 @@ describe('macOS release-critical seed validation', () => {
 
   it('accepts both complete seeds', async () => {
     await expect(check()).resolves.toBeUndefined();
+  });
+
+  it('rejects a packaged Calendar binding that cannot be dynamically loaded', async () => {
+    await expect(
+      check(() => {
+        fixture.calendarLoadError = new Error(
+          'mis-aligned LINKEDIT string pool'
+        );
+      })
+    ).rejects.toThrow('mis-aligned LINKEDIT string pool');
   });
 
   it.each(['nota-whistle-helper', 'nota-whisper-helper'])(

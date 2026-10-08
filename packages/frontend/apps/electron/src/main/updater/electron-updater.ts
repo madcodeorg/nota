@@ -4,17 +4,26 @@ import { autoUpdater as defaultAutoUpdater } from 'electron-updater';
 import { buildType } from '../config';
 import { logger } from '../logger';
 import { updaterSubjects } from './event';
-import { NotaUpdateProvider } from './nota-update-provider';
 import { WindowsUpdater } from './windows-updater';
 
 const mode = process.env.NODE_ENV;
 const isDev = mode === 'development';
-export const updateFeedEnabled = process.env.NOTA_ENABLE_AUTO_UPDATE === '1';
+export const UPDATE_FEED_BASE = 'https://thenota.app/updates';
 
-// Skip auto update unless a release build explicitly enables the feed. The
-// current local-first DMG has no public JSON release feed, so auto-checking
-// would otherwise log noisy HTML/JSON parse errors on every launch.
-const disabled = buildType === 'internal' || isDev || !updateFeedEnabled;
+// Packaged builds check by default; set NOTA_DISABLE_AUTO_UPDATE=1 to opt out.
+// NOTA_ENABLE_AUTO_UPDATE=1 still forces it on (dev testing).
+export const updateFeedEnabled =
+  process.env.NOTA_ENABLE_AUTO_UPDATE === '1' ||
+  (app.isPackaged && process.env.NOTA_DISABLE_AUTO_UPDATE !== '1');
+
+export function getUpdateFeedUrl(
+  channel: string,
+  override = process.env.NOTA_UPDATE_FEED_URL
+) {
+  return override || `${UPDATE_FEED_BASE}/${channel}`;
+}
+
+const disabled = isDev || !updateFeedEnabled;
 
 export const autoUpdater =
   process.platform === 'win32' ? new WindowsUpdater() : defaultAutoUpdater;
@@ -34,7 +43,8 @@ export type UpdaterConfig = {
 
 const config: UpdaterConfig = {
   autoCheckUpdate: updateFeedEnabled,
-  autoDownloadUpdate: updateFeedEnabled,
+  // Downloads start only when the user asks, so updates stay skippable.
+  autoDownloadUpdate: false,
 };
 
 export const getConfig = (): UpdaterConfig => {
@@ -96,11 +106,10 @@ export const registerUpdater = async () => {
   autoUpdater.autoInstallOnAppQuit = false;
   autoUpdater.autoRunAppAfterInstall = true;
 
-  const feedUrl = NotaUpdateProvider.configFeed({
-    channel: buildType,
+  autoUpdater.setFeedURL({
+    provider: 'generic',
+    url: getUpdateFeedUrl(buildType),
   });
-
-  autoUpdater.setFeedURL(feedUrl);
 
   // register events for checkForUpdates
   autoUpdater.on('checking-for-update', () => {

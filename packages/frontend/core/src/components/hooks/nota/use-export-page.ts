@@ -1,16 +1,9 @@
+import { DatabaseBlockDataSource } from '@blocksuite/affine/blocks/database';
 import { ExportManager } from '@blocksuite/affine/blocks/surface';
-import {
-  docLinkBaseURLMiddleware,
-  embedSyncedDocMiddleware,
-  HtmlAdapter,
-  HtmlAdapterFactoryIdentifier,
-  MarkdownAdapter,
-  MarkdownAdapterFactoryIdentifier,
-  titleMiddleware,
-} from '@blocksuite/affine/shared/adapters';
+import type { DatabaseBlockModel } from '@blocksuite/affine/model';
 import { printToPdf } from '@blocksuite/affine/shared/utils';
 import type { BlockStdScope } from '@blocksuite/affine/std';
-import { type Store, Transformer } from '@blocksuite/affine/store';
+import { type Store } from '@blocksuite/affine/store';
 import {
   createAssetsArchive,
   download,
@@ -32,10 +25,10 @@ import { useSetAtom } from 'jotai';
 import { nanoid } from 'nanoid';
 
 import { useAsyncCallback } from '../nota-async-hooks';
-import {
-  exportDatabaseCsv,
-  readableDatabaseValuesMiddleware,
-} from './export-database-csv';
+import { exportDatabaseCsv } from './export-database-csv';
+import { exportReadablePages, waitForExport } from './export-readable-pages';
+
+export { exportReadablePages } from './export-readable-pages';
 
 type ExportType =
   | 'csv'
@@ -52,107 +45,48 @@ interface ExportHandlerOptions {
   type: ExportType;
 }
 
-interface AdapterResult {
-  file: string;
-  assetsIds: string[];
-}
-
-type AdapterFactoryIdentifier =
-  | typeof HtmlAdapterFactoryIdentifier
-  | typeof MarkdownAdapterFactoryIdentifier;
-
-interface AdapterConfig {
-  identifier: AdapterFactoryIdentifier;
-  fileExtension: string; // file extension need to be lower case with dot prefix, e.g. '.md', '.txt', '.html'
-  contentType: string;
-  indexFileName: string;
-}
-
-async function exportDoc(
+export async function exportToHtml(
   doc: Store,
-  std: BlockStdScope | undefined,
-  config: AdapterConfig
+  std?: BlockStdScope,
+  signal?: AbortSignal
 ) {
-  const transformer = new Transformer({
-    schema: getAFFiNEWorkspaceSchema(),
-    blobCRUD: doc.workspace.blobSync,
-    docCRUD: {
-      create: (id: string) => doc.workspace.createDoc(id).getStore({ id }),
-      get: (id: string) => doc.workspace.getDoc(id)?.getStore({ id }) ?? null,
-      delete: (id: string) => doc.workspace.removeDoc(id),
-    },
-    middlewares: [
-      docLinkBaseURLMiddleware(doc.workspace.id),
-      titleMiddleware(doc.workspace.meta.docMetas),
-      embedSyncedDocMiddleware('content'),
-      readableDatabaseValuesMiddleware(doc),
-    ],
-  });
+  await exportReadablePages([doc], 'html', signal, std);
+}
 
-  const adapter = std
-    ? std.store.provider.get(config.identifier).get(transformer)
-    : config.identifier === HtmlAdapterFactoryIdentifier
-      ? new HtmlAdapter(transformer, doc.provider)
-      : new MarkdownAdapter(transformer, doc.provider);
-  const result = (await adapter.fromDoc(doc)) as AdapterResult;
+export async function exportToMarkdown(
+  doc: Store,
+  std?: BlockStdScope,
+  signal?: AbortSignal
+) {
+  await exportReadablePages([doc], 'markdown', signal, std);
+}
 
-  if (!result || (!result.file && !result.assetsIds.length)) {
-    throw new Error('The page could not be exported.');
-  }
-
-  const docTitle = doc.meta?.title || 'Untitled';
-  const contentBlob = new Blob([result.file], { type: config.contentType });
-  const report = [
-    ...new Set(exportDatabaseCsv(doc).flatMap(database => database.warnings)),
-  ];
-
-  let downloadBlob: Blob;
-  let name: string;
-
-  if (result.assetsIds.length > 0 || report.length > 0) {
-    if (!transformer.assets) {
-      throw new Error('No assets found');
+export async function exportToCsv(
+  page: Store,
+  signal?: AbortSignal
+): Promise<void> {
+  const targets: { ready: Promise<void>; release(): void }[] = [];
+  try {
+    signal?.throwIfAborted();
+    for (const { model } of page.getBlocksByFlavour('affine:database')) {
+      targets.push(
+        new DatabaseBlockDataSource(
+          model as DatabaseBlockModel
+        ).acquireRelationTargets()
+      );
     }
-    if (result.assetsIds.some(id => !transformer.assets.has(id)))
-      throw new Error(
-        'A required attachment could not be exported. Make it available locally and retry.'
-      );
-    const zip = await createAssetsArchive(transformer.assets, result.assetsIds);
-    await zip.file(config.indexFileName, contentBlob);
-    if (report.length)
-      await zip.file(
-        'Export report.txt',
-        new Blob([report.join('\n\n')], { type: 'text/plain;charset=utf-8' })
-      );
-    downloadBlob = await zip.generate();
-    name = `${docTitle}.zip`;
-  } else {
-    downloadBlob = contentBlob;
-    name = `${docTitle}${config.fileExtension}`;
+    await waitForExport(
+      Promise.all(targets.map(target => target.ready)),
+      signal
+    );
+    signal?.throwIfAborted();
+    await downloadCsv(page, signal);
+  } finally {
+    targets.forEach(target => target.release());
   }
-
-  download(downloadBlob, name);
 }
 
-export async function exportToHtml(doc: Store, std?: BlockStdScope) {
-  await exportDoc(doc, std, {
-    identifier: HtmlAdapterFactoryIdentifier,
-    fileExtension: '.html',
-    contentType: 'text/html',
-    indexFileName: 'index.html',
-  });
-}
-
-export async function exportToMarkdown(doc: Store, std?: BlockStdScope) {
-  await exportDoc(doc, std, {
-    identifier: MarkdownAdapterFactoryIdentifier,
-    fileExtension: '.md',
-    contentType: 'text/plain',
-    indexFileName: 'index.md',
-  });
-}
-
-export async function exportToCsv(page: Store): Promise<void> {
+async function downloadCsv(page: Store, signal?: AbortSignal): Promise<void> {
   const databases = exportDatabaseCsv(page);
   if (!databases.length)
     throw new Error('This page has no databases to export.');
@@ -165,6 +99,7 @@ export async function exportToCsv(page: Store): Promise<void> {
   } else {
     const zip = await createAssetsArchive(new Map(), []);
     for (const [index, database] of databases.entries()) {
+      signal?.throwIfAborted();
       const safeName = database.title
         .replace(/[\\/]/g, '_')
         .split('')
@@ -187,10 +122,9 @@ export async function exportToCsv(page: Store): Promise<void> {
         { type: 'text/plain;charset=utf-8' }
       )
     );
-    download(
-      await zip.generate(),
-      `${page.meta?.title || 'Databases'}.csv.zip`
-    );
+    const blob = await zip.generate();
+    signal?.throwIfAborted();
+    download(blob, `${page.meta?.title || 'Databases'}.csv.zip`);
   }
   if (report.length)
     notify.warning({
@@ -202,20 +136,22 @@ export async function exportToCsv(page: Store): Promise<void> {
 
 export async function exportPageData(
   page: Store,
-  type: 'csv' | 'html' | 'markdown' | 'snapshot'
+  type: 'csv' | 'html' | 'markdown' | 'snapshot',
+  signal?: AbortSignal
 ): Promise<void> {
   switch (type) {
     case 'csv':
-      return exportToCsv(page);
+      return exportToCsv(page, signal);
     case 'html':
-      return exportToHtml(page);
+      return exportToHtml(page, undefined, signal);
     case 'markdown':
-      return exportToMarkdown(page);
+      return exportToMarkdown(page, undefined, signal);
     case 'snapshot':
       return ZipTransformer.exportDocs(
         page.workspace,
         getAFFiNEWorkspaceSchema(),
-        [page]
+        [page],
+        signal
       );
   }
 }

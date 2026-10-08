@@ -134,7 +134,8 @@ export class IndexedDBDocStorage extends HistoricalDocStorage<IDBConnectionOptio
                 (histories.length > LOCAL_HISTORY_LIMIT ||
                   bytes > LOCAL_HISTORY_MAX_BYTES)
               ) {
-                const oldest = histories.shift()!;
+                const oldest = histories.shift();
+                if (!oldest) break;
                 bytes -= oldest.bin.byteLength;
                 await trx
                   .objectStore('histories')
@@ -404,7 +405,8 @@ export class IndexedDBDocStorage extends HistoricalDocStorage<IDBConnectionOptio
         (histories.length > LOCAL_HISTORY_LIMIT ||
           bytes > LOCAL_HISTORY_MAX_BYTES)
       ) {
-        const oldest = histories.shift()!;
+        const oldest = histories.shift();
+        if (!oldest) break;
         bytes -= oldest.bin.byteLength;
         await trx.store.delete([docId, oldest.timestamp]);
       }

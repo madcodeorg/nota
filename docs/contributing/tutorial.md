@@ -33,4 +33,4 @@ yarn dev:ai-backend
 
 For the Electron renderer and desktop process, follow the [desktop development guide](../building-desktop-client-app.md#development).
 
-For changes to AI or meetings, see [Local AI backend](../developing-ai-backend.md). Product direction and implementation plans live under `docs/superpowers/`; an item in a plan is not evidence that it has shipped.
+For changes to AI or meetings, see [Local AI backend](../developing-ai-backend.md).

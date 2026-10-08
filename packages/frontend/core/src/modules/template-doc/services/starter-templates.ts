@@ -6,9 +6,13 @@ import type {
 } from '@blocksuite/affine/model';
 import type { AffineTextAttributes } from '@blocksuite/affine/shared/types';
 import { type DeltaInsert, type Store, Text } from '@blocksuite/affine/store';
+import { DebugLogger } from '@nota/debug';
 import dayjs from 'dayjs';
 
+import type { DocRecord } from '../../doc/entities/record';
 import type { DocsService } from '../../doc/services/docs';
+
+const logger = new DebugLogger('LocalStarterTemplates');
 
 export const LOCAL_STARTER_TEMPLATES = [
   {
@@ -111,7 +115,9 @@ function database(
     { title: new Text(title), columns, views: [tableView] },
     noteId
   );
-  return store.getBlock(id)!.model as DatabaseBlockModel;
+  const block = store.getBlock(id);
+  if (!block) throw new Error('The starter database could not be created.');
+  return block.model as DatabaseBlockModel;
 }
 
 function row(
@@ -258,14 +264,14 @@ export function createLocalStarter(
     throw new Error('Invalid journal date');
   }
 
-  let linkedDocId: string | undefined;
+  let linkedDoc: DocRecord | undefined;
   if (starterId !== 'daily-journal') {
     const linkedTitles = {
       'projects-and-tasks': 'Example project brief',
       'knowledge-notes': 'First knowledge note',
       'meeting-follow-up': 'Meeting notes',
     };
-    linkedDocId = docsService.createDoc({
+    linkedDoc = docsService.createDoc({
       title: linkedTitles[starterId],
       primaryMode: 'page',
       docProps: {
@@ -285,32 +291,50 @@ export function createLocalStarter(
           }
         },
       },
-    }).id;
+    });
   }
 
-  const record = docsService.createDoc({
-    title: starterId === 'daily-journal' ? day : starter.title,
-    primaryMode: 'page',
-    docProps: {
-      paragraph: { text: new Text(starter.description) },
-      onStoreLoad: (store, { noteId }) => {
-        switch (starterId) {
-          case 'projects-and-tasks':
-            projectsAndTasks(store, noteId, linkedDocId!);
-            break;
-          case 'knowledge-notes':
-            knowledgeNotes(store, noteId, linkedDocId!);
-            break;
-          case 'daily-journal':
+  let record: DocRecord;
+  try {
+    record = docsService.createDoc({
+      title: starterId === 'daily-journal' ? day : starter.title,
+      primaryMode: 'page',
+      docProps: {
+        paragraph: { text: new Text(starter.description) },
+        onStoreLoad: (store, { noteId }) => {
+          if (starterId === 'daily-journal') {
             dailyJournal(store, noteId);
-            break;
-          case 'meeting-follow-up':
-            meetingFollowUp(store, noteId, linkedDocId!);
-            break;
-        }
+            return;
+          }
+          if (!linkedDoc)
+            throw new Error('The starter companion page is missing.');
+          const linkedId = linkedDoc.id;
+          switch (starterId) {
+            case 'projects-and-tasks':
+              projectsAndTasks(store, noteId, linkedId);
+              break;
+            case 'knowledge-notes':
+              knowledgeNotes(store, noteId, linkedId);
+              break;
+            case 'meeting-follow-up':
+              meetingFollowUp(store, noteId, linkedId);
+              break;
+          }
+        },
       },
-    },
-  });
+    });
+  } catch (error) {
+    // Keep the completed companion recoverable without duplicating it on retry.
+    try {
+      linkedDoc?.moveToTrash();
+    } catch (cleanupError) {
+      logger.error('Failed to move incomplete starter companion to Trash', {
+        docId: linkedDoc?.id,
+        error: cleanupError,
+      });
+    }
+    throw error;
+  }
   if (starterId === 'daily-journal') record.setProperty('journal', day);
   return record.id;
 }

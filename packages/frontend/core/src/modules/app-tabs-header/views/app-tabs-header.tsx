@@ -367,11 +367,13 @@ const useIsFullScreen = () => {
 export const AppTabsHeader = ({
   style,
   mode = 'app',
+  ready = true,
   className,
   left,
 }: {
   style?: React.CSSProperties;
   mode?: 'app' | 'shell';
+  ready?: boolean;
   className?: string;
   left?: ReactNode;
 }) => {
@@ -405,10 +407,10 @@ export const AppTabsHeader = ({
   }, [tabsHeaderService]);
 
   useEffect(() => {
-    if (mode === 'app') {
+    if (mode === 'app' && ready) {
       desktopApi.handler.ui.pingAppLayoutReady().catch(console.error);
     }
-  }, [mode, desktopApi]);
+  }, [mode, desktopApi, ready]);
 
   const onDrop = useAsyncCallback(
     async (data: DropTargetDropEvent<AffineDNDData>, targetId?: string) => {

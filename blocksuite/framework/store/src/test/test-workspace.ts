@@ -168,6 +168,16 @@ export class TestWorkspace implements Workspace {
     return this.getDoc(id) as Doc;
   }
 
+  createStagingWorkspace(): TestWorkspace {
+    const workspace = new TestWorkspace({
+      id: this.id,
+      idGenerator: this.idGenerator,
+    });
+    workspace.storeExtensions = this.storeExtensions;
+    workspace.meta.initialize();
+    return workspace;
+  }
+
   dispose() {
     this.awarenessStore.destroy();
   }

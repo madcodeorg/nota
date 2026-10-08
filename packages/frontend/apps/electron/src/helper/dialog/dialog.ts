@@ -8,7 +8,7 @@ import { nanoid } from 'nanoid';
 import { logger } from '../logger';
 import { mainRPC } from '../main-rpc';
 import { getDocStoragePool } from '../nbstore';
-import { storeWorkspaceMeta } from '../workspace';
+import { storeWorkspaceMeta } from '../workspace/handlers';
 import {
   getSpaceDBPath,
   getWorkspaceDBPath,

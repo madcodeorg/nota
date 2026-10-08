@@ -117,18 +117,15 @@ describe('local-first release workflow', () => {
     ).toBe(true);
   });
 
-  it('keeps only desktop/mobile dispatch inputs and release jobs', () => {
+  it('keeps only desktop dispatch inputs and release jobs', () => {
     expect(Object.keys(release.on.workflow_dispatch.inputs).sort()).toEqual([
       'desktop_linux',
       'desktop_macos',
       'desktop_windows',
-      'ios-app-version',
-      'mobile',
     ]);
     expect(Object.keys(release.jobs).sort()).toEqual([
       'canary-gate',
       'desktop',
-      'mobile',
       'prepare',
     ]);
     expect(release.on.schedule).toBeUndefined();
@@ -161,7 +158,7 @@ describe('local-first release workflow', () => {
     }
   });
 
-  it('preserves desktop gating, platform selection, and mobile version forwarding', () => {
+  it('preserves desktop gating and platform selection', () => {
     expect(release.jobs.desktop).toMatchObject({
       needs: ['prepare', 'canary-gate'],
       uses: './.github/workflows/release-desktop.yml',
@@ -175,20 +172,11 @@ describe('local-first release workflow', () => {
         `\${{ github.event_name != 'workflow_dispatch' || inputs.desktop_${platform} }}`
       );
     }
-    expect(release.jobs.mobile).toMatchObject({
-      if: '${{ inputs.mobile }}',
-      needs: ['prepare'],
-      uses: './.github/workflows/release-mobile.yml',
-      secrets: 'inherit',
-      with: { 'ios-app-version': '${{ inputs.ios-app-version }}' },
+    expect(release.jobs.desktop.with).toMatchObject({
+      'build-type': '${{ needs.prepare.outputs.BUILD_TYPE }}',
+      'app-version': '${{ needs.prepare.outputs.APP_VERSION }}',
+      'git-short-hash': '${{ needs.prepare.outputs.GIT_SHORT_HASH }}',
     });
-    for (const job of [release.jobs.desktop, release.jobs.mobile]) {
-      expect(job.with).toMatchObject({
-        'build-type': '${{ needs.prepare.outputs.BUILD_TYPE }}',
-        'app-version': '${{ needs.prepare.outputs.APP_VERSION }}',
-        'git-short-hash': '${{ needs.prepare.outputs.GIT_SHORT_HASH }}',
-      });
-    }
   });
 
   it.each([

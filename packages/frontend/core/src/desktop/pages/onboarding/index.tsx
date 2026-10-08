@@ -1,10 +1,10 @@
 import { DesktopApiService } from '@nota/core/modules/desktop-api';
 import { useServiceOptional } from '@nota/infra';
-import { useCallback } from 'react';
-import { redirect } from 'react-router-dom';
+import { useCallback, useEffect } from 'react';
+import { redirect, useNavigate } from 'react-router-dom';
 
-import { Onboarding } from '../../../components/affine/onboarding/onboarding';
 import { appConfigStorage } from '../../../components/hooks/use-app-config-storage';
+import { NotaWelcome } from './nota-welcome';
 
 /**
  * /onboarding page
@@ -22,12 +22,23 @@ export const loader = () => {
 
 export const Component = () => {
   const desktopApi = useServiceOptional(DesktopApiService);
+  const navigate = useNavigate();
+  const desktopOverlay = desktopApi?.appInfo.windowName === 'onboarding';
+  useEffect(() => {
+    if (!desktopOverlay) return;
+    document.documentElement.dataset.notaOnboardingOverlay = 'true';
+    return () => {
+      delete document.documentElement.dataset.notaOnboardingOverlay;
+    };
+  }, [desktopOverlay]);
 
-  const openApp = useCallback(() => {
-    desktopApi?.handler.ui.handleOpenMainApp().catch(err => {
-      console.log('failed to open main app', err);
-    });
-  }, [desktopApi]);
+  const openApp = useCallback(async () => {
+    if (desktopApi) await desktopApi.handler.ui.handleOpenMainApp();
+    else {
+      appConfigStorage.patch('onBoarding', false);
+      navigate('/');
+    }
+  }, [desktopApi, navigate]);
 
-  return <Onboarding onOpenApp={openApp} />;
+  return <NotaWelcome onOpenApp={openApp} desktopOverlay={desktopOverlay} />;
 };

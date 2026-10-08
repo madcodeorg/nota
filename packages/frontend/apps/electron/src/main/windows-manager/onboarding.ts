@@ -3,11 +3,13 @@ import { join } from 'node:path';
 import { BrowserWindow, screen } from 'electron';
 
 import { isDev } from '../config';
+import { persistentConfig } from '../config-storage/persist';
 import { onboardingViewUrl } from '../constants';
-// import { getExposedMeta } from './exposed';
 import { logger } from '../logger';
 import { buildWebPreferences } from '../web-preferences';
-import { fullscreenAndCenter, getScreenSize } from './utils';
+import { getMainWindow, initAndShowMainWindow } from './main-window';
+import { launchStage } from './stage';
+import { retryUnreadyActiveTab, waitForActiveTabUI } from './tab-views';
 
 // todo: not all window need all of the exposed meta
 const getWindowAdditionalArguments = async () => {
@@ -22,23 +24,33 @@ const getWindowAdditionalArguments = async () => {
 async function createOnboardingWindow(additionalArguments: string[]) {
   logger.info('creating onboarding window');
 
-  // get user's screen size
-  const { width, height } = getScreenSize(screen.getPrimaryDisplay());
+  // Chromium can render the transparent desktop overlay reliably on macOS.
+  // Other platforms use an opaque, themed, framed surface so the wizard has
+  // a visible native close control instead of an invisible frameless window.
+  const supportsDesktopOverlay = process.platform === 'darwin';
+
+  // A normal transparent window overlays the desktop without entering a Space
+  // or covering the system menu bar and Dock.
+  const { x, y, width, height } = screen.getDisplayNearestPoint(
+    screen.getCursorScreenPoint()
+  ).workArea;
 
   const browserWindow = new BrowserWindow({
     width,
     height,
-    frame: false,
+    x,
+    y,
+    backgroundColor: supportsDesktopOverlay ? '#00000000' : '#efeee7',
+    frame: !supportsDesktopOverlay,
     show: false,
     resizable: false,
-    closable: false,
+    closable: true,
     minimizable: false,
     movable: false,
-    titleBarStyle: 'hidden',
+    titleBarStyle: supportsDesktopOverlay ? 'hidden' : 'default',
     maximizable: false,
     fullscreenable: false,
-    // skipTaskbar: true,
-    transparent: true,
+    transparent: supportsDesktopOverlay,
     hasShadow: false,
     roundedCorners: false,
     webPreferences: buildWebPreferences({
@@ -51,33 +63,32 @@ async function createOnboardingWindow(additionalArguments: string[]) {
   // workaround for the phantom title bar on windows when losing focus
   // see https://github.com/electron/electron/issues/39959#issuecomment-1758736966
   browserWindow.on('focus', () => {
-    browserWindow.setBackgroundColor('#00000000');
+    browserWindow.setBackgroundColor(
+      supportsDesktopOverlay ? '#00000000' : '#efeee7'
+    );
   });
 
   browserWindow.on('blur', () => {
-    browserWindow.setBackgroundColor('#00000000');
+    browserWindow.setBackgroundColor(
+      supportsDesktopOverlay ? '#00000000' : '#efeee7'
+    );
   });
 
   browserWindow.on('ready-to-show', () => {
     // forcing zoom factor to 1 to avoid onboarding display issues
     browserWindow.webContents.setZoomFactor(1);
-    fullscreenAndCenter(browserWindow);
-    // TODO(@catsjuice): add a timeout to avoid flickering, window is ready, but dom is not ready
-    setTimeout(() => {
-      browserWindow.show();
-    }, 300);
-  });
-
-  // When moved to another screen, resize to fit the screen
-  browserWindow.on('moved', () => {
-    fullscreenAndCenter(browserWindow);
   });
 
   if (isDev) {
     browserWindow.webContents.openDevTools();
   }
 
-  await browserWindow.loadURL(onboardingViewUrl);
+  try {
+    await browserWindow.loadURL(onboardingViewUrl);
+  } catch (error) {
+    browserWindow.destroy();
+    throw error;
+  }
 
   return browserWindow;
 }
@@ -85,12 +96,16 @@ async function createOnboardingWindow(additionalArguments: string[]) {
 let onBoardingWindow: Promise<BrowserWindow> | undefined;
 
 export async function getOrCreateOnboardingWindow() {
-  const additionalArguments = await getWindowAdditionalArguments();
   if (
     !onBoardingWindow ||
     (await onBoardingWindow.then(w => w.isDestroyed()))
   ) {
-    onBoardingWindow = createOnboardingWindow(additionalArguments);
+    onBoardingWindow = getWindowAdditionalArguments()
+      .then(createOnboardingWindow)
+      .catch(error => {
+        onBoardingWindow = undefined;
+        throw error;
+      });
   }
 
   return onBoardingWindow;
@@ -101,4 +116,62 @@ export async function getOnboardingWindow() {
   const window = await onBoardingWindow;
   if (window.isDestroyed()) return;
   return window;
+}
+
+let openingMainApp: Promise<void> | undefined;
+let retryMainView = false;
+const MAIN_FADE_MS = 380;
+
+/** Eases the workspace window in over the first-launch overlay. */
+function fadeIn(window: BrowserWindow) {
+  return new Promise<void>(resolve => {
+    const start = Date.now();
+    const tick = () => {
+      if (window.isDestroyed()) return resolve();
+      const progress = Math.min(1, (Date.now() - start) / MAIN_FADE_MS);
+      window.setOpacity(1 - (1 - progress) ** 3);
+      if (progress >= 1) resolve();
+      else setTimeout(tick, 16);
+    };
+    tick();
+  });
+}
+
+/** Keep first launch resumable until an interactive main view exists. */
+export function openMainAppFromOnboarding() {
+  if (openingMainApp) return openingMainApp;
+  openingMainApp = (async () => {
+    const onboarding = await getOnboardingWindow();
+    let main: BrowserWindow | undefined;
+    try {
+      if (onboarding) {
+        // Keep the loading workspace invisible over the welcome overlay.
+        main = await getMainWindow();
+        main.setOpacity(0);
+      }
+      main = await initAndShowMainWindow();
+      if (onboarding) {
+        if (retryMainView) await retryUnreadyActiveTab();
+        await waitForActiveTabUI();
+      }
+      if (main.isDestroyed()) throw new Error('Workspace window closed.');
+      main.show();
+      if (onboarding) await fadeIn(main);
+      if (launchStage.value === 'onboarding') {
+        persistentConfig.patch('onBoarding', false);
+        launchStage.value = 'main';
+      }
+      onboarding?.destroy();
+      retryMainView = false;
+    } catch (error) {
+      retryMainView = true;
+      if (main && !main.isDestroyed()) main.setOpacity(1);
+      if (onboarding && !onboarding.isDestroyed()) onboarding.show();
+      logger.error('handleOpenMainApp', error);
+      throw error;
+    }
+  })().finally(() => {
+    openingMainApp = undefined;
+  });
+  return openingMainApp;
 }

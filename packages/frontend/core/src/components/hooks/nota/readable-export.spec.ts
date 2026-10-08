@@ -85,13 +85,10 @@ describe('shared readable page exports', () => {
       const files = new Map<string, string>();
       for (const entry of archive)
         files.set(entry.path, await entry.content.text());
-      const content = files.get(
-        type === 'html'
-          ? 'index.html'
-          : type === 'markdown'
-            ? 'index.md'
-            : '1-Tasks.csv'
-      );
+      const content =
+        type === 'csv'
+          ? files.get('1-Tasks.csv')
+          : [...files].find(([path]) => path.startsWith('1-'))?.[1];
       expect(content).toContain('Task one');
       expect(content).toContain('preserved');
       if (type === 'csv') expect(parseCsv(content!).rows[0][2]).toBe('6');

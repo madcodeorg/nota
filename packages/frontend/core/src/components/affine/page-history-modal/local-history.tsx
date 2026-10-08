@@ -74,8 +74,9 @@ export const LocalPageHistoryModal = ({
     setSelected(undefined);
     expectedCurrent.current = undefined;
     saveVersion();
+    const requestRef = request;
     return () => {
-      ++request.current;
+      ++requestRef.current;
     };
   }, [open, saveVersion]);
 

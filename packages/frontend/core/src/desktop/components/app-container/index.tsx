@@ -65,6 +65,7 @@ const DesktopLayout = ({
     <div className={styles.desktopAppViewContainer}>
       <div className={styles.desktopTabsHeader}>
         <AppTabsHeader
+          ready={!fallback}
           left={
             <>
               {isInWorkspace && (

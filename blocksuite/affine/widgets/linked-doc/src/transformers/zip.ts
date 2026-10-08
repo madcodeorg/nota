@@ -50,7 +50,7 @@ function walkBlock(
   block.children.forEach(child => walkBlock(child, visit, block.flavour));
 }
 
-function snapshotBlobIds(snapshot: DocSnapshot) {
+export function snapshotBlobIds(snapshot: DocSnapshot) {
   const ids = new Set<string>();
   walkBlock(snapshot.blocks, block => {
     if (
@@ -98,8 +98,10 @@ function snapshotBlobIds(snapshot: DocSnapshot) {
 async function exportDocs(
   collection: Workspace,
   schema: Schema,
-  docs: Store[]
+  docs: Store[],
+  signal?: AbortSignal
 ) {
+  signal?.throwIfAborted();
   const zip = new Zip();
   const job = new Transformer({
     schema,
@@ -130,6 +132,7 @@ async function exportDocs(
     snapshots
       .filter((snapshot): snapshot is DocSnapshot => !!snapshot)
       .map(async snapshot => {
+        signal?.throwIfAborted();
         for (const id of snapshotBlobIds(snapshot)) requiredBlobIds.add(id);
         // Use the title and id as the snapshot file name
         const title = (snapshot.meta.title || 'untitled').replace(
@@ -143,6 +146,7 @@ async function exportDocs(
       })
   );
 
+  signal?.throwIfAborted();
   const assets = zip.folder('assets');
   const pathBlobIdMap = job.assetsManager.getPathBlobIdMap();
   for (const blobId of pathBlobIdMap.values()) requiredBlobIds.add(blobId);
@@ -152,7 +156,9 @@ async function exportDocs(
   const results = await Promise.all(
     Array.from(requiredBlobIds).map(async blobId => {
       try {
+        signal?.throwIfAborted();
         await job.assetsManager.readFromBlob(blobId);
+        signal?.throwIfAborted();
         const ext = getAssetName(assetsMap, blobId).split('.').at(-1);
         const blob = assetsMap.get(blobId);
         if (blob) {
@@ -170,12 +176,14 @@ async function exportDocs(
         }
         return { success: false, blobId, error: 'Blob not found' };
       } catch (error) {
+        signal?.throwIfAborted();
         console.error(`Failed to process blob: ${blobId}`, error);
         return { success: false, blobId, error };
       }
     })
   );
 
+  signal?.throwIfAborted();
   const failures = results.filter(r => !r.success);
   if (failures.length > 0) {
     throw new Error(
@@ -185,6 +193,7 @@ async function exportDocs(
 
   await zip.file(MANIFEST_PATH, JSON.stringify(manifest, null, 2));
   const downloadBlob = await zip.generate();
+  signal?.throwIfAborted();
   // Use the collection id as the zip file name
   return download(downloadBlob, `${collection.id}.bs.zip`);
 }

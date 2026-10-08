@@ -417,12 +417,13 @@ impl DocStore {
       _ => {}
     };
 
-    // assign store in ytype to ensure store exists if a ytype not has any children
+    // assign store in ytype to ensure store exists if a ytype not has any
+    // children
     if let Content::Type(ty) = &mut item.content {
       ty.store = Arc::downgrade(&store_ref);
 
-      // we keep ty owner in dangling_types so the delete of any type will not make it
-      // dropped
+      // we keep ty owner in dangling_types so the delete of any type will not
+      // make it dropped
       if ty.inner.is_owned() {
         let owned_inner = ty.inner.swap_take();
         self.dangling_types.insert(
@@ -451,7 +452,8 @@ impl DocStore {
         // SAFETY:
         // before we integrate struct into store,
         // the struct => Arc<Item> is owned reference actually,
-        // no one else refer to such item yet, we can safely mutable refer to it now.
+        // no one else refer to such item yet, we can safely mutable refer to it
+        // now.
         let this = &mut *unsafe { item_owner_ref.get_mut_unchecked() };
 
         if offset > 0 {
@@ -518,8 +520,9 @@ impl DocStore {
                     conflicting_items.clear();
                   } else if this.origin_right_id == conflict_item.origin_right_id {
                     // `this` and `c` are conflicting and point to the same
-                    // integration points. The id decides which item comes first.
-                    // Since `this` is to the left of `c`, we can break here.
+                    // integration points. The id decides which item comes
+                    // first. Since `this` is to the left of
+                    // `c`, we can break here.
                     break;
                   }
                 } else if let Some(conflict_item_left) = conflict_item.origin_left_id {
@@ -544,7 +547,8 @@ impl DocStore {
           // has left, connect left <-> self <-> left.right
           if left.is_some() {
             unsafe {
-              // SAFETY: we get store write lock, no way the left get dropped by owner
+              // SAFETY: we get store write lock, no way the left get dropped by
+              // owner
               let mut left = left.get_mut_unchecked();
               right = left.right.clone();
               left.right = item_owner_ref.clone();
@@ -563,7 +567,8 @@ impl DocStore {
           // has right, connect
           if right.is_some() {
             unsafe {
-              // SAFETY: we get store write lock, no way the left get dropped by owner
+              // SAFETY: we get store write lock, no way the left get dropped by
+              // owner
               let mut right = right.get_mut_unchecked();
               right.left = item_owner_ref.clone();
             }
@@ -598,7 +603,8 @@ impl DocStore {
         } else {
           // if parent not exists, integrate GC node instead
           // don't delete it because it may referenced by other nodes
-          // if all nodes that reference it are deleted, it will merged into one gc node
+          // if all nodes that reference it are deleted, it will merged into one
+          // gc node
           node = Node::new_gc(node.id(), node.len());
         }
       }
@@ -849,8 +855,8 @@ impl DocStore {
   pub fn optimize(&mut self) -> JwstCodecResult {
     //  1. gc delete set
     self.gc_delete_set()?;
-    //  2. merge delete set (in our delete set impl, which is based on `OrderRange`
-    //     has already have auto-merge functionality), pass
+    //  2. merge delete set (in our delete set impl, which is based on
+    //     `OrderRange` has already have auto-merge functionality), pass
     //  3. merge same content siblings, e.g contentString + ContentString
     self.make_continuous();
     Ok(())
@@ -1230,8 +1236,8 @@ mod tests {
       let left = doc_store.split_at_and_get_left((1, 1)).unwrap();
       assert_eq!(left.len(), 2); // octo => oc_to
 
-      // s1 used to be (1, 4), but it actually ref of first item in store, so now it
-      // should be (1, 2)
+      // s1 used to be (1, 4), but it actually ref of first item in store, so
+      // now it should be (1, 2)
       assert_eq!(s1, left, "doc internal mutation should not modify the pointer");
       let right = doc_store.split_at_and_get_right((1, 5)).unwrap();
       assert_eq!(right.len(), 3); // base => b_ase

@@ -1,10 +1,18 @@
 # Nota
 
+[![CI](https://github.com/madcodeorg/nota/actions/workflows/build-test.yml/badge.svg?branch=main)](https://github.com/madcodeorg/nota/actions/workflows/build-test.yml)
+[![License: MIT](https://img.shields.io/github/license/madcodeorg/nota)](LICENSE)
+[![Latest release](https://img.shields.io/github/v/release/madcodeorg/nota?include_prereleases)](https://github.com/madcodeorg/nota/releases)
+
 Nota is a local-first workspace for documents, whiteboards, and on-device AI. It combines writing and visual thinking with local meeting transcription and workspace-aware AI.
 
 Your workspace lives on your device. Local text AI requires compatible hardware and a model download unless the selected model is bundled. Hosted AI providers use your own API keys and require an explicit selection. Optional integrations must not prevent local writing.
 
+![Nota on macOS: a note open next to the sidebar with All Notes, Nota AI and Meetings](docs/images/nota-screenshot.png)
+
 ## Downloads
+
+Nota is currently a source preview. Public installers have not been released yet; signing and packaged-app acceptance checks are still in progress.
 
 See [GitHub Releases](https://github.com/madcodeorg/nota/releases) for published installers, checksums, release notes, and known limitations. Install only an asset listed for your operating system and architecture. The source tree contains additional platform targets; that does not establish that an installer is available or tested.
 

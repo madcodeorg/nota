@@ -8,6 +8,7 @@ const calendarCalendarsHandler = require('../../api/google/calendar/calendars.js
 const calendarEventsHandler = require('../../api/google/calendar/events.js');
 const redeemCodeHandler = require('../../api/google/redeem-code.js');
 const refreshHandler = require('../../api/google/refresh.js');
+const { handleUpdates, findLatestDownload } = require('./updates.cjs');
 
 const PORT = Number(process.env.PORT || 8080);
 const PUBLIC_DIR = path.resolve(__dirname, '../../public');
@@ -30,6 +31,7 @@ const mimeTypes = new Map([
   ['.png', 'image/png'],
   ['.svg', 'image/svg+xml'],
   ['.webp', 'image/webp'],
+  ['.woff2', 'font/woff2'],
 ]);
 
 function send(res, statusCode, body, headers = {}) {
@@ -91,7 +93,7 @@ function redirectToDownload(req, res, pathname) {
 
   res.writeHead(302, {
     'Cache-Control': 'no-store',
-    Location: DOWNLOAD_URL,
+    Location: findLatestDownload() || DOWNLOAD_URL,
   });
   res.end();
   return true;
@@ -121,6 +123,8 @@ const server = http.createServer((req, res) => {
     });
     return;
   }
+
+  if (handleUpdates(req, res, pathname)) return;
 
   if (redirectToDownload(req, res, pathname)) return;
 

@@ -3,12 +3,11 @@ import { AutoReconnectConnection } from '../../connection';
 const DRIVE_API = 'https://www.googleapis.com/drive/v3';
 const UPLOAD_API = 'https://www.googleapis.com/upload/drive/v3';
 const MAX_CONCURRENT_REQUESTS = 10;
-const STORAGE_KEY = 'nota-google-tokens';
-const REFRESH_BEFORE_EXPIRY_MS = 5 * 60 * 1000; // 5 minutes
 
 export interface GoogleDriveTokens {
   accessToken: string;
-  refreshToken: string;
+  refreshToken?: string;
+  accountId?: string;
   expiresAt: number;
   refreshMode?: 'google' | 'broker';
   authBrokerUrl?: string;
@@ -17,9 +16,10 @@ export interface GoogleDriveTokens {
 
 export interface GoogleDriveConnectionOptions {
   tokens?: GoogleDriveTokens | null;
+  /** Stable owner of this remote workspace, never inferred from a later login. */
+  accountId?: string;
+  connectionKey?: string;
 }
-
-type StoredTokens = GoogleDriveTokens;
 
 interface DriveClient {
   accessToken: string;
@@ -43,204 +43,122 @@ function toBlobBody(content: Uint8Array, mimeType?: string): Blob {
 export class GoogleDriveConnection extends AutoReconnectConnection<DriveClient> {
   private activeRequests = 0;
   private readonly waitQueue: Array<() => void> = [];
-  private tokenSnapshot: StoredTokens | null;
+  private tokenSnapshot: GoogleDriveTokens | null;
+  private generation = 0;
+  private activeReferences = 0;
+  private requests = new AbortController();
+  private readonly authListeners = new Set<() => void>();
 
-  constructor(options: GoogleDriveConnectionOptions = {}) {
+  constructor(private readonly options: GoogleDriveConnectionOptions = {}) {
     super();
     this.tokenSnapshot = options.tokens ?? null;
   }
 
+  onAuthRequired(listener: () => void): () => void {
+    this.authListeners.add(listener);
+    return () => this.authListeners.delete(listener);
+  }
+
+  /** Bind only an owner verified by workspace discovery. An existing owner is immutable. */
+  bindWorkspaceOwner(accountId: string): void {
+    if (
+      !accountId ||
+      (this.options.accountId && this.options.accountId !== accountId)
+    ) {
+      throw new Error('Google Drive workspace belongs to a different account.');
+    }
+    const wasUnbound = !this.options.accountId;
+    this.options.accountId = accountId;
+    if (wasUnbound && this.activeReferences && this.hasOwnerToken())
+      super.connect();
+  }
+
   setTokenSnapshot(tokens?: GoogleDriveTokens | null): void {
-    if (tokens) {
-      this.tokenSnapshot = tokens;
+    const next = tokens ?? null;
+    if (
+      this.tokenSnapshot?.accessToken === next?.accessToken &&
+      this.tokenSnapshot?.accountId === next?.accountId &&
+      this.tokenSnapshot?.expiresAt === next?.expiresAt
+    )
+      return;
+    this.tokenSnapshot = next;
+    this.generation++;
+    this.requests.abort();
+    this.requests = new AbortController();
+    // Pause the remote connection completely without closing local storage.
+    // Keep our own peer references so reconnect does not depend on reopening the app.
+    super.disconnect(true);
+    if (this.activeReferences && this.hasOwnerToken()) super.connect();
+  }
+
+  private hasOwnerToken(): boolean {
+    return (
+      !!this.options.accountId &&
+      this.tokenSnapshot?.accountId === this.options.accountId
+    );
+  }
+
+  override connect(): void {
+    this.activeReferences++;
+    if (this.activeReferences === 1) {
+      if (this.hasOwnerToken()) super.connect();
+      else super.disconnect(true);
     }
   }
 
-  private readStoredTokens(): StoredTokens | null {
-    if (this.tokenSnapshot) {
-      return this.tokenSnapshot;
-    }
-
-    try {
-      if (typeof localStorage === 'undefined') return null;
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return null;
-      const parsed = JSON.parse(raw) as { tokens?: StoredTokens };
-      return parsed.tokens ?? null;
-    } catch {
-      return null;
-    }
+  override disconnect(force = false): void {
+    this.activeReferences = force ? 0 : Math.max(0, this.activeReferences - 1);
+    if (!this.activeReferences) super.disconnect(true);
   }
 
-  private saveStoredTokens(tokens: StoredTokens): void {
-    this.tokenSnapshot = tokens;
-
-    try {
-      if (typeof localStorage === 'undefined') return;
-      const raw = localStorage.getItem(STORAGE_KEY);
-      const existing = raw ? (JSON.parse(raw) as Record<string, unknown>) : {};
-      localStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify({ ...existing, tokens })
+  private accessToken(): string {
+    const tokens = this.tokenSnapshot;
+    if (
+      !tokens ||
+      !this.options.accountId ||
+      tokens.accountId !== this.options.accountId
+    ) {
+      throw new Error(
+        'Google Drive sync paused. Reconnect the workspace owner account.'
       );
-    } catch {
-      // Ignore write errors
     }
-  }
-
-  private async refreshStoredTokens(
-    tokens: StoredTokens
-  ): Promise<string | null> {
-    const updatedTokens =
-      tokens.refreshMode === 'broker'
-        ? await this.refreshBrokerToken(tokens)
-        : await this.refreshGoogleToken(tokens);
-
-    if (!updatedTokens) return null;
-
-    this.saveStoredTokens(updatedTokens);
-    return updatedTokens.accessToken;
-  }
-
-  private async refreshGoogleToken(
-    tokens: StoredTokens
-  ): Promise<StoredTokens | null> {
-    try {
-      // BUILD_CONFIG.googleClientId is injected at build time via the bundler.
-      // In the nbstore worker context the global BUILD_CONFIG is available.
-      const clientId =
-        typeof BUILD_CONFIG !== 'undefined'
-          ? ((BUILD_CONFIG as { googleClientId?: string }).googleClientId ?? '')
-          : '';
-
-      const params = new URLSearchParams({
-        client_id: clientId,
-        refresh_token: tokens.refreshToken,
-        grant_type: 'refresh_token',
-      });
-
-      const response = await fetch('https://oauth2.googleapis.com/token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: params.toString(),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Token refresh failed: ${response.status}`);
-      }
-
-      const data = (await response.json()) as {
-        access_token: string;
-        expires_in: number;
-      };
-
-      const updatedTokens: StoredTokens = {
-        accessToken: data.access_token,
-        refreshToken: tokens.refreshToken,
-        expiresAt: Date.now() + data.expires_in * 1000,
-        refreshMode: 'google',
-      };
-
-      return updatedTokens;
-    } catch (err) {
-      console.error('[GoogleDriveConnection] Token refresh failed:', err);
-      return null;
-    }
-  }
-
-  private async refreshBrokerToken(
-    tokens: StoredTokens
-  ): Promise<StoredTokens | null> {
-    try {
-      const brokerUrl = normalizeBrokerUrl(
-        tokens.authBrokerUrl ||
-          (typeof BUILD_CONFIG !== 'undefined'
-            ? ((BUILD_CONFIG as { googleAuthBrokerUrl?: string })
-                .googleAuthBrokerUrl ?? '')
-            : '')
+    if (Date.now() >= tokens.expiresAt) {
+      for (const listener of this.authListeners) listener();
+      throw new Error(
+        'Google Drive access expired. Reconnect to sync; local editing remains available.'
       );
-
-      if (!brokerUrl) {
-        throw new Error('Google auth broker URL is missing');
-      }
-
-      const response = await fetch(`${brokerUrl}/api/google/refresh`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refreshToken: tokens.refreshToken }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Broker token refresh failed: ${response.status}`);
-      }
-
-      const data = (await response.json()) as {
-        accessToken: string;
-        expiresIn: number;
-        refreshToken?: string;
-      };
-
-      return {
-        accessToken: data.accessToken,
-        refreshToken: data.refreshToken ?? tokens.refreshToken,
-        expiresAt: Date.now() + data.expiresIn * 1000,
-        refreshMode: 'broker',
-        authBrokerUrl: brokerUrl,
-      };
-    } catch (err) {
-      console.error(
-        '[GoogleDriveConnection] Broker token refresh failed:',
-        err
-      );
-      return null;
     }
+    return tokens.accessToken;
   }
 
-  override async doConnect(_signal?: AbortSignal): Promise<DriveClient> {
-    const tokens = this.readStoredTokens();
-    if (!tokens) {
-      throw new Error('No Google tokens found in localStorage');
-    }
-
-    let accessToken = tokens.accessToken;
-
-    // Refresh if token is expired or expiring soon
-    if (Date.now() >= tokens.expiresAt - REFRESH_BEFORE_EXPIRY_MS) {
-      const newToken = await this.refreshStoredTokens(tokens);
-      if (!newToken) {
-        throw new Error('Google Drive access token expired and refresh failed');
-      }
-      accessToken = newToken;
-    }
-
-    // Verify the token by calling the Drive about API
+  override async doConnect(signal?: AbortSignal): Promise<DriveClient> {
+    const accessToken = this.accessToken();
+    const generation = this.generation;
     const response = await fetch(
       `${DRIVE_API}/about?fields=user,storageQuota`,
       {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-        signal: _signal,
+        headers: { Authorization: `Bearer ${accessToken}` },
+        signal: AbortSignal.any([
+          this.requests.signal,
+          ...(signal ? [signal] : []),
+        ]),
       }
     );
-
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => '');
-      throw new Error(
-        `Google Drive authentication failed (${response.status}): ${errorText}`
-      );
+    if (generation !== this.generation)
+      throw new Error('Google account changed.');
+    if (response.status === 401) {
+      for (const listener of this.authListeners) listener();
     }
-
+    if (!response.ok)
+      throw new Error(
+        `Google Drive authentication failed (${response.status}).`
+      );
     return { accessToken };
   }
 
   override doDisconnect(_conn: DriveClient): void {
-    // Drain the wait queue so callers don't hang
-    const pending = this.waitQueue.splice(0);
-    for (const resolve of pending) {
-      resolve();
-    }
-    this.activeRequests = 0;
+    this.requests.abort();
+    this.requests = new AbortController();
   }
 
   private async acquireSlot(): Promise<void> {
@@ -251,70 +169,125 @@ export class GoogleDriveConnection extends AutoReconnectConnection<DriveClient> 
     await new Promise<void>(resolve => {
       this.waitQueue.push(resolve);
     });
-    this.activeRequests++;
   }
 
   private releaseSlot(): void {
-    this.activeRequests = Math.max(0, this.activeRequests - 1);
     const next = this.waitQueue.shift();
-    if (next) {
-      next();
-    }
+    if (next) next();
+    else this.activeRequests = Math.max(0, this.activeRequests - 1);
   }
 
-  /**
-   * Authenticated fetch with rate limiting and 429 retry.
-   */
+  /** Retry outside the concurrency slot so simultaneous rate limits cannot deadlock. */
   async driveFetch(
     url: string,
     init?: RequestInit,
     retries = 3
   ): Promise<Response> {
-    await this.acquireSlot();
-    try {
-      const { accessToken } = this.inner;
-      const headers = new Headers(init?.headers);
-      headers.set('Authorization', `Bearer ${accessToken}`);
-
-      const response = await fetch(url, { ...init, headers });
-
-      if (response.status === 429 && retries > 0) {
-        const retryAfter = Number(response.headers.get('Retry-After') ?? 1);
-        const delay = Number.isFinite(retryAfter) ? retryAfter * 1000 : 1000;
-        await new Promise(r => setTimeout(r, delay));
-        return await this.driveFetch(url, init, retries - 1);
+    const generation = this.generation;
+    for (let attempt = 0; ; attempt++) {
+      await this.acquireSlot();
+      let response: Response;
+      try {
+        if (generation !== this.generation)
+          throw new Error('Google account changed.');
+        const headers = new Headers(init?.headers);
+        headers.set('Authorization', `Bearer ${this.accessToken()}`);
+        const signal = AbortSignal.any([
+          this.requests.signal,
+          ...(init?.signal ? [init.signal] : []),
+        ]);
+        response = await fetch(url, { ...init, headers, signal });
+        if (generation !== this.generation)
+          throw new Error('Google account changed.');
+      } catch (error) {
+        if (
+          generation === this.generation &&
+          !init?.signal?.aborted &&
+          this.status !== 'closed'
+        ) {
+          this.error =
+            error instanceof Error
+              ? error
+              : new Error('Google Drive network request failed.');
+        }
+        throw error;
+      } finally {
+        this.releaseSlot();
       }
-
+      if (response.status === 401) {
+        for (const listener of this.authListeners) listener();
+        this.error = new Error(
+          'Google Drive authorization expired. Local changes are saved; reconnect to sync.'
+        );
+      }
+      if (
+        (response.status === 429 || response.status >= 500) &&
+        attempt < retries
+      ) {
+        const seconds = Number(
+          response.headers.get('Retry-After') ?? 2 ** attempt
+        );
+        const delay = Math.min(
+          30000,
+          Math.max(0, Number.isFinite(seconds) ? seconds * 1000 : 1000)
+        );
+        await new Promise<void>((resolve, reject) => {
+          const signal = this.requests.signal;
+          const abort = () => {
+            clearTimeout(timer);
+            reject(new Error('Google account changed.'));
+          };
+          const timer = setTimeout(() => {
+            signal.removeEventListener('abort', abort);
+            resolve();
+          }, delay);
+          signal.addEventListener('abort', abort, { once: true });
+        });
+        continue;
+      }
+      if (
+        (response.status === 429 || response.status >= 500) &&
+        this.status !== 'closed'
+      ) {
+        this.error = new Error(
+          `Google Drive request failed (${response.status}); sync will retry.`
+        );
+      }
       return response;
-    } finally {
-      this.releaseSlot();
     }
   }
 
-  /**
-   * Search files in appDataFolder.
-   */
+  /** Search every result page, including empty intermediate pages. */
   async searchFiles(query: string): Promise<DriveFile[]> {
     const params = new URLSearchParams({
       spaces: 'appDataFolder',
       q: query,
-      fields: 'files(id,name,modifiedTime,size,properties)',
+      fields: 'nextPageToken,files(id,name,modifiedTime,size,properties)',
       pageSize: '1000',
     });
-
-    const response = await this.driveFetch(
-      `${DRIVE_API}/files?${params.toString()}`
-    );
-
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => '');
-      throw new Error(
-        `Drive searchFiles failed (${response.status}): ${errorText}`
+    const files: DriveFile[] = [];
+    const seen = new Set<string>();
+    let nextPageToken: string | undefined;
+    do {
+      const response = await this.driveFetch(
+        `${DRIVE_API}/files?${params.toString()}`
       );
-    }
-
-    const data = (await response.json()) as { files: DriveFile[] };
-    return data.files ?? [];
+      if (!response.ok)
+        throw new Error(`Drive search failed (${response.status}).`);
+      const data = (await response.json()) as {
+        files?: DriveFile[];
+        nextPageToken?: string;
+      };
+      files.push(...(data.files ?? []));
+      nextPageToken = data.nextPageToken;
+      if (nextPageToken) {
+        if (seen.has(nextPageToken))
+          throw new Error('Drive returned a repeated page token. Retry sync.');
+        seen.add(nextPageToken);
+        params.set('pageToken', nextPageToken);
+      }
+    } while (nextPageToken);
+    return [...new Map(files.map(file => [file.id, file])).values()];
   }
 
   /**
@@ -326,7 +299,15 @@ export class GoogleDriveConnection extends AutoReconnectConnection<DriveClient> 
     mimeType = 'application/octet-stream',
     properties?: Record<string, string>
   ): Promise<DriveFile> {
+    const generated = await this.driveFetch(
+      `${DRIVE_API}/files/generateIds?count=1&space=drive`
+    );
+    if (!generated.ok)
+      throw new Error(`Drive ID generation failed (${generated.status}).`);
+    const id = ((await generated.json()) as { ids: string[] }).ids[0];
+    if (!id) throw new Error('Drive did not generate a file identity.');
     const metadata: Record<string, unknown> = {
+      id,
       name,
       parents: ['appDataFolder'],
     };
@@ -361,6 +342,14 @@ export class GoogleDriveConnection extends AutoReconnectConnection<DriveClient> 
       }
     );
 
+    if (response.status === 409) {
+      const existing = await this.driveFetch(
+        `${DRIVE_API}/files/${encodeURIComponent(id)}?fields=id,name,modifiedTime,size,properties`
+      );
+      if (!existing.ok)
+        throw new Error('Drive upload identity could not be verified.');
+      return existing.json() as Promise<DriveFile>;
+    }
     if (!response.ok) {
       const errorText = await response.text().catch(() => '');
       throw new Error(
@@ -462,24 +451,23 @@ export class GoogleDriveConnection extends AutoReconnectConnection<DriveClient> 
   }
 }
 
-function normalizeBrokerUrl(url: string): string {
-  return url.trim().replace(/\/+$/, '');
+/** Escape Drive query values separately from URL encoding. */
+export function driveQueryValue(value: string): string {
+  return value.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 }
 
-/**
- * Singleton connection instance shared between doc and blob storage for the
- * same process.  Using a single connection avoids redundant token checks and
- * ensures the concurrency slot budget is shared.
- */
-let sharedConnection: GoogleDriveConnection | null = null;
+const connections = new Map<string, GoogleDriveConnection>();
 
 export function getOrCreateGoogleDriveConnection(
   options: GoogleDriveConnectionOptions = {}
 ): GoogleDriveConnection {
-  if (!sharedConnection) {
-    sharedConnection = new GoogleDriveConnection(options);
-  } else {
-    sharedConnection.setTokenSnapshot(options.tokens);
+  const key = `${options.accountId ?? 'unbound'}:${options.connectionKey ?? 'metadata'}`;
+  let connection = connections.get(key);
+  if (!connection) {
+    connection = new GoogleDriveConnection(options);
+    connections.set(key, connection);
+  } else if (Object.hasOwn(options, 'tokens')) {
+    connection.setTokenSnapshot(options.tokens);
   }
-  return sharedConnection;
+  return connection;
 }

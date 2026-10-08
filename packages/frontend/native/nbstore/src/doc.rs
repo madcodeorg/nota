@@ -97,7 +97,8 @@ impl SqliteDocStorage {
     expected_timestamp: Option<NaiveDateTime>,
   ) -> Result<NaiveDateTime> {
     let mut tx = self.pool.begin().await?;
-    // Acquire SQLite's writer lock before reading the clock, including across windows.
+    // Acquire SQLite's writer lock before reading the clock, including across
+    // windows.
     sqlx::query("UPDATE clocks SET timestamp = timestamp WHERE doc_id = ?")
       .bind(&doc_id)
       .execute(&mut *tx)

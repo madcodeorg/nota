@@ -1,0 +1,157 @@
+:root {
+  color-scheme: dark;
+  --bg: #10110f;
+  --text: #ebe4d5;
+  --muted: #aca38f;
+  --accent: #d4ce77;
+  --border: rgba(207, 197, 169, 0.18);
+  --serif:
+    'Iowan Old Style', 'Palatino Linotype', 'Book Antiqua', Baskerville,
+    Georgia, serif;
+  --sans:
+    'SF Pro Display', 'Avenir Next', 'Segoe UI', 'Helvetica Neue', Arial,
+    sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--bg);
+}
+
+body {
+  margin: 0;
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 1rem;
+  line-height: 1.75;
+}
+
+.page {
+  width: min(76ch, calc(100% - 40px));
+  margin: 0 auto;
+}
+
+.header,
+.header nav,
+footer {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.header {
+  justify-content: space-between;
+  padding: 28px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.brand {
+  color: var(--text);
+  font-size: 1.25rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+a {
+  color: var(--accent);
+  text-underline-offset: 0.2em;
+  overflow-wrap: anywhere;
+}
+
+a:hover {
+  color: var(--text);
+}
+
+a:focus-visible,
+main:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 5px;
+}
+
+[aria-current='page'] {
+  color: var(--text);
+  font-weight: 600;
+}
+
+main {
+  padding: 40px 0;
+}
+
+h1,
+h2,
+h3 {
+  line-height: 1.2;
+  text-wrap: balance;
+}
+
+h1,
+h2 {
+  font-family: var(--serif);
+  font-weight: 500;
+}
+
+h1 {
+  margin: 0 0 16px;
+  color: var(--accent);
+  font-size: clamp(2.25rem, 6vw, 3.25rem);
+}
+
+h2 {
+  margin: 44px 0 16px;
+  font-size: 1.8rem;
+}
+
+h3 {
+  margin: 32px 0 16px;
+  font-size: 1.15rem;
+}
+
+p,
+ul {
+  margin: 0 0 20px;
+}
+
+ul {
+  padding-left: 24px;
+}
+
+li + li {
+  margin-top: 16px;
+}
+
+code {
+  padding: 0.1em 0.25em;
+  border-radius: 4px;
+  background: rgba(207, 197, 169, 0.08);
+  font-size: 0.9em;
+  overflow-wrap: anywhere;
+}
+
+.updated,
+footer {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+footer {
+  padding: 24px 0 40px;
+  border-top: 1px solid var(--border);
+}
+
+.skip-link {
+  position: absolute;
+  top: 0;
+  left: 20px;
+  z-index: 1;
+  padding: 12px;
+  background: var(--bg);
+  transform: translateY(-110%);
+}
+
+.skip-link:focus {
+  transform: translateY(0);
+}

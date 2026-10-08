@@ -250,7 +250,7 @@ describe('local ONNX generation memory use', () => {
       inputNames: ['num_logits_to_keep'],
       run,
     };
-    const pipeline = installGenerator(
+    installGenerator(
       async () => {
         await session.run({ num_logits_to_keep: logitsToKeep });
         return [{ generated_text: 'Nota local AI OK' }];
@@ -269,38 +269,61 @@ describe('local ONNX generation memory use', () => {
     expect(run).toHaveBeenCalledOnce();
     expect(valuesAtRun).toEqual([1n]);
     expect(logitsToKeep.data[0]).toBe(1n);
-    expect(pipeline).toHaveBeenCalledWith(
-      'text-generation',
-      modelId,
-      modelId.startsWith('gemma-4')
-        ? expect.objectContaining({
-            session_options: { enableCpuMemArena: false },
-          })
-        : expect.anything()
-    );
     expect(result.content).toEqual([
       { text: 'Nota local AI OK', type: 'text' },
     ]);
   });
 
-  it('leaves non-Gemma sessions and allocator settings unchanged', async () => {
+  it.each([
+    'gemma-4-e2b-it-onnx-q4f16',
+    'gemma-4-e4b-it-onnx-q4f16',
+    'qwen3.5-0.8b-onnx-q4f16',
+    'qwen3.5-2b-onnx-q4f16',
+    'qwen3.5-4b-onnx-q4f16',
+  ])('disables the CPU memory arena for %s', async modelId => {
     const run = vi.fn(async (_feeds: Record<string, unknown>) => ({}));
     const session = { inputNames: ['input_ids'], run };
     const pipeline = installGenerator(
-      async () => [{ generated_text: 'Qwen OK' }],
-      { sessions: { model: session } }
+      async () => [{ generated_text: 'Nota local AI OK' }],
+      { sessions: { decoder_model_merged: session } }
     );
-    const model = createLocalOnnxLanguageModel({ config, modelId: MODEL_ID });
+    const model = createLocalOnnxLanguageModel({ config, modelId });
 
     await model.doGenerate(callOptions(new AbortController().signal));
 
     expect(session.run).toBe(run);
     expect(pipeline).toHaveBeenCalledWith(
       'text-generation',
-      MODEL_ID,
-      expect.not.objectContaining({ session_options: expect.anything() })
+      modelId,
+      expect.objectContaining({
+        device: 'cpu',
+        local_files_only: true,
+        session_options: { enableCpuMemArena: false },
+      })
     );
   });
+
+  it.each(['lfm2.5-350m-onnx-q4f16', 'smollm3-3b-onnx-q4f16'])(
+    'leaves %s sessions and allocator settings unchanged',
+    async modelId => {
+      const run = vi.fn(async (_feeds: Record<string, unknown>) => ({}));
+      const session = { inputNames: ['input_ids'], run };
+      const pipeline = installGenerator(
+        async () => [{ generated_text: 'Nota local AI OK' }],
+        { sessions: { model: session } }
+      );
+      const model = createLocalOnnxLanguageModel({ config, modelId });
+
+      await model.doGenerate(callOptions(new AbortController().signal));
+
+      expect(session.run).toBe(run);
+      expect(pipeline).toHaveBeenCalledWith(
+        'text-generation',
+        modelId,
+        expect.not.objectContaining({ session_options: expect.anything() })
+      );
+    }
+  );
 
   it('disposes the previous idle pipeline when another model is selected', async () => {
     const { disposals, pipeline } = installDisposableGenerators(

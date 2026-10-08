@@ -240,7 +240,10 @@ export class HtmlAdapter extends BaseAdapter<Html> {
     return {
       file: file.replace(
         '<!--BlockSuiteDocTitlePlaceholder-->',
-        `<h1>${payload.snapshot.meta.title}</h1>`
+        `<h1>${payload.snapshot.meta.title
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')}</h1>`
       ),
       assetsIds,
     };

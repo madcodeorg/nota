@@ -12,6 +12,7 @@ import {
   localModelById,
   requiredFilesFor,
 } from '../../../../backend/ai/src/model-registry';
+import { verifyCalendarNativeBinding } from './build-apple-calendar-native';
 import { buildType, productName } from './make-env';
 
 const targetArch = 'arm64';
@@ -94,7 +95,7 @@ async function verifyBundledSttModel(modelRoot: string, modelId: string) {
     const filePath = path.join(modelRoot, relativePath);
     requireFile(filePath, `Bundled STT model file ${relativePath}`);
 
-    const expectedSha256 = model.fileSha256?.[relativePath];
+    const expectedSha256: string | undefined = model.fileSha256?.[relativePath];
     assert.ok(
       expectedSha256,
       `Bundled STT model manifest has no checksum for ${relativePath}`
@@ -196,6 +197,7 @@ const calendarBinding = path.join(
 const speechHelper = path.join(nativeRoot, 'nota-apple-speech-helper');
 requireExecutable(calendarBinding, 'EventKit binding');
 requireArchitecture(calendarBinding, 'EventKit binding');
+await verifyCalendarNativeBinding(calendarBinding);
 
 if (releaseCritical) {
   for (const helper of ['nota-whistle-helper', 'nota-whisper-helper']) {

@@ -15,6 +15,7 @@
 target
 test-results
 **/dist
+**/.build
 **/lib
 **/storybook-static
 **/web-static

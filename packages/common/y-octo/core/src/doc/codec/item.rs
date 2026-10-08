@@ -240,7 +240,8 @@ impl Item {
     let has_not_sibling = flags.not(item_flags::ITEM_HAS_SIBLING);
 
     // NOTE: read order must keep the same as the order in yjs
-    // TODO: this data structure design will break the cpu OOE, need to be optimized
+    // TODO: this data structure design will break the cpu OOE, need to be
+    // optimized
     let item = Self {
       id,
       origin_left_id: if has_left_id {
