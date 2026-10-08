@@ -248,6 +248,12 @@ jobs:
           xcrun stapler validate "$app"
           spctl --assess --type execute --verbose=4 "$app"
 
+          test -f "$app/Contents/Resources/app-update.yml" || { echo "app-update.yml missing; auto-update would break" >&2; exit 1; }
+          plist_version=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$app/Contents/Info.plist")
+          expected="${{ inputs.app_version }}"
+          echo "Bundle version: $plist_version (expected $expected)"
+          [ "$plist_version" = "$expected" ] || { echo "Version mismatch" >&2; exit 1; }
+
       - name: make
         if: ${{ inputs.platform != 'win32' }}
         shell: bash
