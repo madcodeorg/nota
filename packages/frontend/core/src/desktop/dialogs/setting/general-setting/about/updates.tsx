@@ -16,6 +16,9 @@ export const UpdateSettings = () => {
     quitAndInstall,
   } = useAppUpdater();
   const [message, setMessage] = useState('');
+  const [foundVersion, setFoundVersion] = useState<string | null>(null);
+  const available =
+    updateAvailable ?? (foundVersion ? { version: foundVersion } : null);
 
   const onCheck = () => {
     setMessage('');
@@ -25,12 +28,16 @@ export const UpdateSettings = () => {
           setMessage('Could not check for updates. Try again later.');
         } else if (result === false) {
           setMessage('Nota is up to date.');
+        } else if (typeof result === 'string') {
+          setFoundVersion(result);
         }
       })
       .catch(() => setMessage('Could not check for updates. Try again later.'));
   };
 
-  const downloading = downloadProgress !== null && !updateReady;
+  // progress starts at 0 before any download, so only count real progress
+  const downloading =
+    downloadProgress !== null && downloadProgress > 0 && !updateReady;
 
   return (
     <SettingWrapper title="Updates">
@@ -44,8 +51,8 @@ export const UpdateSettings = () => {
         name={
           updateReady
             ? `Version ${updateReady.version} is ready`
-            : updateAvailable
-              ? `Version ${updateAvailable.version} is available`
+            : available
+              ? `Version ${available.version} is available`
               : 'Check now'
         }
         desc={
@@ -58,7 +65,7 @@ export const UpdateSettings = () => {
           <Button variant="primary" onClick={quitAndInstall}>
             Restart to update
           </Button>
-        ) : updateAvailable ? (
+        ) : available ? (
           <Button
             variant="primary"
             onClick={downloadUpdate}
