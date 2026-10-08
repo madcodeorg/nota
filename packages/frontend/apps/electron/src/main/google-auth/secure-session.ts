@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -54,7 +55,58 @@ function publishPublicState(
   return state;
 }
 
+// macOS: safeStorage uses the login keychain, which shows a "Nota Safe Storage"
+// password prompt (again after updates or re-signing). Use a per-install random
+// key in a 0600 file instead, so sign-in never prompts. Other platforms keep
+// the OS store (DPAPI / libsecret), which does not prompt.
+const FILE_KEY_PREFIX = 'k1:';
+
+function fileKey() {
+  const keyPath = path.join(app.getPath('userData'), 'google-session.key');
+  if (fs.existsSync(keyPath)) return fs.readFileSync(keyPath);
+  const key = crypto.randomBytes(32);
+  fs.mkdirSync(path.dirname(keyPath), { mode: 0o700, recursive: true });
+  fs.writeFileSync(keyPath, key, { mode: 0o600 });
+  return key;
+}
+
+function sealSession(plain: string): string {
+  if (process.platform !== 'darwin') {
+    return safeStorage.encryptString(plain).toString('base64');
+  }
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv('aes-256-gcm', fileKey(), iv);
+  const body = Buffer.concat([cipher.update(plain, 'utf8'), cipher.final()]);
+  return (
+    FILE_KEY_PREFIX +
+    Buffer.concat([iv, cipher.getAuthTag(), body]).toString('base64')
+  );
+}
+
+function openSession(stored: string): string {
+  if (process.platform !== 'darwin') {
+    return safeStorage.decryptString(Buffer.from(stored, 'base64'));
+  }
+  // Old keychain-encrypted files cannot be read without the prompt; the user
+  // reconnects Google once instead.
+  if (!stored.startsWith(FILE_KEY_PREFIX)) {
+    throw new Error('Google session uses the legacy keychain format.');
+  }
+  const raw = Buffer.from(stored.slice(FILE_KEY_PREFIX.length), 'base64');
+  const decipher = crypto.createDecipheriv(
+    'aes-256-gcm',
+    fileKey(),
+    raw.subarray(0, 12)
+  );
+  decipher.setAuthTag(raw.subarray(12, 28));
+  return Buffer.concat([
+    decipher.update(raw.subarray(28)),
+    decipher.final(),
+  ]).toString('utf8');
+}
+
 function requireEncryption() {
+  if (process.platform === 'darwin') return;
   if (!safeStorage.isEncryptionAvailable()) {
     throw new Error('Secure operating-system storage is unavailable.');
   }
@@ -72,9 +124,9 @@ function writeEncryptedSession(session: StoredGoogleSession) {
   requireEncryption();
   const filepath = secureSessionPath();
   fs.mkdirSync(path.dirname(filepath), { mode: 0o700, recursive: true });
-  const encrypted = safeStorage.encryptString(JSON.stringify(session));
+  const encrypted = sealSession(JSON.stringify(session));
   const temporaryPath = `${filepath}.${process.pid}.tmp`;
-  fs.writeFileSync(temporaryPath, encrypted.toString('base64'), {
+  fs.writeFileSync(temporaryPath, encrypted, {
     encoding: 'utf8',
     mode: 0o600,
   });
@@ -106,9 +158,8 @@ function readEncryptedSession() {
   const filepath = secureSessionPath();
   if (!fs.existsSync(filepath)) return null;
   requireEncryption();
-  const encrypted = Buffer.from(fs.readFileSync(filepath, 'utf8'), 'base64');
   return parseStoredGoogleSession(
-    JSON.parse(safeStorage.decryptString(encrypted))
+    JSON.parse(openSession(fs.readFileSync(filepath, 'utf8')))
   );
 }
 
