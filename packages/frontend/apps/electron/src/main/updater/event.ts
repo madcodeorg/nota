@@ -1,4 +1,4 @@
-import { BehaviorSubject, Subject } from 'rxjs';
+import { BehaviorSubject, ReplaySubject, Subject } from 'rxjs';
 
 import type { MainEventRegister } from '../type';
 
@@ -9,7 +9,7 @@ export interface UpdateMeta {
 
 export const updaterSubjects = {
   // means it is ready for restart and install the new version
-  updateAvailable$: new Subject<UpdateMeta>(),
+  updateAvailable$: new ReplaySubject<UpdateMeta>(1),
   updateReady$: new Subject<UpdateMeta>(),
   downloadProgress$: new BehaviorSubject<number>(0),
 };
