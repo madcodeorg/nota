@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+    branches: [main, beta]
+    paths-ignore: ['**.md', 'public/**']
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  typecheck:
+    name: Typecheck
+    runs-on: ubuntu-latest
+    env:
+      NODE_OPTIONS: --max-old-space-size=14384
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-node
+        with:
+          electron-install: false
+          full-cache: true
+      - run: yarn nota @nota/i18n build
+      - run: yarn typecheck
+
+  unit-test:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-node
+        with:
+          electron-install: false
+          full-cache: true
+      - run: yarn nota @nota/i18n build
+      - run: yarn vitest --run packages/frontend/apps/electron/test/main packages/frontend/core/src/modules/google-auth
+
+  ci-passed:
+    name: CI passed
+    needs: [typecheck, unit-test]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - run: exit 1
+        if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
