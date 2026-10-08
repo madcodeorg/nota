@@ -112,7 +112,7 @@ export function getAiBackendStatus() {
   };
 }
 
-export function withAiBackendAuth(headers?: RequestInit['headers']) {
+export function withAiBackendAuth(headers?: RequestInit['headers']): Headers {
   if (!backendAuthToken) {
     throw new Error(
       'NOTA_AI_BACKEND_TOKEN is required when NOTA_AI_BACKEND_URL is set.'
