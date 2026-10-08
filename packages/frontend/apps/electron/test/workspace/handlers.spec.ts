@@ -33,6 +33,28 @@ afterAll(() => {
 });
 
 describe('workspace db management', () => {
+  test('lists no archived workspaces in a fresh profile', async () => {
+    const { getDeletedWorkspaces } =
+      await import('@nota/electron/helper/workspace/handlers');
+    expect(await getDeletedWorkspaces()).toEqual({ items: [] });
+    expect(
+      await fs.pathExists(path.join(appDataPath, 'deleted-workspaces'))
+    ).toBe(false);
+  });
+
+  test('reports archive storage errors instead of hiding them as an empty list', async () => {
+    const { getDeletedWorkspaces } =
+      await import('@nota/electron/helper/workspace/handlers');
+    await fs.outputFile(
+      path.join(appDataPath, 'deleted-workspaces'),
+      'not a directory'
+    );
+    await expect(getDeletedWorkspaces()).rejects.toHaveProperty(
+      'code',
+      'ENOTDIR'
+    );
+  });
+
   test('list local workspace ids', async () => {
     const { listLocalWorkspaceIds } =
       await import('@nota/electron/helper/workspace/handlers');

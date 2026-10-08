@@ -8,6 +8,7 @@ Run commands from the repository root unless stated otherwise. For desktop packa
 - Yarn `4.12.0`, pinned in [`package.json`](../package.json) and [`.yarnrc.yml`](../.yarnrc.yml).
 - Rust `1.93.1`, pinned in [`rust-toolchain.toml`](../rust-toolchain.toml). Install [rustup](https://rustup.rs); it selects the pinned toolchain in this directory.
 - A C/C++ build toolchain for native modules. Desktop ASR helpers also require CMake and platform development tools. macOS builds use Xcode command-line tools; building the optional Apple SpeechAnalyzer helper needs a compatible full Xcode/macOS SDK as documented in the desktop guide.
+- [ripgrep](https://github.com/BurntSushi/ripgrep) (`rg`) for the AI shell-search integration tests and optional local shell-search tool. Install it with `brew install ripgrep` on macOS or `sudo apt-get install ripgrep` on Ubuntu. The app's workspace search does not require it.
 
 On Windows, enable [Developer Mode](https://learn.microsoft.com/en-us/windows/apps/get-started/enable-your-device-for-development) and Git symbolic-link support before cloning. The workspace uses symbolic links. Native compilation also needs the Visual Studio C++ toolchain.
 

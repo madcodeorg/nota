@@ -1,3 +1,5 @@
+#![cfg(target_os = "macos")]
+
 use std::{
   collections::HashSet,
   ffi::{CStr, c_char},
@@ -660,8 +662,9 @@ fn start_access_request(
 
   let completion_sender = worker_sender;
   let completion: AppleCalendarAccessBlock = RcBlock::new(move |granted: Bool, error: *mut AnyObject| {
-    // EventKit invokes this block on an arbitrary queue. Convert the error while
-    // it is valid, then return all EventKit status/store work to the owner.
+    // EventKit invokes this block on an arbitrary queue. Convert the error
+    // while it is valid, then return all EventKit status/store work to the
+    // owner.
     let reason = unsafe {
       if error.is_null() {
         None

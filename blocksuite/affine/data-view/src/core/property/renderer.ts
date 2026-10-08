@@ -1,8 +1,8 @@
-import type { UniComponent } from '@blocksuite/affine-shared/types';
 import type { MenuConfig } from '@blocksuite/affine-components/context-menu';
-import type { Property } from '../view-manager/property.js';
+import type { UniComponent } from '@blocksuite/affine-shared/types';
 
 import { createUniComponentFromWebComponent } from '../utils/uni-component/index.js';
+import type { Property } from '../view-manager/property.js';
 import type { BaseCellRenderer } from './base-cell.js';
 import type { CellRenderer, DataViewCellComponent } from './manager.js';
 

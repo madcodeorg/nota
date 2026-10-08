@@ -26,6 +26,9 @@ export interface Workspace {
   getDoc(docId: string): Doc | null;
   removeDoc(docId: string): void;
 
+  /** Retain a page while its canonical local content loads for cross-page use. */
+  acquireDoc?(docId: string): { ready: Promise<void>; release(): void };
+
   /** Detached documents and memory blobs for validating an import before publication. */
   createStagingWorkspace?(): Workspace;
 

@@ -49,7 +49,9 @@ describe('original Nota onboarding examples', () => {
       const canvas = container.querySelector<HTMLElement>('[data-mode="page"]');
       expect(canvas).not.toBeNull();
       expect(container.querySelector('img,video,iframe')).toBeNull();
-      const aside = container.querySelector<HTMLElement>('[data-invisible="true"]');
+      const aside = container.querySelector<HTMLElement>(
+        '[data-invisible="true"]'
+      );
       expect(aside).not.toBeNull();
       fireEvent.click(screen.getByRole('button', { name: 'Next' }));
       expect(canvas?.dataset.mode).toBe('edgeless');

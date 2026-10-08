@@ -1,6 +1,7 @@
+use std::collections::{HashMap, HashSet};
+
 use chrono::NaiveDateTime;
 use sqlx::{Row, SqliteConnection};
-use std::collections::{HashMap, HashSet};
 
 use super::{
   Data, DocClock, DocHistory, DocHistoryCleanupProtection, DocHistoryStorageUsage, DocRecord,
@@ -133,8 +134,12 @@ impl SqliteDocStorage {
         "The workspace changed. Retry clearing local history.".into(),
       ));
     }
-    let orphaned: (bool,) = sqlx::query_as("SELECT EXISTS (SELECT 1 FROM snapshots WHERE doc_id NOT IN (SELECT doc_id FROM clocks) UNION ALL SELECT 1 FROM updates WHERE doc_id NOT IN (SELECT doc_id FROM clocks))")
-      .fetch_one(&mut *tx).await?;
+    let orphaned: (bool,) = sqlx::query_as(
+      "SELECT EXISTS (SELECT 1 FROM snapshots WHERE doc_id NOT IN (SELECT doc_id FROM clocks) UNION ALL SELECT 1 FROM \
+       updates WHERE doc_id NOT IN (SELECT doc_id FROM clocks))",
+    )
+    .fetch_one(&mut *tx)
+    .await?;
     if protection.preserve_all_removed_blobs || orphaned.0 {
       return Err(Error::Serialization(
         "Local history was kept because some workspace content cannot be safely checked for file references.".into(),
@@ -169,9 +174,16 @@ impl SqliteDocStorage {
     before: Option<NaiveDateTime>,
     limit: u32,
   ) -> Result<Vec<DocClock>> {
-    let rows = sqlx::query("SELECT doc_id, timestamp FROM doc_history WHERE doc_id = ? AND (? IS NULL OR timestamp < ?) ORDER BY timestamp DESC LIMIT ?")
-      .bind(doc_id).bind(before).bind(before).bind(limit.min(HISTORY_LIMIT as u32))
-      .fetch_all(&self.pool).await?;
+    let rows = sqlx::query(
+      "SELECT doc_id, timestamp FROM doc_history WHERE doc_id = ? AND (? IS NULL OR timestamp < ?) ORDER BY timestamp \
+       DESC LIMIT ?",
+    )
+    .bind(doc_id)
+    .bind(before)
+    .bind(before)
+    .bind(limit.min(HISTORY_LIMIT as u32))
+    .fetch_all(&self.pool)
+    .await?;
     Ok(
       rows
         .into_iter()
@@ -225,10 +237,12 @@ impl SqliteDocStorage {
 
 #[cfg(test)]
 mod tests {
+  use std::borrow::Cow;
+
+  use sqlx::migrate::Migrator;
+
   use super::*;
   use crate::SetBlob;
-  use sqlx::migrate::Migrator;
-  use std::borrow::Cow;
 
   async fn storage() -> SqliteDocStorage {
     let storage = SqliteDocStorage::new(":memory:".to_string());
@@ -526,10 +540,13 @@ mod tests {
       .unwrap();
     store.delete_blob("removed".into(), true).await.unwrap();
     let usage = store.get_doc_history_storage_usage().await.unwrap();
-    sqlx::query("CREATE TRIGGER fail_blob_delete BEFORE DELETE ON blobs BEGIN SELECT RAISE(ABORT, 'Injected blob deletion failure'); END")
-      .execute(&store.pool)
-      .await
-      .unwrap();
+    sqlx::query(
+      "CREATE TRIGGER fail_blob_delete BEFORE DELETE ON blobs BEGIN SELECT RAISE(ABORT, 'Injected blob deletion \
+       failure'); END",
+    )
+    .execute(&store.pool)
+    .await
+    .unwrap();
     assert!(
       store
         .clear_doc_histories(cleanup_protection(&store).await)

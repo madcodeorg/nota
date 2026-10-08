@@ -17,7 +17,7 @@ vi.mock('@nota/electron/helper/logger', () => ({
 vi.mock('@nota/electron/helper/nbstore', () => ({
   getDocStoragePool: vi.fn(),
 }));
-vi.mock('@nota/electron/helper/workspace', () => ({
+vi.mock('@nota/electron/helper/workspace/handlers', () => ({
   storeWorkspaceMeta: vi.fn(),
 }));
 vi.mock('@nota/electron/helper/workspace/meta', () => ({
@@ -73,26 +73,32 @@ describe('verified fresh-workspace restore', () => {
     await fs.remove(directory);
   });
 
-  it('publishes only after identity migration and validation, preserving the source and media', async () => {
-    const previous = await fs.readFile(original);
-    const result = await loadDBFile(original);
-    expect(result.workspaceId).toBeTruthy();
-    expect(result.error).toBeUndefined();
-    expect(await fs.pathExists(`${internal}.importing`)).toBe(false);
-    await pool.connect('restored', internal);
-    const snapshot = await pool.getDocSnapshot('restored', result.workspaceId!);
-    expect(snapshot).toBeTruthy();
-    const restored = new Doc();
-    applyUpdate(restored, snapshot!.bin);
-    expect(restored.getMap('meta').get('name')).toBe('Original notes');
-    expect(
-      await pool.getDocSnapshot('restored', 'original-workspace')
-    ).toBeNull();
-    expect((await pool.getBlob('restored', 'recording'))?.data).toEqual(
-      new Uint8Array([1, 2, 3])
-    );
-    expect(await fs.readFile(original)).toEqual(previous);
-  });
+  it.each(Array.from({ length: 20 }, (_, index) => index + 1))(
+    'publishes only after identity migration and validation, preserving the source and media (attempt %i)',
+    async () => {
+      const previous = await fs.readFile(original);
+      const result = await loadDBFile(original);
+      expect(result.workspaceId).toBeTruthy();
+      expect(result.error).toBeUndefined();
+      expect(await fs.pathExists(`${internal}.importing`)).toBe(false);
+      await pool.connect('restored', internal);
+      const snapshot = await pool.getDocSnapshot(
+        'restored',
+        result.workspaceId!
+      );
+      expect(snapshot).toBeTruthy();
+      const restored = new Doc();
+      applyUpdate(restored, snapshot!.bin);
+      expect(restored.getMap('meta').get('name')).toBe('Original notes');
+      expect(
+        await pool.getDocSnapshot('restored', 'original-workspace')
+      ).toBeNull();
+      expect((await pool.getBlob('restored', 'recording'))?.data).toEqual(
+        new Uint8Array([1, 2, 3])
+      );
+      expect(await fs.readFile(original)).toEqual(previous);
+    }
+  );
 
   it('rejects a corrupted copied file without leaving a discoverable or staged database', async () => {
     const previous = await fs.readFile(original);

@@ -904,20 +904,37 @@ export const AISettingsPanel = ({
     if (!hasActiveDownload || loading) return;
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout>;
+    let polling = false;
     const poll = async () => {
-      await refreshModelHealth(controller.signal);
-      if (!controller.signal.aborted) {
-        timer = setTimeout(() => {
-          poll().catch(console.error);
-        }, 2000);
+      if (polling || controller.signal.aborted) return;
+      polling = true;
+      clearTimeout(timer);
+      try {
+        await refreshModelHealth(controller.signal);
+      } finally {
+        polling = false;
+        if (!controller.signal.aborted) {
+          timer = setTimeout(() => {
+            poll().catch(console.error);
+          }, 2000);
+        }
       }
     };
+    const refreshWhenActive = () => {
+      if (document.visibilityState === 'hidden') return;
+      // Electron may delay the polling timer while the window is backgrounded.
+      poll().catch(console.error);
+    };
+    window.addEventListener('focus', refreshWhenActive);
+    document.addEventListener('visibilitychange', refreshWhenActive);
     timer = setTimeout(() => {
       poll().catch(console.error);
     }, 2000);
     return () => {
       controller.abort();
       clearTimeout(timer);
+      window.removeEventListener('focus', refreshWhenActive);
+      document.removeEventListener('visibilitychange', refreshWhenActive);
     };
   }, [hasActiveDownload, loading, refreshModelHealth]);
 

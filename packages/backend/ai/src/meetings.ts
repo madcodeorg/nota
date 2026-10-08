@@ -21,6 +21,7 @@ import type { AiBackendConfig } from './config';
 import { availableMemoryBytes } from './device-memory';
 import {
   assertLocalOnnxTextReady,
+  isLocalOnnxTextResident,
   onnxTextRuntimeAvailable,
 } from './local-onnx';
 import {
@@ -544,7 +545,8 @@ function recommendedSummaryTier(availableRamGb: number) {
 
 function fitModelToDevice(
   model: LocalModelManifest,
-  device: LocalModelDeviceHealth
+  device: LocalModelDeviceHealth,
+  resident = false
 ): Pick<LocalModelHealth, 'deviceFit' | 'deviceFitReason'> {
   if (model.releaseState === 'blocked') {
     return {
@@ -555,7 +557,7 @@ function fitModelToDevice(
     };
   }
 
-  if (device.availableRamGb < model.minRamGb) {
+  if (!resident && device.availableRamGb < model.minRamGb) {
     return {
       deviceFit: 'low_ram',
       deviceFitReason: `Needs ${model.minRamGb}GB RAM target; this device currently reports ${device.availableRamGb}GB available.`,
@@ -585,7 +587,9 @@ function fitModelToDevice(
 
   return {
     deviceFit: 'fits',
-    deviceFitReason: 'This device meets the local RAM and disk targets.',
+    deviceFitReason: resident
+      ? 'This model is already loaded locally; its loading RAM is already allocated.'
+      : 'This device meets the local RAM and disk targets.',
   };
 }
 
@@ -1581,12 +1585,19 @@ export async function getLocalModelHealth(config: AiBackendConfig): Promise<{
   return {
     device,
     models: await Promise.all(
-      modelRegistry.map(async model => ({
-        ...model,
-        ...fitModelToDevice(model, device),
-        ...(await modelDownloadStatus(config, model)),
-        runtimeProbe: localModelRuntimeProbes.get(model.id),
-      }))
+      modelRegistry.map(async model => {
+        const download = await modelDownloadStatus(config, model);
+        return {
+          ...model,
+          ...fitModelToDevice(
+            model,
+            device,
+            isLocalOnnxTextResident(config, model.id)
+          ),
+          ...download,
+          runtimeProbe: localModelRuntimeProbes.get(model.id),
+        };
+      })
     ),
   };
 }

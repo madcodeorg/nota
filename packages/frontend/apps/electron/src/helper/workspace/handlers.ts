@@ -218,7 +218,10 @@ async function getWorkspaceDocMeta(
 
 export async function getDeletedWorkspaces() {
   const basePath = await getDeletedWorkspacesBasePath();
-  const directories = await fs.readdir(basePath);
+  const directories = await fs.readdir(basePath).catch(error => {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return [];
+    throw error;
+  });
   const workspaceEntries = await Promise.all(
     directories.map(async dir => {
       const stats = await fs.stat(path.join(basePath, dir));

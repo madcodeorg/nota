@@ -65,6 +65,7 @@ type PipelineCacheEntry = {
   disposing: boolean;
   key: string;
   lastUsed: number;
+  loaded: boolean;
   pipeline: Promise<TextGenerationPipeline>;
 };
 
@@ -76,10 +77,21 @@ const ALWAYS_REASONING_MODEL_ID = 'lfm2.5-2.6b-onnx-q4f16';
 const pipelines = new Map<string, PipelineCacheEntry>();
 const limitedLogitSessions = new WeakSet<object>();
 let pipelineUseSequence = 0;
-const GEMMA_4_TEXT_MODEL_IDS = new Set([
+const TEXT_MODELS_WITHOUT_CPU_ARENA = new Set([
   'gemma-4-e2b-it-onnx-q4f16',
   'gemma-4-e4b-it-onnx-q4f16',
+  'qwen3.5-0.8b-onnx-q4f16',
+  'qwen3.5-2b-onnx-q4f16',
+  'qwen3.5-4b-onnx-q4f16',
 ]);
+
+export function isLocalOnnxTextResident(
+  config: AiBackendConfig,
+  modelId: string
+) {
+  const entry = pipelines.get(`${modelRoot(config)}:${modelId}`);
+  return !!entry?.loaded && !entry.disposing && !entry.disposeWhenIdle;
+}
 
 export async function localOnnxFilesComplete(
   config: AiBackendConfig,
@@ -449,16 +461,15 @@ function loadLocalOnnxPipeline(config: AiBackendConfig, modelId: string) {
     transformers.env.allowRemoteModels = false;
     transformers.env.localModelPath = modelRoot(config);
 
-    const isGemma4 = GEMMA_4_TEXT_MODEL_IDS.has(modelId);
     const pipeline = await transformers.pipeline('text-generation', modelId, {
       device: 'cpu',
       dtype: dtypeForLocalTextModel(modelId),
       local_files_only: true,
-      ...(isGemma4
+      ...(TEXT_MODELS_WITHOUT_CPU_ARENA.has(modelId)
         ? {
-            // The arena retains Gemma's large prefill allocations long
-            // enough to terminate Electron's utility process. Other local
-            // text models keep the faster default allocator behavior.
+            // The arena retains Gemma and Qwen's large prefill allocations
+            // long enough to terminate Electron's utility process. Other
+            // local text models keep the default allocator behavior.
             session_options: { enableCpuMemArena: false },
           }
         : {}),
@@ -487,14 +498,20 @@ function loadLocalOnnxPipeline(config: AiBackendConfig, modelId: string) {
     disposing: false,
     key: cacheKey,
     lastUsed: ++pipelineUseSequence,
+    loaded: false,
     pipeline: pending,
   };
   pipelines.set(cacheKey, entry);
-  void pending.catch(() => {
-    if (pipelines.get(cacheKey) === entry) {
-      pipelines.delete(cacheKey);
+  void pending.then(
+    () => {
+      entry.loaded = true;
+    },
+    () => {
+      if (pipelines.get(cacheKey) === entry) {
+        pipelines.delete(cacheKey);
+      }
     }
-  });
+  );
   return entry;
 }
 

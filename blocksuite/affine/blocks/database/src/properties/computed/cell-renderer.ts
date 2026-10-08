@@ -175,7 +175,7 @@ function rollupConfig(property: Property): MenuConfig[] {
                   )
                 : [
                     message(
-                      'Select a relation and open its target page first.'
+                      'Select a relation. Its database may still be loading.'
                     ),
                   ],
             },
@@ -183,9 +183,24 @@ function rollupConfig(property: Property): MenuConfig[] {
           menu.subMenu({
             name: 'Operation',
             options: {
-              items: ['count', 'sum', 'avg', 'min', 'max'].map(operation =>
+              items: [
+                'count',
+                'sum',
+                'avg',
+                'min',
+                'max',
+                'values',
+                'unique',
+              ].map(operation =>
                 menu.action({
-                  name: operation === 'avg' ? 'Average' : operation,
+                  name:
+                    operation === 'avg'
+                      ? 'Average'
+                      : operation === 'values'
+                        ? 'Show values'
+                        : operation === 'unique'
+                          ? 'Unique values'
+                          : operation,
                   isSelected: data.operation === operation,
                   select: () => property.dataUpdate(() => ({ operation })),
                 })
@@ -257,8 +272,8 @@ export class RelationCell extends BaseCellRenderer<string[], string[]> {
                 >`
             )
           : html`<span
-              >Configure the related database in the column menu and open its
-              page.</span
+              >Configure the related database in the column menu. Its page may
+              be loading or unavailable.</span
             >`}
         ${selected
           .filter(id => !titles.has(id))

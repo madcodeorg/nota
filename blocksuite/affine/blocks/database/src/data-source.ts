@@ -24,8 +24,15 @@ import { propertyPresets } from '@blocksuite/data-view/property-presets';
 import { IS_MOBILE } from '@blocksuite/global/env';
 import { BlockSuiteError, ErrorCode } from '@blocksuite/global/exceptions';
 import type { EditorHost } from '@blocksuite/std';
-import { type BlockModel, type Store } from '@blocksuite/store';
-import { computed, type ReadonlySignal, signal } from '@preact/signals-core';
+import { type BlockModel, type Doc, type Store } from '@blocksuite/store';
+import {
+  computed,
+  effect,
+  type ReadonlySignal,
+  type Signal,
+  signal,
+  untracked,
+} from '@preact/signals-core';
 
 import { getIcon } from './block-icons.js';
 import {
@@ -36,6 +43,7 @@ import {
 } from './properties/computed/define.js';
 import {
   aggregateRollup,
+  computedText,
   type ComputedValue,
   evaluateFormula,
   isComputedError,
@@ -75,7 +83,30 @@ type SpacialProperty = {
   valueGet: (rowId: string, propertyId: string) => unknown;
 };
 
+type RelationDocument = {
+  doc: Doc;
+  status: ReturnType<typeof signal<'loading' | 'ready' | 'unavailable'>>;
+  ready: Promise<void>;
+  release: () => void;
+};
+
+type RelationDocuments = {
+  documents: Map<string, RelationDocument>;
+  revision: ReadonlySignal<number>;
+  owners: Signal<number>;
+  leases: Set<() => void>;
+};
+
+export type RelationTargetsLease = {
+  ready: Promise<void>;
+  release: () => void;
+};
+
 export class DatabaseBlockDataSource extends DataSourceBase {
+  private static readonly relationDocuments = new WeakMap<
+    DatabaseBlockModel,
+    RelationDocuments
+  >();
   private static readonly workspaceRevisions = new WeakMap<
     Store,
     ReadonlySignal<number>
@@ -197,6 +228,7 @@ export class DatabaseBlockDataSource extends DataSourceBase {
   readonly$: ReadonlySignal<boolean> = computed(() => {
     return (
       this._model.store.readonly ||
+      this.relationReadonly ||
       (IS_MOBILE &&
         !this._model.store.provider
           .get(FeatureFlagService)
@@ -234,7 +266,8 @@ export class DatabaseBlockDataSource extends DataSourceBase {
 
   constructor(
     model: DatabaseBlockModel,
-    init?: (dataSource: DatabaseBlockDataSource) => void
+    init?: (dataSource: DatabaseBlockDataSource) => void,
+    private readonly relationReadonly = false
   ) {
     super();
     this._model = model; // ensure invariants first
@@ -365,18 +398,206 @@ export class DatabaseBlockDataSource extends DataSourceBase {
     return;
   }
 
-  // A read-only store uses the same workspace document access path as linked docs.
-  // Unloaded/deleted targets stay unresolved; a relation never becomes an empty count.
-  relationTarget(data: RelationData): DatabaseBlockDataSource | undefined {
+  private get relatedDocuments(): RelationDocuments {
+    const existing = DatabaseBlockDataSource.relationDocuments.get(this._model);
+    if (existing) return existing;
+    const documents = new Map<string, RelationDocument>();
+    const revision = signal(0);
+    const owners = signal(0);
+    const result = {
+      documents,
+      revision,
+      owners,
+      leases: new Set<() => void>(),
+    };
+    DatabaseBlockDataSource.relationDocuments.set(this._model, result);
+    const stop = effect(() => {
+      const required = new Map<string, Doc>();
+      if (owners.value > 0 && this.doc.blocks.value[this._model.id]) {
+        void this.workspaceRevision;
+        for (const column of this._model.props.columns$.value) {
+          if (column.type !== 'relation') continue;
+          const data = relationDataSchema.safeParse(column.data);
+          if (!data.success || !data.data.targetDatabaseId) continue;
+          const doc = this.doc.workspace.getDoc(data.data.targetDocId);
+          if (doc && !doc.meta?.trash && doc.id !== this.doc.doc.id)
+            required.set(doc.id, doc);
+        }
+      }
+      untracked(() => {
+        for (const [id, entry] of documents) {
+          if (required.get(id) !== entry.doc) {
+            entry.release();
+            documents.delete(id);
+          }
+        }
+        for (const [id, doc] of required) {
+          if (documents.has(id)) continue;
+          const entry: RelationDocument = {
+            doc,
+            status: signal('loading'),
+            ready: Promise.resolve(),
+            release: () => {},
+          };
+          documents.set(id, entry);
+          try {
+            const lease = this.doc.workspace.acquireDoc?.(id);
+            if (lease) {
+              let releaseReady!: () => void;
+              const released = new Promise<void>(resolve => {
+                releaseReady = resolve;
+              });
+              let isReleased = false;
+              entry.release = () => {
+                if (isReleased) return;
+                isReleased = true;
+                releaseReady();
+                lease.release();
+              };
+              entry.ready = Promise.race([
+                released,
+                lease.ready.then(
+                  () => {
+                    if (documents.get(id) === entry)
+                      entry.status.value = 'ready';
+                  },
+                  () => {
+                    if (documents.get(id) === entry)
+                      entry.status.value = 'unavailable';
+                  }
+                ),
+              ]);
+            } else {
+              // Detached imports and test workspaces load synchronously.
+              doc.load();
+              entry.status.value = 'ready';
+            }
+          } catch {
+            entry.status.value = 'unavailable';
+          }
+        }
+        revision.value++;
+      });
+    });
+    this.doc.disposableGroup.add(() => {
+      stop();
+      documents.forEach(entry => entry.release());
+      documents.clear();
+      result.leases.forEach(release => release());
+      DatabaseBlockDataSource.relationDocuments.delete(this._model);
+    });
+    return result;
+  }
+
+  /** Retain local target loading for an editor or export; release on final close. */
+  acquireRelationTargets(
+    ancestors = new Set<DatabaseBlockModel>()
+  ): RelationTargetsLease {
+    const related = this.relatedDocuments;
+    related.owners.value++;
+    const visited = new Set(ancestors).add(this._model);
+    const nested = new Map<DatabaseBlockModel, RelationTargetsLease>();
+    const stop = effect(() => {
+      const required = new Map<DatabaseBlockModel, DatabaseBlockDataSource>();
+      const columns = this.doc.blocks.value[this._model.id]
+        ? this._model.props.columns$.value
+        : [];
+      for (const column of columns) {
+        if (column.type !== 'relation') continue;
+        const data = relationDataSchema.safeParse(column.data);
+        const target = data.success
+          ? this.relationTarget(data.data)
+          : undefined;
+        if (target && !visited.has(target._model))
+          required.set(target._model, target);
+      }
+      untracked(() => {
+        for (const [model, lease] of nested) {
+          if (!required.has(model)) {
+            lease.release();
+            nested.delete(model);
+          }
+        }
+        for (const [model, target] of required) {
+          if (!nested.has(model))
+            nested.set(model, target.acquireRelationTargets(visited));
+        }
+      });
+    });
+    let released = false;
+    const release = () => {
+      if (released) return;
+      released = true;
+      stop();
+      nested.forEach(lease => lease.release());
+      nested.clear();
+      related.owners.value--;
+      related.leases.delete(release);
+    };
+    related.leases.add(release);
+    const ready = (async () => {
+      while (!released) {
+        await this.waitForRelationTargets();
+        const leases = [...nested.values()];
+        await Promise.all(leases.map(lease => lease.ready));
+        if (
+          leases.length === nested.size &&
+          leases.every(lease => [...nested.values()].includes(lease))
+        )
+          return;
+      }
+    })();
+    return { ready, release };
+  }
+
+  /** Local readiness only; the caller owns an acquireRelationTargets lease. */
+  async waitForRelationTargets(): Promise<void> {
+    const related = this.relatedDocuments;
+    while (related.owners.peek() > 0) {
+      const entries = [...related.documents.values()];
+      await Promise.all(entries.map(entry => entry.ready));
+      if (
+        entries.length === related.documents.size &&
+        entries.every(entry => related.documents.get(entry.doc.id) === entry)
+      )
+        return;
+    }
+  }
+
+  relationTargetStatus(
+    data: RelationData
+  ): 'loading' | 'ready' | 'unavailable' {
     void this.workspaceRevision;
-    if (!data.targetDocId || !data.targetDatabaseId) return;
+    if (!data.targetDocId || !data.targetDatabaseId) return 'unavailable';
+    const doc = this.doc.workspace.getDoc(data.targetDocId);
+    if (!doc || doc.meta?.trash) return 'unavailable';
+    if (doc.id === this.doc.doc.id) return 'ready';
+    const related = this.relatedDocuments;
+    void related.revision.value;
+    if (!this.doc.workspace.acquireDoc && !doc.ready) doc.load();
+    return (
+      related.documents.get(doc.id)?.status.value ??
+      (doc.ready ? 'ready' : 'unavailable')
+    );
+  }
+
+  // Readonly target sources share the canonical Store used by DocsService. A
+  // separate Store projection would miss same-process local proxy edits.
+  // The loading lease is
+  // released when a column is removed/retargeted or the source Store is disposed.
+  relationTarget(data: RelationData): DatabaseBlockDataSource | undefined {
+    if (this.relationTargetStatus(data) !== 'ready') return;
     const doc = this.doc.workspace.getDoc(data.targetDocId);
     if (!doc || doc.meta?.trash) return;
     const store =
-      doc.id === this.doc.doc.id ? this.doc : doc.getStore({ readonly: true });
+      doc.id === this.doc.doc.id ? this.doc : doc.getStore({ id: doc.id });
     const model = store.blocks.value[data.targetDatabaseId]?.model;
     if (!doc.ready || model?.flavour !== 'affine:database') return;
-    return new DatabaseBlockDataSource(model as DatabaseBlockModel);
+    return new DatabaseBlockDataSource(
+      model as DatabaseBlockModel,
+      undefined,
+      true
+    );
   }
 
   relationOptions(
@@ -400,9 +621,7 @@ export class DatabaseBlockDataSource extends DataSourceBase {
     for (const doc of this.doc.workspace.docs.values()) {
       if (!doc.ready || doc.meta?.trash) continue;
       const store =
-        doc.id === this.doc.doc.id
-          ? this.doc
-          : doc.getStore({ readonly: true });
+        doc.id === this.doc.doc.id ? this.doc : doc.getStore({ id: doc.id });
       for (const block of Object.values(store.blocks.value)) {
         if (block.model.flavour !== 'affine:database') continue;
         const model = block.model as DatabaseBlockModel;
@@ -457,7 +676,11 @@ export class DatabaseBlockDataSource extends DataSourceBase {
       : undefined;
     if (!target)
       return {
-        error: 'Related database is unavailable; open its page to load it',
+        error:
+          relation.success &&
+          this.relationTargetStatus(relation.data) === 'loading'
+            ? 'Related database is loading'
+            : 'Related database is unavailable',
       };
     const rows = this.resolveValue(rowId, data.data.relationColumnId, context);
     if (!Array.isArray(rows)) return { error: 'Invalid relation value' };
@@ -472,7 +695,44 @@ export class DatabaseBlockDataSource extends DataSourceBase {
       return { error: 'Rollup property is missing' };
     return aggregateRollup(
       data.data.operation,
-      rows.map(id => target.resolveValue(id, data.data.targetColumnId, context))
+      rows.map(id => {
+        const value = target.resolveValue(
+          id,
+          data.data.targetColumnId,
+          context
+        );
+        if (
+          data.data.operation !== 'values' &&
+          data.data.operation !== 'unique'
+        )
+          return value;
+        return target.readableRollupValue(data.data.targetColumnId, value);
+      })
+    );
+  }
+
+  private readableRollupValue(propertyId: string, value: unknown): unknown {
+    if (isComputedError(value) || value == null) return value;
+    if (value && typeof value === 'object' && 'deltas$' in value)
+      void (value.deltas$ as ReadonlySignal<unknown>).value;
+    const type = this.propertyTypeGet(propertyId);
+    const data = this.propertyDataGet(propertyId);
+    if (type === 'select' || type === 'multi-select') {
+      const options = data.options as
+        | { id: string; value: string }[]
+        | undefined;
+      return (Array.isArray(value) ? value : [value]).map(
+        id =>
+          options?.find(option => option.id === id)?.value ??
+          `Unresolved choice (${String(id)})`
+      );
+    }
+    if (Array.isArray(value)) return value.map(computedText);
+    if (this.isSpacialProperty(type ?? '') || type === 'formula')
+      return computedText(value);
+    const meta = type ? this.propertyMetaGet(type) : undefined;
+    return (
+      meta?.config.rawValue.toString({ value, data }) ?? computedText(value)
     );
   }
 

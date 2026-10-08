@@ -21,6 +21,7 @@ import {
   shareReplay,
   startWith,
   Subject,
+  timeout,
   type Unsubscribable,
 } from 'rxjs';
 
@@ -1037,6 +1038,24 @@ export const onTabShellViewActiveChange = (fn: (active: boolean) => void) => {
 export const getTabsStatus = () => {
   return firstValueFrom(WebContentViewsManager.instance.tabsStatus$);
 };
+
+export async function waitForActiveTabUI() {
+  await firstValueFrom(
+    WebContentViewsManager.instance.tabsStatus$.pipe(
+      filter(tabs => tabs.some(tab => tab.active && tab.ready)),
+      timeout(30_000)
+    )
+  );
+}
+
+export async function retryUnreadyActiveTab() {
+  const manager = WebContentViewsManager.instance;
+  const id = manager.activeWorkbenchId;
+  if (!id || manager.appTabsUIReady.has(id)) return;
+  const view = manager.getViewById(id);
+  if (view?.webContents.isLoadingMainFrame()) return;
+  await manager.loadTab(id);
+}
 
 export const onTabsStatusChange = (
   fn: (

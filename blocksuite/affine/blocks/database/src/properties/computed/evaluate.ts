@@ -1,12 +1,16 @@
 export type FormulaValue = string | number | boolean | null;
 export type ComputedError = { error: string };
-export type ComputedValue = FormulaValue | ComputedError;
+export type ComputedValue = FormulaValue | string[] | ComputedError;
 
 export const isComputedError = (value: unknown): value is ComputedError =>
   !!value && typeof value === 'object' && 'error' in value;
 
 export const computedText = (value: unknown): string =>
-  isComputedError(value) ? `#ERROR: ${value.error}` : String(value ?? '');
+  isComputedError(value)
+    ? `#ERROR: ${value.error}`
+    : Array.isArray(value)
+      ? value.map(computedText).join(', ')
+      : String(value ?? '');
 
 type Node =
   | { kind: 'value'; value: FormulaValue }
@@ -285,6 +289,17 @@ export function aggregateRollup(
 ): ComputedValue {
   if (values.some(isComputedError)) return values.find(isComputedError)!;
   if (operation === 'count') return values.length;
+  if (operation === 'values' || operation === 'unique') {
+    const list = values.flatMap(value =>
+      value == null ? [] : Array.isArray(value) ? value : [value]
+    );
+    if (list.length > 10000) return { error: 'Rollup value limit exceeded' };
+    if (list.some(value => typeof value !== 'string'))
+      return { error: 'Rollup requires readable values' };
+    return operation === 'unique'
+      ? [...new Set(list as string[])]
+      : (list as string[]);
+  }
   const numbers = values.filter(value => value != null);
   if (
     numbers.some(value => typeof value !== 'number' || !Number.isFinite(value))

@@ -184,8 +184,10 @@ describe('source publication snapshot', () => {
       'nested/node_modules/package.json',
       'nested/dist/main.js',
       'AGENTS.md',
-      ':-',
     ];
+    expect(JSON.parse(exclusions).excludedPaths).toContain(':-');
+    // A colon is an invalid filename on Windows; exercise that file on POSIX.
+    if (process.platform !== 'win32') privatePaths.push(':-');
     for (const file of privatePaths) {
       mkdirSync(path.dirname(path.join(repo, file)), { recursive: true });
       writeFileSync(path.join(repo, file), 'private');

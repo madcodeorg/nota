@@ -1,3 +1,5 @@
+import path from 'node:path';
+
 import {
   saveDBFileAs,
   setFakeDialogResult,
@@ -43,7 +45,7 @@ vi.mock('@nota/electron/helper/nbstore', () => ({
     checkpoint: mocks.checkpoint,
   }),
 }));
-vi.mock('@nota/electron/helper/workspace', () => ({
+vi.mock('@nota/electron/helper/workspace/handlers', () => ({
   storeWorkspaceMeta: vi.fn(),
 }));
 vi.mock('@nota/electron/helper/workspace/meta', () => ({
@@ -52,38 +54,42 @@ vi.mock('@nota/electron/helper/workspace/meta', () => ({
   getWorkspacesBasePath: mocks.getWorkspacesBasePath,
 }));
 
+const workspacePath = path.resolve('/workspace/storage.db');
+const workspacesBase = path.resolve('/app/workspaces');
+const backupPath = path.resolve('/backups/workspace.nota');
+const redirectedParent = path.resolve('/redirected');
+const otherWorkspace = path.join(workspacesBase, 'local', 'other');
+
 describe('consistent workspace export', () => {
   beforeEach(() => {
     vi.resetAllMocks();
     setFakeDialogResult(undefined);
-    mocks.getSpaceDBPath.mockResolvedValue('/workspace/storage.db');
-    mocks.getWorkspacesBasePath.mockResolvedValue('/app/workspaces');
+    mocks.getSpaceDBPath.mockResolvedValue(workspacePath);
+    mocks.getWorkspacesBasePath.mockResolvedValue(workspacesBase);
     mocks.realpath.mockImplementation(async filename => filename);
     mocks.showItemInFolder.mockResolvedValue(undefined);
   });
 
   it('uses the verified native snapshot, including committed WAL data', async () => {
     mocks.showSaveDialog.mockResolvedValue({
-      filePath: '/backups/workspace.nota',
+      filePath: backupPath,
     });
     expect(await saveDBFileAs('local:workspace:workspace', 'My notes')).toEqual(
       {
-        filePath: '/backups/workspace.nota',
+        filePath: backupPath,
       }
     );
     expect(mocks.connect).toHaveBeenCalledWith(
       'local:workspace:workspace',
-      '/workspace/storage.db'
+      workspacePath
     );
     expect(mocks.backup).toHaveBeenCalledWith(
       'local:workspace:workspace',
-      '/backups/workspace.nota'
+      backupPath
     );
     expect(mocks.checkpoint).not.toHaveBeenCalled();
     expect(mocks.copyFile).not.toHaveBeenCalled();
-    expect(mocks.showItemInFolder).toHaveBeenCalledWith(
-      '/backups/workspace.nota'
-    );
+    expect(mocks.showItemInFolder).toHaveBeenCalledWith(backupPath);
   });
 
   it('cancels before touching the database or destination', async () => {
@@ -110,7 +116,7 @@ describe('consistent workspace export', () => {
   });
 
   it('reports failed verification without revealing or falling back to copying', async () => {
-    setFakeDialogResult({ filePath: '/backups/workspace.nota' });
+    setFakeDialogResult({ filePath: backupPath });
     mocks.backup.mockRejectedValue(new Error('Backup failed validation'));
     expect(await saveDBFileAs('local:workspace:workspace', 'My notes')).toEqual(
       {
@@ -122,14 +128,16 @@ describe('consistent workspace export', () => {
   });
 
   it('refuses export destinations in another active workspace, including redirected parents', async () => {
-    setFakeDialogResult({ filePath: '/app/workspaces/local/other/storage.db' });
+    setFakeDialogResult({ filePath: path.join(otherWorkspace, 'storage.db') });
     expect(await saveDBFileAs('local:workspace:workspace', 'My notes')).toEqual(
       { error: 'DB_FILE_PATH_INVALID' }
     );
     expect(mocks.backup).not.toHaveBeenCalled();
-    setFakeDialogResult({ filePath: '/redirected/storage.db' });
+    setFakeDialogResult({
+      filePath: path.join(redirectedParent, 'storage.db'),
+    });
     mocks.realpath.mockImplementation(async filename =>
-      filename === '/redirected' ? '/app/workspaces/local/other' : filename
+      filename === redirectedParent ? otherWorkspace : filename
     );
     expect(await saveDBFileAs('local:workspace:workspace', 'My notes')).toEqual(
       { error: 'DB_FILE_PATH_INVALID' }

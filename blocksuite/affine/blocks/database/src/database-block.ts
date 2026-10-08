@@ -353,6 +353,8 @@ export class DatabaseBlockComponent extends CaptionedBlockComponent<DatabaseBloc
     this.classList.add(databaseBlockStyles);
     this.listenFullWidthChange();
     this.handleMobileEditing();
+    const targets = this.dataSource.value.acquireRelationTargets();
+    this.disposables.add(targets.release);
   }
 
   listenFullWidthChange() {

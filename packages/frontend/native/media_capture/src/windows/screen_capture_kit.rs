@@ -229,7 +229,8 @@ impl ShareableContent {
     _excluded_processes: Option<Vec<&ApplicationInfo>>,
     audio_stream_callback: ThreadsafeFunction<napi::bindgen_prelude::Float32Array, ()>,
   ) -> Result<AudioCaptureSession> {
-    // Delegate to audio_capture::start_recording which captures system loopback.
+    // Delegate to audio_capture::start_recording which captures system
+    // loopback.
     crate::windows::audio_capture::start_recording(audio_stream_callback)
   }
 
@@ -267,7 +268,8 @@ fn get_running_processes() -> Vec<u32> {
     let h_snapshot = match h_snapshot_result {
       Ok(handle) => {
         if handle == INVALID_HANDLE_VALUE {
-          // eprintln!("CreateToolhelp32Snapshot returned INVALID_HANDLE_VALUE");
+          // eprintln!("CreateToolhelp32Snapshot returned
+          // INVALID_HANDLE_VALUE");
           return Vec::new();
         }
         handle

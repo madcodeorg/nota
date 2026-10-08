@@ -18,15 +18,6 @@ on:
         required: true
         type: boolean
         default: false
-      mobile:
-        description: 'Release Mobile?'
-        required: true
-        type: boolean
-        default: false
-      ios-app-version:
-        description: 'iOS App Store Version (Optional, use tag version if empty)'
-        required: false
-        type: string
 
 permissions:
   contents: write
@@ -135,16 +126,3 @@ jobs:
       desktop_macos: ${{ github.event_name != 'workflow_dispatch' || inputs.desktop_macos }}
       desktop_windows: ${{ github.event_name != 'workflow_dispatch' || inputs.desktop_windows }}
       desktop_linux: ${{ github.event_name != 'workflow_dispatch' || inputs.desktop_linux }}
-
-  mobile:
-    name: Release Mobile
-    if: ${{ inputs.mobile }}
-    needs:
-      - prepare
-    uses: ./.github/workflows/release-mobile.yml
-    secrets: inherit
-    with:
-      build-type: ${{ needs.prepare.outputs.BUILD_TYPE }}
-      app-version: ${{ needs.prepare.outputs.APP_VERSION }}
-      git-short-hash: ${{ needs.prepare.outputs.GIT_SHORT_HASH }}
-      ios-app-version: ${{ inputs.ios-app-version }}

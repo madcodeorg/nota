@@ -664,6 +664,7 @@ __metadata:
     date-fns: "npm:^4.0.0"
     lit: "npm:^3.2.0"
     rxjs: "npm:^7.8.2"
+    vitest: "npm:^4.0.18"
     yjs: "npm:^13.6.27"
     zod: "npm:^3.25.76"
   languageName: unknown
@@ -8588,6 +8589,7 @@ __metadata:
   resolution: "@nota/templates@workspace:packages/frontend/templates"
   dependencies:
     jszip: "npm:^3.10.1"
+    vitest: "npm:^4.0.18"
   languageName: unknown
   linkType: soft
 

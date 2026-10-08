@@ -31,6 +31,7 @@ type WorkspaceOptions = {
   onLoadDoc?: (doc: YDoc) => void;
   onLoadAwareness?: (awareness: Awareness) => void;
   onCreateDoc?: (docId?: string) => string;
+  acquireDoc?: Workspace['acquireDoc'];
   featureFlagService?: FeatureFlagService;
 };
 
@@ -60,6 +61,7 @@ export class WorkspaceImpl implements Workspace {
   readonly onLoadDoc?: (doc: YDoc) => void;
   readonly onLoadAwareness?: (awareness: Awareness) => void;
   readonly onCreateDoc?: (docId?: string) => string;
+  readonly acquireDoc?: Workspace['acquireDoc'];
   readonly featureFlagService?: FeatureFlagService;
 
   constructor({
@@ -69,6 +71,7 @@ export class WorkspaceImpl implements Workspace {
     onLoadDoc,
     onLoadAwareness,
     onCreateDoc,
+    acquireDoc,
     featureFlagService,
   }: WorkspaceOptions) {
     this.id = id || '';
@@ -78,6 +81,7 @@ export class WorkspaceImpl implements Workspace {
     this.onLoadDoc?.(this.doc);
     this.onLoadAwareness = onLoadAwareness;
     this.onCreateDoc = onCreateDoc;
+    this.acquireDoc = acquireDoc;
 
     blobSource = blobSource ?? new MemoryBlobSource();
     const logger = new NoopLogger();

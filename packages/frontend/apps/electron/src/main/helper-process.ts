@@ -62,7 +62,9 @@ class HelperProcessManager {
       serviceName: 'nota-helper',
     });
     this.#process = helperProcess;
+    let rejectReady: (error: Error) => void;
     this.ready = new Promise((resolve, reject) => {
+      rejectReady = reject;
       helperProcess.once('spawn', () => {
         try {
           logger.info('[helper] forked', helperProcess.pid);
@@ -80,12 +82,20 @@ class HelperProcessManager {
 
     this.#process.on('exit', code => {
       logger.error('[helper] process exited', { code });
-      HelperProcessManager._instance = null;
+      rejectReady(
+        new Error(`Workspace helper exited before startup (${code}).`)
+      );
+      if (HelperProcessManager._instance === this) {
+        HelperProcessManager._instance = null;
+      }
     });
 
     this.#process.on('error', err => {
       logger.error('[helper] process error', err);
-      HelperProcessManager._instance = null;
+      rejectReady(new Error(String(err)));
+      if (HelperProcessManager._instance === this) {
+        HelperProcessManager._instance = null;
+      }
     });
   }
 

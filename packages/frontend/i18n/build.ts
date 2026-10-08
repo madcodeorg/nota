@@ -181,59 +181,6 @@ function i18nnext() {
   );
 }
 
-async function appendErrorI18n() {
-  const server = new Package('@nota/server');
-  const defFilePath = server.srcPath.join('base/error/def.ts');
-
-  if (!defFilePath.exists()) {
-    throw new Error(
-      `Can not find Server I18n error definition file. It's not placed at [${defFilePath.relativePath}].`
-    );
-  }
-
-  const { USER_FRIENDLY_ERRORS } = await import(
-    defFilePath.toFileUrl().toString()
-  );
-
-  if (!USER_FRIENDLY_ERRORS) {
-    throw new Error(
-      `Can not find Server I18n error definition file. It's not placed at [${defFilePath.relativePath}] with name [USER_FRIENDLY_ERRORS].`
-    );
-  }
-
-  const en = readResource('en');
-
-  Object.keys(en).forEach(key => {
-    if (key.startsWith('error.')) {
-      delete en[key];
-    }
-  });
-
-  for (const key in USER_FRIENDLY_ERRORS) {
-    const def = USER_FRIENDLY_ERRORS[key] as {
-      type: string;
-      args?: Record<string, any>;
-      message: string | ((args: any) => string);
-    };
-
-    en[`error.${key.toUpperCase()}`] =
-      typeof def.message === 'string'
-        ? def.message
-        : def.message(
-            Object.keys(def.args ?? {}).reduce(
-              (args, key) => {
-                args[key] = `{{${key}}}`;
-                return args;
-              },
-              {} as Record<string, string>
-            )
-          );
-  }
-
-  writeResource('en', en);
-}
-
-await appendErrorI18n();
 if (shouldCleanup) {
   await cleanupResources();
 }

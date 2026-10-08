@@ -12,13 +12,13 @@ napi       = []
 use-as-lib = ["napi-derive/noop", "napi/noop"]
 
 [dependencies]
-nota_schema = { path = "../schema" }
 anyhow = { workspace = true }
 bincode = { version = "2.0.1", features = ["serde"] }
 chrono = { workspace = true }
 memory-indexer = { workspace = true }
 napi = { workspace = true }
 napi-derive = { workspace = true }
+nota_schema = { path = "../schema" }
 serde = { workspace = true, features = ["derive"] }
 sqlx = { workspace = true, default-features = false, features = [
   "chrono",
@@ -28,8 +28,8 @@ sqlx = { workspace = true, default-features = false, features = [
   "sqlite",
   "tls-rustls",
 ] }
-thiserror = { workspace = true }
 tempfile = "3.24"
+thiserror = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
 y-octo = { workspace = true }
 zstd = "0.13"
@@ -38,9 +38,9 @@ zstd = "0.13"
 uniffi = { workspace = true }
 
 [build-dependencies]
-nota_schema = { path = "../schema" }
 dotenvy = { workspace = true }
 napi-build = { workspace = true }
+nota_schema = { path = "../schema" }
 sqlx = { workspace = true, default-features = false, features = [
   "chrono",
   "macros",

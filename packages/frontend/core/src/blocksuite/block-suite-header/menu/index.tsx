@@ -274,12 +274,16 @@ const PageHeaderMenuItem = ({
 
   const handleOpenImportModal = useCallback(() => {
     track.$.header.importModal.open();
-    workspaceDialogService.open('data-tools', { docIds: [page.id] }, payload => {
-      if (!payload) {
-        return;
+    workspaceDialogService.open(
+      'data-tools',
+      { docIds: [page.id] },
+      payload => {
+        if (!payload) {
+          return;
+        }
+        handleOpenDocs(payload);
       }
-      handleOpenDocs(payload);
-    });
+    );
   }, [workspaceDialogService, handleOpenDocs, page.id]);
 
   const handleShareMenuOpenChange = useCallback((open: boolean) => {
@@ -438,7 +442,15 @@ const PageHeaderMenuItem = ({
       >
         {t['Import']()}
       </MenuItem>
-      <Export exportHandler={exportHandler} pageMode={currentMode} hasDatabases={editorService.editor.doc.blockSuiteDoc.getBlocksByFlavour('affine:database').length > 0} />
+      <Export
+        exportHandler={exportHandler}
+        pageMode={currentMode}
+        hasDatabases={
+          editorService.editor.doc.blockSuiteDoc.getBlocksByFlavour(
+            'affine:database'
+          ).length > 0
+        }
+      />
       <MenuSeparator />
       <MoveToTrash
         data-testid="editor-option-menu-delete"

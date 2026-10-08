@@ -16,6 +16,7 @@ const envKeys = [
   'NOTA_AI_SEEDED_MODEL_ROOT',
 ] as const;
 const original = envKeys.map(key => process.env[key]);
+const originalPlatform = Object.getOwnPropertyDescriptor(process, 'platform')!;
 let root: string;
 let base: string;
 let server: ReturnType<ReturnType<typeof createServer>['app']['listen']>;
@@ -46,6 +47,9 @@ afterEach(async () => {
     else process.env[key] = original[i];
   });
   vi.restoreAllMocks();
+});
+afterEach(() => {
+  Object.defineProperty(process, 'platform', originalPlatform);
 });
 function request(route: string, body?: unknown) {
   return fetch(base + route, {
@@ -171,6 +175,12 @@ describe('meeting native model integration', () => {
 });
 
 describe('Apple device language inventory', () => {
+  beforeEach(() => {
+    Object.defineProperty(process, 'platform', {
+      ...originalPlatform,
+      value: 'darwin',
+    });
+  });
   const catalog = {
     available: true,
     supportedLocales: ['en-US', 'fr-FR', 'zh-Hant-TW'],
@@ -247,4 +257,33 @@ describe('Apple device language inventory', () => {
     ).toMatchObject({ meeting: { sttLanguage: 'en-US' } });
     await request(`/v1/meetings/${meeting.id}/stop`, {});
   });
+});
+
+test('keeps Apple speech unsupported on non-Mac hosts even if a bridge advertises language packs', async () => {
+  Object.defineProperty(process, 'platform', {
+    ...originalPlatform,
+    value: 'linux',
+  });
+  await request('/v1/stt/apple-speech/bridge', {
+    available: true,
+    supportedLocales: ['en-US'],
+    installedLocales: ['en-US'],
+    systemLocale: 'en-US',
+  });
+  const runtime = await (await request('/v1/stt/runtime')).json();
+  expect(
+    runtime.providers.find(
+      (provider: { id: string }) => provider.id === 'apple-speechanalyzer'
+    )
+  ).toMatchObject({
+    canProduceTranscript: false,
+    readiness: { status: 'unsupported', runtimeAvailable: false },
+  });
+  expect(
+    (
+      await request('/v1/meetings/reserve', {
+        providerId: 'apple-speechanalyzer',
+      })
+    ).status
+  ).toBe(400);
 });

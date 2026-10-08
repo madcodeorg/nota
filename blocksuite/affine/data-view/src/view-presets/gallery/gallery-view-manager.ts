@@ -9,8 +9,8 @@ export class GallerySingleView extends CardSingleView<GalleryViewData> {
   }
 
   imageProperties$ = computed(() =>
-    this.propertiesRaw$.value.filter(
-      property => property.type$.value === 'image'
+    this.propertiesRaw$.value.filter(property =>
+      ['image', 'attachment'].includes(property.type$.value ?? '')
     )
   );
 

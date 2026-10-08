@@ -61,6 +61,38 @@ function snapshotPage(store: ReturnType<typeof createPage>['store']) {
 }
 
 describe('native snapshots require their local assets', () => {
+  test('cancellation during native asset preparation prevents the complete snapshot download', async () => {
+    const workspace = createWorkspace('cancel-export');
+    const { store, noteId } = createPage(workspace);
+    store.addBlock(
+      'affine:attachment',
+      { sourceId: 'file', name: 'file.txt' },
+      noteId
+    );
+    await workspace.blobSync.set(
+      'file',
+      new File(['complete file'], 'file.txt', { type: 'text/plain' })
+    );
+    const request = new AbortController();
+    const get = workspace.blobSync.get.bind(workspace.blobSync);
+    vi.spyOn(workspace.blobSync, 'get').mockImplementation(async id => {
+      const file = await get(id);
+      request.abort();
+      return file;
+    });
+    const click = vi
+      .spyOn(HTMLAnchorElement.prototype, 'click')
+      .mockImplementation(() => {});
+    await expect(
+      ZipTransformer.exportDocs(
+        workspace,
+        getAFFiNEWorkspaceSchema(),
+        [store],
+        request.signal
+      )
+    ).rejects.toMatchObject({ name: 'AbortError' });
+    expect(click).not.toHaveBeenCalled();
+  });
   test('fails visibly before downloading an incomplete attachment snapshot', async () => {
     const workspace = createWorkspace('missing-block-asset');
     const { store, noteId } = createPage(workspace);

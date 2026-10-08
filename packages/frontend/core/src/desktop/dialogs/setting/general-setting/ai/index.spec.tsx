@@ -169,6 +169,7 @@ import { AISettingsPanel } from './index';
 
 const gemmaId = 'gemma-4-e2b-it-onnx-q4f16';
 const qwenId = 'qwen3.5-0.8b-onnx-q4f16';
+const qwen2Id = 'qwen3.5-2b-onnx-q4f16';
 const embeddingId = 'all-minilm-l6-v2-embedding';
 const alternateEmbeddingId = 'test-embedding';
 
@@ -370,7 +371,9 @@ beforeEach(() => {
     }
     if (
       method === 'POST' &&
-      [gemmaId, qwenId].some(id => url === `/v1/local/models/${id}/download`)
+      [gemmaId, qwenId, qwen2Id].some(
+        id => url === `/v1/local/models/${id}/download`
+      )
     ) {
       return Response.json({ download }, { status: downloadStatus });
     }
@@ -1093,7 +1096,120 @@ describe('AI settings panel', () => {
     expect(mocks.models.watchLocalModelDownload).not.toHaveBeenCalled();
   });
 
+  test.each(['focus', 'visibilitychange'] as const)(
+    'refreshes a queued download completed in the background on %s without waiting for the polling timer',
+    async event => {
+      const visibility = vi
+        .spyOn(document, 'visibilityState', 'get')
+        .mockReturnValue('visible');
+      settings.model = qwen2Id;
+      settings.localModel = qwen2Id;
+      settings.meetings.localModels[0] = localModel(qwen2Id);
+      models = settings.meetings.localModels;
+      await mountSettings();
+      downloadStatus = 202;
+      download = { status: 'queued', message: '' };
+      models = models.map(item =>
+        item.id === qwen2Id ? { ...item, downloadStatus: 'queued' } : item
+      );
+      await click(modelAction('Qwen3.5 2B', 'Download'));
+      models = models.map(item =>
+        item.id === qwen2Id
+          ? {
+              ...item,
+              downloadStatus: 'downloading',
+              progress: 0.46,
+              bytesDownloaded: 646_408_217,
+              totalBytes: 1_404_083_950,
+            }
+          : item
+      );
+      await refreshHealth('poll');
+      expect(screen.getByRole('progressbar').getAttribute('value')).toBe('46');
+      await click(screen.getByRole('menuitem', { name: 'OpenAI' }));
+      fireEvent.change(screen.getByLabelText('OpenAI API key'), {
+        target: { value: 'test-only-unsaved-key' },
+      });
+
+      visibility.mockReturnValue('hidden');
+      await act(async () => {
+        fireEvent(document, new Event('visibilitychange'));
+        fireEvent(window, new Event('focus'));
+      });
+      expect(requests('/v1/local/models')).toHaveLength(2);
+      models = models.map(item =>
+        item.id === qwen2Id
+          ? {
+              ...item,
+              downloadStatus: 'downloaded',
+              progress: 1,
+              bytesDownloaded: 1_404_083_950,
+            }
+          : item
+      );
+
+      // A backgrounded Electron window may not run its polling timer.
+      visibility.mockReturnValue('visible');
+      await act(async () => {
+        fireEvent(event === 'focus' ? window : document, new Event(event));
+      });
+
+      expect(requests('/v1/local/models')).toHaveLength(3);
+      expect(screen.queryByRole('progressbar')).toBeNull();
+      expect(
+        within(screen.getByRole('listitem', { name: 'Qwen3.5 2B' })).getByText(
+          'Downloaded - Not checked'
+        )
+      ).toBeTruthy();
+      expect(modelAction('Qwen3.5 2B', 'Check model')).toBeTruthy();
+      expect(fieldValue('OpenAI API key')).toBe('test-only-unsaved-key');
+      expect(mocks.models.refreshModels).toHaveBeenCalledTimes(2);
+      await refreshHealth('poll');
+      await act(async () => {
+        fireEvent(window, new Event('focus'));
+        fireEvent(document, new Event('visibilitychange'));
+      });
+      expect(requests('/v1/local/models')).toHaveLength(3);
+      expect(requests('/api/ai/settings')).toHaveLength(1);
+      expect(posts()).toHaveLength(1);
+    }
+  );
+
+  test('does not overlap an active health poll with focus or visibility refreshes', async () => {
+    vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
+    settings.meetings.localModels[0] = localModel(gemmaId, {
+      downloadStatus: 'downloading',
+      progress: 0.46,
+    });
+    models = settings.meetings.localModels;
+    await mountSettings();
+    const pending = Promise.withResolvers<Response>();
+    fetchMock.mockImplementationOnce(() => pending.promise);
+    await refreshHealth('poll');
+
+    await act(async () => {
+      fireEvent(window, new Event('focus'));
+      fireEvent(document, new Event('visibilitychange'));
+    });
+    await refreshHealth('poll');
+    expect(requests('/v1/local/models')).toHaveLength(1);
+    models = models.map(item =>
+      item.id === gemmaId
+        ? { ...item, downloadStatus: 'downloaded', progress: 1 }
+        : item
+    );
+    await act(async () => {
+      pending.resolve(Response.json({ models }));
+    });
+
+    expect(screen.queryByRole('progressbar')).toBeNull();
+    expect(mocks.models.refreshModels).toHaveBeenCalledTimes(2);
+    await refreshHealth('poll');
+    expect(requests('/v1/local/models')).toHaveLength(1);
+  });
+
   test('aborts an active health poll and stops polling after unmount', async () => {
+    vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
     settings.meetings.localModels[0] = localModel(gemmaId, {
       downloadStatus: 'downloading',
     });
@@ -1109,6 +1225,8 @@ describe('AI settings panel', () => {
     expect(signal?.aborted).toBe(true);
     await act(async () => {
       pending.resolve(Response.json({ models }));
+      fireEvent(window, new Event('focus'));
+      fireEvent(document, new Event('visibilitychange'));
     });
     await refreshHealth('poll');
     expect(requests('/v1/local/models')).toHaveLength(1);

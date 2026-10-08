@@ -4,7 +4,7 @@ Public source and installer releases are published from [madcodeorg/nota](https:
 
 ## Prepare source
 
-1. Choose a reviewed implementation snapshot. Preserve copyright and third-party notices, and follow the [source publication procedure](../PUBLICATION.md) when exporting from a private development repository.
+1. Choose a reviewed implementation snapshot. Preserve copyright and third-party notices.
 2. Confirm that private history, local workspace data, tokens, model caches, build outputs, and unverified media/binaries are excluded. Run source/provenance and secret checks before making a repository public.
 3. Keep release version, package metadata, tag, and installer filenames consistent. The root and Electron manifests contain the application version; use the repo's version tooling instead of independently editing generated values.
 4. Run targeted behavior tests, related package checks, typechecking, and relevant lint/build validation. Record unrelated failures and limitations explicitly.

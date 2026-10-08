@@ -35,7 +35,7 @@ afterEach(() => {
   document.body.replaceChildren();
 });
 
-function fixture() {
+function fixture(getBlob?: (id: string) => Promise<Blob | null>) {
   const calendarData: CalendarViewData = {
     id: 'calendar',
     name: 'Calendar',
@@ -79,6 +79,7 @@ function fixture() {
     title: { ...textMeta, type: 'title' },
     date: datePropertyModelConfig.createPropertyMeta({ cellRenderer }),
     image: imagePropertyModelConfig.createPropertyMeta({ cellRenderer }),
+    attachment: { ...textMeta, type: 'attachment' },
   };
   const types: Record<string, keyof typeof metas> = {
     title: 'title',
@@ -86,6 +87,7 @@ function fixture() {
     otherDate: 'date',
     status: 'text',
     cover: 'image',
+    files: 'attachment',
   };
   const properties = signal(Object.keys(types));
   const source = {
@@ -121,6 +123,7 @@ function fixture() {
       rows.value = [...rows.value, id];
       return id;
     },
+    serviceGet: () => (getBlob ? { blobSync: { get: getBlob } } : null),
   } as unknown as DataSource;
   const manager = new ViewManagerBase(source);
   const calendar = new CalendarSingleView(manager, 'calendar');
@@ -315,6 +318,62 @@ describe('shared local database views', () => {
 });
 
 describe('row opening and gallery covers', () => {
+  test('renders a local attachment cover through the workspace blob service and revokes it on removal', async () => {
+    if (!customElements.get('dv-gallery-view-ui'))
+      customElements.define('dv-gallery-view-ui', GalleryViewUI);
+    const create = vi
+      .spyOn(URL, 'createObjectURL')
+      .mockReturnValue('blob:local-gallery');
+    const revoke = vi
+      .spyOn(URL, 'revokeObjectURL')
+      .mockImplementation(() => {});
+    const removeListener = vi.spyOn(window, 'removeEventListener');
+    const get = vi.fn(async () => new Blob(['image'], { type: 'image/png' }));
+    const { gallery, cells } = fixture(get);
+    gallery.imageColumnSet('files');
+    expect(gallery.imageProperties$.value.map(property => property.id)).toEqual(
+      ['cover', 'files']
+    );
+    cells.value = {
+      ...cells.value,
+      one: {
+        ...cells.value.one,
+        files: {
+          image: {
+            id: 'image',
+            name: 'cover.png',
+            mime: 'image/png',
+            order: 'a',
+          },
+        },
+      },
+    };
+    const root = {
+      setSelection: vi.fn(),
+      openDetailPanel: vi.fn(),
+      selection$: signal(undefined),
+      config: {},
+    } as unknown as DataViewRootUILogic;
+    const element = document.createElement('dv-gallery-view-ui');
+    element.logic = new GalleryViewUILogic(root, gallery);
+    document.body.append(element);
+    await vi.waitFor(() =>
+      expect(element.querySelector('img')?.getAttribute('src')).toBe(
+        'blob:local-gallery'
+      )
+    );
+    expect(get).toHaveBeenCalledExactlyOnceWith('image');
+    expect(create).toHaveBeenCalledOnce();
+    element.remove();
+    expect(revoke).toHaveBeenCalledExactlyOnceWith('blob:local-gallery');
+    expect(removeListener).toHaveBeenCalledWith(
+      'online',
+      expect.any(Function),
+      undefined
+    );
+    vi.restoreAllMocks();
+  });
+
   test('adding a dated row updates the same canonical rows used by Gallery', () => {
     const { calendar, gallery, cells, readonly } = fixture();
     const openDetailPanel = vi.fn();

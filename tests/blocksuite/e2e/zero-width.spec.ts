@@ -11,14 +11,11 @@ const bookMarkUrl = 'http://localhost';
 const embedUrl = 'https://github.com/toeverything/blocksuite/pull/7217';
 
 test.beforeEach(async ({ page }) => {
-  await page.route(
-    'https://affine-worker.toeverything.workers.dev/api/worker/link-preview',
-    async route => {
-      await route.fulfill({
-        json: {},
-      });
-    }
-  );
+  await page.route('**/api/worker/link-preview', async route => {
+    await route.fulfill({
+      json: {},
+    });
+  });
 });
 
 test(

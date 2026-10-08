@@ -49,28 +49,36 @@ const revisedSnapshot = '[1,"Revised transcript.",0,1000,"mic"]';
 let workspaceRoot = '';
 let sessionsPath = '';
 let baseUrl = '';
-let server: ReturnType<
-  ReturnType<(typeof import('./server.js'))['createServer']>['app']['listen']
->;
+let server:
+  | ReturnType<
+      ReturnType<
+        (typeof import('./server.js'))['createServer']
+      >['app']['listen']
+    >
+  | undefined;
 
 async function startServer() {
   const { createServer } = await import('./server.js');
   const { loadConfig } = await import('./config.js');
   const { resumeRetainedMeetingTranscriptions } = await import('./meetings.js');
   await resumeRetainedMeetingTranscriptions(loadConfig());
-  server = createServer().app.listen(0, '127.0.0.1');
+  const current = createServer().app.listen(0, '127.0.0.1');
+  server = current;
   await new Promise<void>((resolve, reject) => {
-    server.once('listening', resolve);
-    server.once('error', reject);
+    current.once('listening', resolve);
+    current.once('error', reject);
   });
-  const address = server.address();
+  const address = current.address();
   const port = typeof address === 'object' && address ? address.port : 0;
   baseUrl = `http://127.0.0.1:${port}`;
 }
 
 async function closeServer() {
+  const current = server;
+  server = undefined;
+  if (!current) return;
   await new Promise<void>((resolve, reject) => {
-    server.close(error => (error ? reject(error) : resolve()));
+    current.close(error => (error ? reject(error) : resolve()));
   });
 }
 
@@ -100,16 +108,24 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
-  const { loadConfig } = await import('./config.js');
-  const { finalizeMeetingsBeforeShutdown } = await import('./meetings.js');
-  await finalizeMeetingsBeforeShutdown(loadConfig());
-  await closeServer();
-  await rm(workspaceRoot, { force: true, recursive: true });
-  for (const [key, value] of Object.entries(environment)) {
-    if (value === undefined) {
-      delete process.env[key];
-    } else {
-      process.env[key] = value;
+  try {
+    if (server) {
+      const { loadConfig } = await import('./config.js');
+      const { finalizeMeetingsBeforeShutdown } = await import('./meetings.js');
+      await finalizeMeetingsBeforeShutdown(loadConfig());
+    }
+  } finally {
+    try {
+      await closeServer();
+    } finally {
+      await rm(workspaceRoot, { force: true, recursive: true });
+      for (const [key, value] of Object.entries(environment)) {
+        if (value === undefined) {
+          delete process.env[key];
+        } else {
+          process.env[key] = value;
+        }
+      }
     }
   }
 });

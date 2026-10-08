@@ -21,7 +21,8 @@
     "vitest": "^4.0.18"
   },
   "scripts": {
-    "build": "gql-gen --errors-only"
+    "build": "gql-gen --errors-only",
+    "check": "node --import ../../../tools/cli/tsx-register.js check.ts"
   },
   "dependencies": {
     "@nota/debug": "workspace:*",

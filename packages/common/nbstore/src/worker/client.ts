@@ -9,6 +9,7 @@ import {
   DocFrontend,
   IndexerFrontend,
 } from '../frontend';
+import type { GoogleDriveTokens } from '../impls/google-drive';
 import {
   type AggregateOptions,
   type AggregateResult,
@@ -166,6 +167,19 @@ export class StoreClient {
   readonly blobFrontend: BlobFrontend;
   readonly awarenessFrontend: AwarenessFrontend;
   readonly indexerFrontend: IndexerFrontend;
+
+  setGoogleDriveTokens(
+    tokens: GoogleDriveTokens | null,
+    workspaceOwner?: string
+  ): Promise<void> {
+    return this.client.call('sync.setGoogleDriveTokens', {
+      tokens,
+      workspaceOwner,
+    });
+  }
+  googleDriveAuthRequired$(): Observable<void> {
+    return this.client.ob$('sync.googleDriveAuthRequired');
+  }
 
   enableBatterySaveMode(): Promise<void> {
     return this.client.call('sync.enableBatterySaveMode');

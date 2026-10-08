@@ -4,11 +4,11 @@ import { DatabaseBlockComponent } from './database-block';
 import { DatabaseDndPreviewBlockComponent } from './database-dnd-preview-block';
 import { BlockRenderer } from './detail-panel/block-renderer';
 import { NoteRenderer } from './detail-panel/note-renderer';
-import { CreatedTimeCell } from './properties/created-time/cell-renderer';
 import {
   ComputedCell,
   RelationCell,
 } from './properties/computed/cell-renderer';
+import { CreatedTimeCell } from './properties/created-time/cell-renderer';
 import { LinkCell } from './properties/link/cell-renderer';
 import { RichTextCell } from './properties/rich-text/cell-renderer';
 import { IconCell } from './properties/title/icon';

@@ -102,8 +102,13 @@ export class MainWindowManager {
         webgl: true,
       }),
     });
-    const helper = await ensureHelperProcess();
-    helper.connectMain(browserWindow);
+    try {
+      const helper = await ensureHelperProcess();
+      helper.connectMain(browserWindow);
+    } catch (error) {
+      browserWindow.destroy();
+      throw error;
+    }
 
     if (isLinux()) {
       browserWindow.setIcon(
@@ -221,9 +226,15 @@ export class MainWindowManager {
       !this.mainWindowReady ||
       (await this.mainWindowReady.then(w => w.isDestroyed()))
     ) {
-      this.mainWindowReady = this.createMainWindow();
-      this.mainWindow$.next(await this.mainWindowReady);
-      this.preventMacAppQuit();
+      const creating = this.createMainWindow();
+      this.mainWindowReady = creating;
+      try {
+        this.mainWindow$.next(await creating);
+        this.preventMacAppQuit();
+      } catch (error) {
+        if (this.mainWindowReady === creating) this.mainWindowReady = undefined;
+        throw error;
+      }
     }
     return this.mainWindowReady;
   }

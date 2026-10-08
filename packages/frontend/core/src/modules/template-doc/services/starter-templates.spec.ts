@@ -47,6 +47,12 @@ function setup() {
     workspace.meta.setDocMeta(doc.id, { title: options.title });
     const record = {
       id: doc.id,
+      moveToTrash: () => {
+        workspace.meta.setDocMeta(doc.id, {
+          trash: true,
+          trashDate: Date.now(),
+        });
+      },
       setProperty: (key: string, value: unknown) => {
         const values = properties.get(doc.id) ?? {};
         values[key] = value;
@@ -149,6 +155,81 @@ describe('bundled local starter templates', () => {
     expect(createDoc).not.toHaveBeenCalled();
   });
 
+  test.each(
+    LOCAL_STARTER_TEMPLATES.filter(starter => starter.id !== 'daily-journal')
+  )(
+    '$title preserves its companion in Trash after failure and retries without visible duplicates',
+    ({ id }) => {
+      const { workspace, docsService, createDoc } = setup();
+      const existingId = docsService.createDoc({ title: 'Existing note' }).id;
+      const existingMeta = { ...workspace.getDoc(existingId)!.meta };
+      const failure = new Error('Starter creation failed');
+      createDoc
+        .mockImplementationOnce(createDoc.getMockImplementation()!)
+        .mockImplementationOnce(() => {
+          throw failure;
+        });
+
+      expect(() => createLocalStarter(docsService, id)).toThrow(failure);
+      const companion = [...workspace.docs.values()].find(
+        doc => doc.id !== existingId
+      )!;
+      const companionContent = encodeStateAsUpdate(companion.spaceDoc);
+      expect(companion.meta?.trash).toBe(true);
+      expect(companion.meta?.trashDate).toEqual(expect.any(Number));
+      expect(
+        companion.getStore().getBlocksByFlavour('affine:paragraph').length
+      ).toBeGreaterThan(3);
+      expect(workspace.getDoc(existingId)!.meta).toEqual(existingMeta);
+
+      const starterId = createLocalStarter(docsService, id);
+      const newCompanionId = linkedPageIds(
+        workspace.getDoc(starterId)!.getStore()
+      )[0]!;
+      expect(newCompanionId).not.toBe(companion.id);
+      expect(workspace.getDoc(newCompanionId)!.meta?.trash).not.toBe(true);
+      expect(
+        workspace.meta.docMetas.filter(meta => !meta.trash).map(meta => meta.id)
+      ).toEqual(
+        expect.arrayContaining([existingId, starterId, newCompanionId])
+      );
+      expect(workspace.meta.docMetas.filter(meta => !meta.trash)).toHaveLength(
+        3
+      );
+      expect(workspace.docs.size).toBe(4);
+      expect(encodeStateAsUpdate(companion.spaceDoc)).toEqual(companionContent);
+    }
+  );
+
+  test('companion cleanup failure does not hide the original starter error or delete content', () => {
+    const { workspace, docsService, createDoc } = setup();
+    const failure = new Error('Starter creation failed');
+    const create = createDoc.getMockImplementation()!;
+    createDoc
+      .mockImplementationOnce(options => {
+        const companion = create(options);
+        vi.spyOn(companion, 'moveToTrash').mockImplementationOnce(() => {
+          throw new Error('Trash write failed');
+        });
+        return companion;
+      })
+      .mockImplementationOnce(() => {
+        throw failure;
+      });
+
+    let caught: unknown;
+    try {
+      createLocalStarter(docsService, 'knowledge-notes');
+    } catch (error) {
+      caught = error;
+    }
+    expect(caught).toBe(failure);
+    expect(workspace.docs.size).toBe(1);
+    expect([...workspace.docs.values()][0]!.getStore().root?.flavour).toBe(
+      'affine:page'
+    );
+  });
+
   test('separate selections create independent blocks and relation targets', () => {
     const { workspace, docsService } = setup();
     const first = createLocalStarter(docsService, 'projects-and-tasks');
@@ -197,7 +278,8 @@ describe('bundled local starter templates', () => {
     const source = workspace.getDoc(sourceId)!.getStore();
     const targetId = docsService.createDoc({ title: 'Copied starter' }).id;
     const target = workspace.getDoc(targetId)!.getStore();
-    for (const child of [...target.root!.children]) target.deleteBlock(child);
+    for (const child of target.root!.children.slice())
+      target.deleteBlock(child);
     const transformer = new Transformer({
       schema: new Schema().register(AffineSchemas),
       blobCRUD: workspace.blobSync,

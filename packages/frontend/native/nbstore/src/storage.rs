@@ -115,7 +115,8 @@ impl SqliteDocStorage {
     if records.len() > migrator.iter().count() {
       return Ok(false);
     }
-    // Check canonical content tables, not only a migration marker in an arbitrary file.
+    // Check canonical content tables, not only a migration marker in an
+    // arbitrary file.
     for query in [
       "SELECT space_id FROM meta LIMIT 0",
       "SELECT doc_id, data, updated_at FROM snapshots LIMIT 0",
@@ -165,7 +166,8 @@ impl SqliteDocStorage {
       if !valid? {
         return Err(Error::Backup("The backup failed integrity or schema validation".into()));
       }
-      // VACUUM INTO outputs are not assumed durable solely because SQL finished.
+      // VACUUM INTO outputs are not assumed durable solely because SQL
+      // finished.
       std::fs::OpenOptions::new()
         .read(true)
         .write(true)
@@ -177,8 +179,9 @@ impl SqliteDocStorage {
       if *cancelled {
         return Err(Error::Backup("Backup cancelled".into()));
       }
-      // Same-directory rename is atomic and replaces only a fully verified file.
-      // On systems which cannot replace an existing file this fails safely.
+      // Same-directory rename is atomic and replaces only a fully verified
+      // file. On systems which cannot replace an existing file this fails
+      // safely.
       std::fs::rename(&output, &destination)?;
       #[cfg(unix)]
       std::fs::File::open(destination.parent().ok_or(Error::InvalidOperation)?)?.sync_all()?;
@@ -228,10 +231,10 @@ impl SqliteDocStorage {
   async fn migrate(&self) -> Result<()> {
     let migrator = get_migrator();
     if let Err(err) = migrator.run(&self.pool).await {
-      // Compatibility: migration 3 (`add_idx_snapshots`) had a whitespace-only SQL
-      // change (trailing space) between releases, which causes sqlx to reject
-      // existing DBs with: `VersionMismatch(3)`. It's safe to fix by updating
-      // the stored checksum.
+      // Compatibility: migration 3 (`add_idx_snapshots`) had a whitespace-only
+      // SQL change (trailing space) between releases, which causes sqlx
+      // to reject existing DBs with: `VersionMismatch(3)`. It's safe to
+      // fix by updating the stored checksum.
       if matches!(err, sqlx::migrate::MigrateError::VersionMismatch(3))
         && self.try_repair_migration_3_checksum(&migrator).await?
       {
@@ -249,8 +252,8 @@ impl SqliteDocStorage {
       return Ok(false);
     };
 
-    // We're only prepared to repair the known `add_idx_snapshots` whitespace-only
-    // mismatch.
+    // We're only prepared to repair the known `add_idx_snapshots`
+    // whitespace-only mismatch.
     if migration.description.as_ref() != "add_idx_snapshots" {
       return Ok(false);
     }

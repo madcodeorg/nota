@@ -368,10 +368,10 @@ export class GoogleSession extends Entity {
     return Date.now() >= this.tokens.expiresAt - REFRESH_BEFORE_EXPIRY_MS;
   }
 
-  async getAccessToken(): Promise<string | null> {
+  async getAccessToken(forceRefresh = false): Promise<string | null> {
     if (!this.tokens) return null;
 
-    if (!this.isExpiredSoon()) {
+    if (!forceRefresh && !this.isExpiredSoon()) {
       return this.tokens.accessToken;
     }
 

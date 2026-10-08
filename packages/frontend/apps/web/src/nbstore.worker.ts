@@ -3,6 +3,7 @@ import '@nota/core/bootstrap/browser';
 import { type MessageCommunicapable, OpConsumer } from '@nota/infra/op';
 import { broadcastChannelStorages } from '@nota/nbstore/broadcast-channel';
 import { cloudStorages } from '@nota/nbstore/cloud';
+import { googleDriveStorages } from '@nota/nbstore/google-drive';
 import { idbStorages } from '@nota/nbstore/idb';
 import { idbV1Storages } from '@nota/nbstore/idb/v1';
 import {
@@ -15,6 +16,7 @@ const consumer = new StoreManagerConsumer([
   ...idbV1Storages,
   ...broadcastChannelStorages,
   ...cloudStorages,
+  ...googleDriveStorages,
 ]);
 
 if ('onconnect' in globalThis) {

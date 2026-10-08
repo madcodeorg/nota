@@ -1,10 +1,8 @@
 import type { InsertToPosition } from '@blocksuite/affine-shared/utils';
 import { signal } from '@preact/signals-core';
 
-import {
-  DataViewUIBase,
-  DataViewUILogicBase,
-} from '../core/view/data-view-base.js';
+import type { DataViewUIBase } from '../core/view/data-view-base.js';
+import { DataViewUILogicBase } from '../core/view/data-view-base.js';
 import type { CardViewSelectionWithType } from './card-selection.js';
 import type { CardSingleView } from './card-view-manager.js';
 

@@ -551,6 +551,28 @@ export async function focusRichText(
   const locator = editor.locator(RICH_TEXT_SELECTOR).nth(i);
   // need to set `force` to true when clicking on `affine-selected-blocks`
   await locator.click({ force: true, position: options?.clickPosition });
+  // The click can finish before selectionchange syncs the editor selection.
+  // Keyboard actions must wait until the requested rich text is selected.
+  await expect
+    .poll(() =>
+      locator.evaluate(element => {
+        const richText = element.closest('rich-text');
+        const host = element.closest('editor-host');
+        const blockId = richText
+          ?.closest('[data-block-id]')
+          ?.getAttribute('data-block-id');
+        const selection = window.getSelection();
+        return (
+          richText !== null &&
+          selection?.anchorNode?.parentElement?.closest('rich-text') ===
+            richText &&
+          host?.std.selection.value.some(
+            value => value.type === 'text' && value.blockId === blockId
+          ) === true
+        );
+      })
+    )
+    .toBe(true);
 }
 
 export async function focusRichTextEnd(page: Page, i = 0) {

@@ -14,6 +14,7 @@ import { useI18n } from '@nota/i18n';
 import { useLiveData, useServices } from '@nota/infra';
 import { useMemo } from 'react';
 
+import { NotaSetupSettings } from '../../../pages/onboarding/workspace-setup';
 import type { SettingSidebarItem, SettingState } from '../types';
 import { AboutAffine } from './about';
 import { AISettingsPanel } from './ai';
@@ -39,6 +40,12 @@ export const useGeneralSettingList = (): GeneralSettingList => {
 
   return useMemo(() => {
     const settings: GeneralSettingList = [
+      {
+        key: 'setup',
+        title: 'Set up Nota',
+        icon: <PenIcon />,
+        testId: 'setup-panel-trigger',
+      },
       {
         key: 'appearance',
         title: t['com.affine.settings.appearance'](),
@@ -104,11 +111,23 @@ export const useGeneralSettingList = (): GeneralSettingList => {
 
 interface GeneralSettingProps {
   activeTab: SettingTab;
+  onCloseSetting: () => void;
   onChangeSettingState: (settingState: SettingState) => void;
 }
 
-export const GeneralSetting = ({ activeTab }: GeneralSettingProps) => {
+export const GeneralSetting = ({
+  activeTab,
+  onCloseSetting,
+  onChangeSettingState,
+}: GeneralSettingProps) => {
   switch (activeTab) {
+    case 'setup':
+      return (
+        <NotaSetupSettings
+          onClose={onCloseSetting}
+          onNavigate={tab => onChangeSettingState({ activeTab: tab })}
+        />
+      );
     case 'shortcuts':
       return <Shortcuts />;
     case 'ai':

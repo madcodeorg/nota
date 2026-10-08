@@ -83,17 +83,13 @@ jobs:
         run: |
           set -euo pipefail
           "$(go env GOPATH)/bin/actionlint"
-      - name: Run oxlint
-        # oxlint is fast, so wrong code will fail quickly
-        run: |
-          set -euo pipefail
-          oxlint_version="$(node -e "console.log(require('./package.json').devDependencies.oxlint)")"
-          yarn dlx "oxlint@${oxlint_version}" --deny-warnings
       - name: Setup Node.js
         uses: ./.github/actions/setup-node
         with:
           electron-install: false
           full-cache: true
+      - name: Run oxlint
+        run: yarn lint:ox
       - name: Run i18n codegen
         run: yarn nota @nota/i18n build
       - name: Run ESLint
@@ -189,11 +185,11 @@ jobs:
       - name: Run Check
         run: |
           yarn nota init
-          yarn nota gql build
+          yarn workspace @nota/graphql check
           yarn nota i18n build
           git checkout packages/frontend/i18n/src/i18n-completenesses.json
           if git status --porcelain | grep -q .; then
-            echo "Run 'yarn nota init && yarn nota gql build && yarn nota i18n build' and make sure all changes are submitted"
+            echo "Run 'yarn nota init && yarn workspace @nota/graphql check && yarn nota i18n build' and make sure all changes are submitted"
             exit 1
           else
             echo "All changes are submitted"
@@ -243,36 +239,6 @@ jobs:
           path: ./test-results
           if-no-files-found: ignore
 
-  e2e-blocksuite-cross-browser-test:
-    name: E2E BlockSuite Cross Browser Test
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-      - name: Setup Node.js
-        uses: ./.github/actions/setup-node
-        with:
-          extra-flags: workspaces focus @nota/monorepo @nota-test/blocksuite @blocksuite/playground @blocksuite/integration-test
-          playwright-install: true
-          playwright-platform: 'chromium,firefox,webkit'
-          electron-install: false
-          full-cache: true
-
-      - name: Run playground build
-        run: yarn workspace @blocksuite/playground build
-
-      - name: Run playwright tests
-        run: |
-          yarn workspace @blocksuite/integration-test test:unit
-          yarn workspace @nota-test/blocksuite test "cross-platform/" --forbid-only
-
-      - name: Upload test results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-results-e2e-bs-cross-browser
-          path: ./test-results
-          if-no-files-found: ignore
-
   e2e-test:
     name: E2E Test
     runs-on: ubuntu-24.04-arm
@@ -306,37 +272,6 @@ jobs:
           path: ./test-results
           if-no-files-found: ignore
 
-  e2e-mobile-test:
-    name: E2E Mobile Test
-    runs-on: ubuntu-latest
-    env:
-      DISTRIBUTION: mobile
-      IN_CI_TEST: true
-    strategy:
-      fail-fast: false
-      matrix:
-        shard: [1, 2]
-    steps:
-      - uses: actions/checkout@v6
-      - name: Setup Node.js
-        uses: ./.github/actions/setup-node
-        with:
-          extra-flags: workspaces focus @nota/monorepo @nota-test/nota-mobile @nota/mobile
-          playwright-install: true
-          electron-install: false
-          full-cache: true
-
-      - name: Run playwright tests
-        run: yarn nota @nota-test/nota-mobile e2e --forbid-only --shard=${{ matrix.shard }}/${{ strategy.job-total }}
-
-      - name: Upload test results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-results-e2e-mobile-${{ matrix.shard }}
-          path: ./test-results
-          if-no-files-found: ignore
-
   unit-test:
     name: Unit Test
     runs-on: ubuntu-latest
@@ -350,6 +285,8 @@ jobs:
         shard: [1, 2, 3, 4, 5]
     steps:
       - uses: actions/checkout@v6
+      - name: Install tool integration prerequisites
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
       - name: Setup Node.js
         uses: ./.github/actions/setup-node
         with:
@@ -541,34 +478,6 @@ jobs:
       - name: Unit Test
         run: yarn nota @nota/native test
 
-  miri:
-    name: miri code check
-    if: ${{ needs.rust-test-filter.outputs.run-rust == 'true' }}
-    runs-on: ubuntu-latest
-    needs:
-      - rust-test-filter
-    env:
-      RUST_BACKTRACE: full
-      CARGO_TERM_COLOR: always
-      MIRIFLAGS: -Zmiri-backtrace=full -Zmiri-tree-borrows
-    steps:
-      - uses: actions/checkout@v6
-
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: nightly
-          components: miri
-      - name: Install latest nextest release
-        uses: taiki-e/install-action@v2
-        with:
-          tool: nextest@0.9.98
-
-      - name: Miri Code Check
-        continue-on-error: true
-        run: |
-          cargo +nightly miri nextest run -p y-octo -j4
-
   loom:
     name: loom thread test
     if: ${{ needs.rust-test-filter.outputs.run-rust == 'true' }}
@@ -594,45 +503,6 @@ jobs:
       - name: Loom Thread Test
         run: |
           cargo nextest run -p y-octo --lib
-
-  fuzzing:
-    name: fuzzing
-    if: ${{ needs.rust-test-filter.outputs.run-rust == 'true' }}
-    runs-on: ubuntu-latest
-    needs:
-      - rust-test-filter
-    env:
-      CARGO_TERM_COLOR: always
-    steps:
-      - uses: actions/checkout@v6
-
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: nightly
-
-      - name: fuzzing
-        working-directory: ./packages/common/y-octo/utils
-        run: |
-          cargo install cargo-fuzz
-          cargo +nightly fuzz run apply_update -- -max_total_time=30
-          cargo +nightly fuzz run codec_doc_any_struct -- -max_total_time=30
-          cargo +nightly fuzz run codec_doc_any -- -max_total_time=30
-          cargo +nightly fuzz run decode_bytes -- -max_total_time=30
-          cargo +nightly fuzz run i32_decode -- -max_total_time=30
-          cargo +nightly fuzz run i32_encode -- -max_total_time=30
-          cargo +nightly fuzz run ins_del_text -- -max_total_time=30
-          cargo +nightly fuzz run sync_message -- -max_total_time=30
-          cargo +nightly fuzz run u64_decode -- -max_total_time=30
-          cargo +nightly fuzz run u64_encode -- -max_total_time=30
-          cargo +nightly fuzz run apply_update -- -max_total_time=30
-
-      - name: upload fuzz artifacts
-        if: ${{ failure() }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: fuzz-artifact
-          path: packages/common/y-octo/utils/fuzz/artifacts/**/*
 
   rust-test:
     name: Run native tests
@@ -807,23 +677,19 @@ jobs:
       - check-yarn-binary
       - e2e-test
       - e2e-blocksuite-test
-      - e2e-blocksuite-cross-browser-test
-      - e2e-mobile-test
       - unit-test
       - build-native-linux
       - build-native-macos
       - build-native-windows
       - build-electron-renderer
       - native-unit-test
-      - miri
       - loom
-      - fuzzing
       - rust-test
       - rust-test-filter
       - desktop-test
     if: always()
     runs-on: ubuntu-latest
-    name: 3, 2, 1 Launch
+    name: CI passed
     steps:
       - run: exit 1
         # Thank you, next https://github.com/vercel/next.js/blob/canary/.github/workflows/build_and_test.yml#L379

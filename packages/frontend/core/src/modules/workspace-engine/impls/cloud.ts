@@ -293,7 +293,7 @@ class CloudWorkspaceFlavourProvider implements WorkspaceFlavourProvider {
               if (!isEqual(this.workspaces$.value, sorted)) {
                 this.workspaces$.next(sorted);
               }
-            } else {
+            } else if (this.workspaces$.value.length > 0) {
               this.workspaces$.next([]);
             }
           }),
@@ -306,12 +306,14 @@ class CloudWorkspaceFlavourProvider implements WorkspaceFlavourProvider {
       },
       ({ accountId }) => {
         if (accountId) {
-          this.workspaces$.next(
-            this.globalState.get(
+          const cached =
+            this.globalState.get<WorkspaceMetadata[]>(
               getCloudWorkspaceCacheKey(this.server.id) + accountId
-            ) ?? []
-          );
-        } else {
+            ) ?? [];
+          if (!isEqual(this.workspaces$.value, cached)) {
+            this.workspaces$.next(cached);
+          }
+        } else if (this.workspaces$.value.length > 0) {
           this.workspaces$.next([]);
         }
       }

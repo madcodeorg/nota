@@ -187,6 +187,23 @@ type MeetingSttRuntime = {
   autoSelectionError?: string | null;
 };
 
+type TranscriptionIssue = { message: string; details?: string };
+
+function transcriptionIssue(
+  message: string,
+  error?: unknown
+): TranscriptionIssue {
+  return {
+    message,
+    details:
+      error == null
+        ? undefined
+        : error instanceof Error
+          ? error.message
+          : String(error),
+  };
+}
+
 const fallbackMeetingAiSettings: MeetingAiBackendSettings = {
   meetings: {
     localModels: [],
@@ -199,6 +216,18 @@ const fallbackMeetingAiSettings: MeetingAiBackendSettings = {
 
 function canDownloadLocalModel(status?: LocalModelDownloadStatus) {
   return status === 'not_started' || status === 'error';
+}
+
+function speechModelNeedsDownload(
+  provider: MeetingSttProvider,
+  status?: LocalModelDownloadStatus
+) {
+  return (
+    provider.readiness?.status === 'missing_model' ||
+    (!provider.canProduceTranscript &&
+      !provider.readiness &&
+      status === 'not_started')
+  );
 }
 
 function transcriptModeLabel(
@@ -262,7 +291,7 @@ function localModelStateLabel(status?: LocalModelDownloadStatus | 'ready') {
     case 'not_started':
     case undefined:
     default:
-      return 'Download';
+      return 'Not downloaded';
   }
 }
 
@@ -600,10 +629,12 @@ const MeetingsSettingsMain = () => {
   const [aiSettingsLoading, setAiSettingsLoading] = useState(true);
   const [aiSettingsSaving, setAiSettingsSaving] = useState(false);
   const [sttRuntime, setSttRuntime] = useState<MeetingSttRuntime | null>(null);
-  const [modelActionError, setModelActionError] = useState<string | null>(null);
+  const [modelActionError, setModelActionError] =
+    useState<TranscriptionIssue | null>(null);
   const [preloadWarning, setPreloadWarning] = useState<{
     providerId: string;
     message: string;
+    status: string;
   } | null>(null);
   const [progressError, setProgressError] = useState<string | null>(null);
   const settingsRequestRef = useRef(0);
@@ -1000,11 +1031,27 @@ const MeetingsSettingsMain = () => {
     (meetingSttProviderId === 'auto' ||
       sttRuntime.resolvedProvider?.id === meetingSttProviderId);
   const visiblePreloadWarning =
-    preloadWarning?.providerId === meetingSttProviderId && !selectedRuntimeReady
+    preloadWarning?.providerId === meetingSttProviderId &&
+    !selectedRuntimeReady &&
+    preloadWarning.status !== 'missing_model' &&
+    (!primaryProvider ||
+      !speechModelNeedsDownload(primaryProvider, primaryModel?.downloadStatus))
       ? preloadWarning.message
       : null;
   const visibleModelError =
-    modelActionError ?? visiblePreloadWarning ?? progressError;
+    modelActionError ??
+    (visiblePreloadWarning
+      ? transcriptionIssue(
+          'This model is not ready. Refresh the status or choose another transcription model.',
+          visiblePreloadWarning
+        )
+      : null) ??
+    (progressError
+      ? transcriptionIssue(
+          'Download status could not be refreshed. Check your connection and refresh the status.',
+          progressError
+        )
+      : null);
 
   const handleSttProviderChange = useCallback(
     async (providerId: string) => {
@@ -1069,19 +1116,13 @@ const MeetingsSettingsMain = () => {
         );
         await loadMeetingAiSettings();
         if (preloadError) {
-          setModelActionError(
-            `Selection saved. Model could not load: ${
-              preloadError instanceof Error
-                ? preloadError.message
-                : String(preloadError)
-            }`
+          const issue = transcriptionIssue(
+            'Your selection was saved, but the model could not load. Restart Nota or choose another transcription model.',
+            preloadError
           );
+          setModelActionError(issue);
           notify.error({
-            title: `Provider saved, preload failed: ${
-              preloadError instanceof Error
-                ? preloadError.message
-                : String(preloadError)
-            }`,
+            title: issue.message,
           });
         } else if (!preload?.preload.available) {
           const message =
@@ -1091,9 +1132,18 @@ const MeetingsSettingsMain = () => {
             preload?.preload.status === 'missing_model' ||
             preload?.preload.status === 'unavailable'
           ) {
-            setPreloadWarning({ providerId, message });
+            setPreloadWarning({
+              providerId,
+              message,
+              status: preload.preload.status,
+            });
           } else {
-            setModelActionError(message);
+            setModelActionError(
+              transcriptionIssue(
+                'This model could not start. Restart Nota or choose another transcription model.',
+                message
+              )
+            );
           }
         } else {
           notify.success({
@@ -1105,12 +1155,14 @@ const MeetingsSettingsMain = () => {
         }
       } catch (error) {
         setMeetingSttProviderId(aiSettings.meetings.sttProviderId);
-        setModelActionError(
-          error instanceof Error ? error.message : String(error)
+        const issue = transcriptionIssue(
+          'Your transcription selection could not be saved. Refresh the status and try again.',
+          error
         );
+        setModelActionError(issue);
         await loadMeetingAiSettings().catch(console.error);
         notify.error({
-          title: error instanceof Error ? error.message : String(error),
+          title: issue.message,
         });
       } finally {
         providerChangeInFlightRef.current = false;
@@ -1217,11 +1269,13 @@ const MeetingsSettingsMain = () => {
         if (!feedback.accepted) throw new Error(feedback.message);
         notify.success({ title: feedback.message });
       } catch (error) {
-        setModelActionError(
-          error instanceof Error ? error.message : String(error)
+        const issue = transcriptionIssue(
+          'The model download could not start. Check your connection and try Download again.',
+          error
         );
+        setModelActionError(issue);
         notify.error({
-          title: error instanceof Error ? error.message : String(error),
+          title: issue.message,
         });
       } finally {
         setDownloadingModelId(null);
@@ -1245,7 +1299,9 @@ const MeetingsSettingsMain = () => {
     };
     if (!recording?.prepareAppleSpeechLanguage) {
       setModelActionError(
-        'Apple speech language setup requires a rebuilt desktop app.'
+        transcriptionIssue(
+          'Apple speech language setup is unavailable in this app. Update Nota and try again.'
+        )
       );
       return;
     }
@@ -1258,7 +1314,10 @@ const MeetingsSettingsMain = () => {
       await loadMeetingAiSettings();
     } catch (error) {
       setModelActionError(
-        error instanceof Error ? error.message : String(error)
+        transcriptionIssue(
+          'The speech language pack could not be downloaded. Check your connection and try again.',
+          error
+        )
       );
     } finally {
       providerChangeInFlightRef.current = false;
@@ -1296,7 +1355,10 @@ const MeetingsSettingsMain = () => {
       await loadMeetingAiSettings();
     } catch (error) {
       setModelActionError(
-        error instanceof Error ? error.message : String(error)
+        transcriptionIssue(
+          'Your transcription language could not be saved. Refresh the status and try again.',
+          error
+        )
       );
     } finally {
       providerChangeInFlightRef.current = false;
@@ -1323,10 +1385,31 @@ const MeetingsSettingsMain = () => {
       typeof model?.progress === 'number' && Number.isFinite(model.progress)
         ? Math.min(100, Math.max(0, Math.round(model.progress * 100)))
         : 0;
-    const detail =
-      selectionState.reason ??
-      provider.readiness?.reason ??
-      (!provider.canProduceTranscript ? provider.unavailableReason : null);
+    const needsDownload = speechModelNeedsDownload(
+      provider,
+      model?.downloadStatus
+    );
+    const detail = downloadBusy
+      ? 'Your model is downloading. Transcription will be available when it finishes.'
+      : model?.downloadStatus === 'error'
+        ? 'The model download could not finish. Try downloading it again.'
+        : needsDownload
+          ? 'Download this model to use it for transcription.'
+          : provider.readiness?.status === 'missing_runtime'
+            ? 'This model’s speech runtime is unavailable. Update Nota or choose another transcription model.'
+            : provider.readiness?.status === 'failed'
+              ? 'This model could not start. Restart Nota or choose another transcription model.'
+              : provider.readiness?.status === 'unsupported'
+                ? 'This model is not supported on this device.'
+                : provider.readiness?.status === 'planned'
+                  ? 'This model is not available yet.'
+                  : !provider.canProduceTranscript
+                    ? 'This model is not ready. Refresh the status or choose another transcription model.'
+                    : null;
+    const technicalDetails =
+      !needsDownload && !downloadBusy && !provider.canProduceTranscript
+        ? (provider.readiness?.reason ?? provider.unavailableReason)
+        : null;
 
     return (
       <div className={styles.providerRow} key={provider.id}>
@@ -1353,6 +1436,12 @@ const MeetingsSettingsMain = () => {
         ) : null}
         {detail ? (
           <div className={styles.providerDescription}>{detail}</div>
+        ) : null}
+        {technicalDetails ? (
+          <details className={styles.providerDescription}>
+            <summary>Technical details</summary>
+            <div>{technicalDetails}</div>
+          </details>
         ) : null}
         {model ? (
           <div className={styles.providerFooter}>
@@ -1429,7 +1518,11 @@ const MeetingsSettingsMain = () => {
       >
         <SettingRow
           name="Transcription service"
-          desc={aiSettingsError ?? 'On-device speech recognition'}
+          desc={
+            aiSettingsError
+              ? 'The transcription service could not be reached. Restart Nota, then refresh the status.'
+              : 'On-device speech recognition'
+          }
         >
           <div className={styles.connectedActions}>
             <span
@@ -1629,8 +1722,7 @@ const MeetingsSettingsMain = () => {
             <div className={styles.autoStatus} role="status">
               {sttRuntime?.transcriptAvailable
                 ? 'Automatic selection'
-                : (sttRuntime?.autoSelectionError ??
-                  'No automatic transcription model is ready.')}
+                : 'No automatic transcription model is ready.'}
             </div>
           ) : null}
           {!aiSettingsError && primaryProvider ? (
@@ -1643,7 +1735,13 @@ const MeetingsSettingsMain = () => {
           ) : null}
           {visibleModelError ? (
             <div className={styles.actionError} role="alert">
-              {visibleModelError}
+              <div>{visibleModelError.message}</div>
+              {visibleModelError.details ? (
+                <details>
+                  <summary>Technical details</summary>
+                  <div>{visibleModelError.details}</div>
+                </details>
+              ) : null}
             </div>
           ) : null}
           <span className={styles.savingHint} role="status" aria-live="polite">

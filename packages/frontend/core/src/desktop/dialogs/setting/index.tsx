@@ -197,6 +197,7 @@ const SettingModalInner = ({
                   ) : !isWorkspaceSetting(settingState.activeTab) ? (
                     <GeneralSetting
                       activeTab={settingState.activeTab}
+                      onCloseSetting={onCloseSetting}
                       onChangeSettingState={setSettingState}
                     />
                   ) : null}

@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Nota privacy policy | Nota</title>
+    <meta
+      name="description"
+      content="How Nota handles local workspace data, optional Google connections, AI providers, and diagnostics."
+    />
+    <link rel="stylesheet" href="/legal.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#content">Skip to content</a>
+    <div class="page">
+      <header class="header">
+        <a class="brand" href="/">Nota</a>
+        <nav aria-label="Legal pages">
+          <a href="/privacy.html" aria-current="page">Privacy</a>
+          <a href="/terms.html">Terms</a>
+          <a href="https://github.com/madcodeorg/nota">GitHub</a>
+        </nav>
+      </header>
+      <main id="content" tabindex="-1">
+        <h1>Nota privacy policy</h1>
+
+        <p class="updated">Updated October 5, 2026.</p>
+
+        <p>
+          This page describes the current source implementation. A
+          release&#x27;s build configuration and enabled integrations affect its
+          network behavior; read the release notes for the installer you use.
+        </p>
+
+        <h2>Local workspace and AI</h2>
+
+        <p>
+          Workspace documents, attachments, meeting recordings, transcripts, and
+          derived search data are stored locally. Local AI settings and
+          downloaded models also use local application data. Hosted-provider API
+          keys entered in AI Settings are persisted in a local settings file;
+          this is not a claim that every setting is protected by the
+          operating-system keychain.
+        </p>
+
+        <p>
+          Local inference processes data on your device. Initial managed-model
+          downloads contact the upstream host, generally Hugging Face, which
+          receives ordinary download-request information such as your IP
+          address. Model files and local AI settings remain separate from a
+          public source checkout.
+        </p>
+
+        <p>
+          When you explicitly choose a hosted AI provider, the app sends the
+          prompt and relevant context to that provider using your API key.
+          Depending on the operation, context can include selected document
+          text, workspace search results, meeting transcripts, or
+          image-generation inputs. That provider&#x27;s retention and privacy
+          terms apply. A missing local model does not automatically select a
+          hosted provider merely because a key is saved.
+        </p>
+
+        <h2>Recording</h2>
+
+        <p>
+          Recording uses operating-system permissions for microphone and system
+          audio. Saved meeting output belongs to your local workspace. Optional
+          Apple Speech features use Apple&#x27;s framework and its platform
+          capabilities; availability depends on the release and OS.
+        </p>
+
+        <h2>Optional Google connection</h2>
+
+        <p>
+          You can use Nota locally without a Google account. Connecting Google
+          uses Google sign-in and the configured hosted OAuth broker. The
+          current connection requests these permissions; review Google&#x27;s
+          consent screen for the permissions requested by your build:
+        </p>
+
+        <ul>
+          <li>
+            <code>openid</code>, <code>email</code>, and
+            <code>profile</code> identify the connected account and display its
+            basic profile, including account identifier, email address, name,
+            and profile picture when supplied by Google.
+          </li>
+          <li>
+            <code>https://www.googleapis.com/auth/drive.appdata</code> reads and
+            writes Nota workspace documents, attachments, and other synced
+            workspace data in Google Drive&#x27;s app-specific
+            <code>appDataFolder</code>. It does not grant access to your
+            ordinary Drive files. Workspace content sent to Drive remains in
+            your Google account.
+          </li>
+          <li>
+            <code>https://www.googleapis.com/auth/calendar.readonly</code> lists
+            readable calendars and reads events from calendars you select for
+            Nota&#x27;s meeting workflow. Data can include calendar names and
+            event identifiers, titles, descriptions, locations, start/end times,
+            meeting links, attendee email addresses, display names and response
+            status, and organizer details. Nota does not use this permission to
+            change events.
+          </li>
+        </ul>
+
+        <p>
+          Nota does not request Gmail mailbox access. Signing in with a Gmail
+          address does not allow Nota to read your email.
+        </p>
+
+        <h3>Google data handling and security</h3>
+
+        <p>
+          The OAuth broker processes authorization codes, access and refresh
+          tokens, and basic account-profile information to complete and refresh
+          a connection. Its Calendar routes process calendar and event
+          responses. The current broker has no durable account or token
+          database: it returns encrypted token envelopes to the app and decrypts
+          them when needed for authorized requests. It uses AES-256-GCM for
+          those envelopes. Authorization-code handoff envelopes expire after
+          five minutes; refresh-token envelopes expire after 180 days. Those
+          expiry periods are not a retention promise for Google or the hosting
+          service&#x27;s operational logs.
+        </p>
+
+        <p>
+          Supported desktop builds persist the Google session using
+          Electron&#x27;s operating-system-backed encryption. The app refuses to
+          persist the session if encryption is unavailable or uses the
+          unprotected <code>basic_text</code> fallback. This protection applies
+          to the Google session; it is not a claim that every local setting or
+          hosted-provider key uses a keychain.
+        </p>
+
+        <p>
+          Google and the broker&#x27;s hosting service can receive operational
+          metadata, such as IP addresses, request times, and error information,
+          and maintain their own logs. Their applicable policies and
+          infrastructure configuration govern that processing. This policy does
+          not promise that infrastructure records no requests.
+        </p>
+
+        <h3>Google API Limited Use</h3>
+
+        <p>
+          Nota&#x27;s use and transfer to any other app of information received
+          from Google APIs will adhere to the
+          <a
+            href="https://developers.google.com/terms/api-services-user-data-policy"
+            >Google API Services User Data Policy</a
+          >, including the Limited Use requirements. Google Workspace API data,
+          including Calendar data, is also subject to the
+          <a
+            href="https://developers.google.com/workspace/workspace-api-user-data-developer-policy"
+            >Google Workspace API User Data and Developer Policy</a
+          >.
+        </p>
+
+        <p>
+          Google user data is used to provide the Google connection, user-owned
+          Drive sync, and Calendar meeting features you choose. Nota does not
+          sell Google user data, use it for advertising, or use it to train
+          generalized AI or machine-learning models. Nota does not operate a
+          model-training pipeline.
+        </p>
+
+        <p>
+          If you choose hosted AI for workspace or meeting content, including
+          content you brought in through a Google feature, relevant context may
+          be sent to the chosen provider to fulfill your request. Transfers of
+          Google-derived content for a user-requested feature remain subject to
+          Limited Use: that content must not be used for advertising or to train
+          generalized AI or machine-learning models. Choosing a hosted provider
+          does not waive these restrictions. Integrations processing this data
+          must use terms and settings that meet Google&#x27;s requirements. The
+          chosen provider&#x27;s retention and processing terms also apply. This
+          policy states Nota&#x27;s obligations; it does not certify an
+          independent provider or every user-configured integration.
+        </p>
+
+        <p>
+          Human access to Google user data is limited to cases permitted by the
+          Limited Use requirements: your affirmative permission to access
+          specific data, a necessary security or abuse investigation, compliance
+          with applicable law, or internal operations using aggregated and
+          de-identified data.
+        </p>
+
+        <h3>Disconnecting, revoking access, and deleting copies</h3>
+
+        <p>
+          Disconnecting Google in Nota clears the local Google session. It does
+          not revoke Google&#x27;s authorization grant or delete synced
+          workspace data and backups. To stop future Google access, also remove
+          Nota&#x27;s access from
+          <a href="https://myaccount.google.com/connections"
+            >your Google account&#x27;s third-party connections</a
+          >.
+        </p>
+
+        <p>
+          You control retained local workspace content, exports, backups, and
+          the app data in your Google account. Delete copies you no longer want
+          from the relevant device or service. Revoking authorization prevents
+          further authorized access; it does not automatically erase content
+          already saved locally, exported, or retained by another service.
+          Broker envelope expiry does not delete those copies.
+        </p>
+
+        <h2>Other integrations</h2>
+
+        <p>
+          Configured MCP servers, public-page crawling, external links, updates,
+          and some export operations can also make network requests. Only enable
+          integrations you intend to use. Data sent to an external tool or
+          service is subject to that service&#x27;s behavior and terms.
+        </p>
+
+        <h2>Diagnostics</h2>
+
+        <p>
+          The current frontend bootstrap disables usage-event tracking and
+          renderer Sentry reporting. The source retains telemetry and Sentry
+          support. Electron main-process Sentry reporting can be enabled by
+          release build configuration, so this page does not promise that every
+          custom or future build sends no diagnostics. A build that enables
+          diagnostics must identify that configuration in its release notes.
+        </p>
+
+        <p>
+          The app can write local logs for failures and troubleshooting. Logs
+          and screenshots may contain paths, document titles, or error context;
+          inspect them before sharing. Do not submit API keys, authorization
+          tokens, recordings, or personal workspace content in public issues.
+        </p>
+
+        <h2>Your data and copies</h2>
+
+        <p>
+          You control your local workspace and optional exports/backups.
+          Retention depends on the data and backups you keep, OS storage, and
+          any services you explicitly use. Removing the app does not necessarily
+          remove application data, exported files, or remote backups.
+        </p>
+
+        <h2>Contact</h2>
+
+        <p>
+          For privacy questions or requests, email
+          <a href="mailto:kunjkariya@gmail.com">kunjkariya@gmail.com</a>. For
+          public product questions, use
+          <a href="https://github.com/madcodeorg/nota/issues">GitHub Issues</a>.
+          Do not post sensitive information in public issues, and do not email
+          API keys or authorization tokens.
+        </p>
+      </main>
+      <footer>
+        <a href="/">Nota home</a>
+        <a href="mailto:kunjkariya@gmail.com">Contact</a>
+      </footer>
+    </div>
+  </body>
+</html>

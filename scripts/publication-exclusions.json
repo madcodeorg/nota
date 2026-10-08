@@ -2,6 +2,7 @@
   "excludedPaths": [
     "AGENTS.md",
     "CLAUDE.md",
+    "design-qa.md",
     ":-",
     "packages/frontend/native/index.generated.d.ts",
     "libonnxruntime.1.17.1.dylib",
@@ -57,7 +58,12 @@
     ".yarn/install-state.gz",
     ".yarn/build-state.yml",
     "packages/frontend/apps/electron/resources/native/*",
-    "packages/frontend/core/public/fonts/Satoshi-*"
+    "packages/frontend/core/public/fonts/Satoshi-*",
+    "docs/superpowers/*",
+    "docs/benchmarks/*",
+    "docs/launch/*",
+    "docs/developing-server.md",
+    "docs/PUBLICATION.md"
   ],
   "blockedPaths": [
     "packages/backend/server",

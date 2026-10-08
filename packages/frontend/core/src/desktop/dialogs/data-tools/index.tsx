@@ -1,7 +1,10 @@
 import { ZipTransformer } from '@blocksuite/affine/widgets/linked-doc';
 import { Button } from '@nota/component/ui/button';
 import { Modal } from '@nota/component/ui/modal';
-import { exportPageData } from '@nota/core/components/hooks/nota/use-export-page';
+import {
+  exportPageData,
+  exportReadablePages,
+} from '@nota/core/components/hooks/nota/use-export-page';
 import { useAsyncCallback } from '@nota/core/components/hooks/nota-async-hooks';
 import {
   type DialogComponentProps,
@@ -73,12 +76,15 @@ export const DataToolsDialog = ({
           await ZipTransformer.exportDocs(
             workspace.docCollection,
             getAFFiNEWorkspaceSchema(),
-            pages
+            pages,
+            request.signal
           );
+        } else if (format === 'markdown' || format === 'html') {
+          await exportReadablePages(pages, format, request.signal);
         } else {
           for (const page of pages) {
             request.signal.throwIfAborted();
-            await exportPageData(page, format);
+            await exportPageData(page, format, request.signal);
           }
         }
         if (!request.signal.aborted)
@@ -92,7 +98,10 @@ export const DataToolsDialog = ({
           );
       } finally {
         opened.forEach(entry => entry.release());
-        if (!request.signal.aborted) setBusy(false);
+        if (controller.current === request) {
+          controller.current = undefined;
+          setBusy(false);
+        }
       }
     },
     [busy, local, workspace, scope, docIds, docsService]
@@ -201,16 +210,10 @@ export const DataToolsDialog = ({
             <Button disabled={busy} onClick={() => exportContent('snapshot')}>
               Nota snapshot
             </Button>
-            <Button
-              disabled={busy || scope === 'workspace'}
-              onClick={() => exportContent('markdown')}
-            >
+            <Button disabled={busy} onClick={() => exportContent('markdown')}>
               Markdown
             </Button>
-            <Button
-              disabled={busy || scope === 'workspace'}
-              onClick={() => exportContent('html')}
-            >
+            <Button disabled={busy} onClick={() => exportContent('html')}>
               HTML
             </Button>
             <Button
@@ -221,12 +224,25 @@ export const DataToolsDialog = ({
             </Button>
           </div>
           <p>
-            Readable exports use one download per selected page. CSV exports all
-            databases on each selected page.
+            Markdown and HTML include the selected pages and available local
+            files in one archive, with links between included pages. CSV exports
+            all databases on each selected page.
           </p>
         </>
       ) : null}
-      {busy ? <p role="status">Preparing the export…</p> : null}
+      {busy ? (
+        <>
+          <p role="status">Preparing the export…</p>
+          <Button
+            onClick={() => {
+              controller.current?.abort();
+              setMessage('Export cancelled.');
+            }}
+          >
+            Cancel export
+          </Button>
+        </>
+      ) : null}
       {message ? <p role="status">{message}</p> : null}
       {error ? <p role="alert">{error}</p> : null}
     </Modal>

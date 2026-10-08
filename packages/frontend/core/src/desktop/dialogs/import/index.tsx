@@ -787,6 +787,9 @@ export const ImportDialog = ({
       return new Promise<WorkspaceMetadata | undefined>((resolve, reject) => {
         globalDialogService.open('import-workspace', undefined, payload => {
           if (payload) {
+            // Notify the source workspace before navigation unmounts its
+            // dialog, so onboarding can resume after this successful import.
+            close({ docIds: [], isWorkspaceFile: true });
             handleCreatedWorkspace({ metadata: payload.workspace });
             resolve(payload.workspace);
           } else {
@@ -795,7 +798,7 @@ export const ImportDialog = ({
         });
       });
     };
-  }, [globalDialogService, handleCreatedWorkspace]);
+  }, [close, globalDialogService, handleCreatedWorkspace]);
 
   const handleImport = useAsyncCallback(
     async (type: ImportType) => {

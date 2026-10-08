@@ -52,6 +52,13 @@ Models have separate licenses. The table records current catalog declarations an
 
 `licenses/models/NVIDIA-Open-Model-License.txt` preserves a historically referenced agreement for review. Its presence does not authorize a legacy model or replace the current Nemotron grant.
 
+## npm dependencies with notes
+
+- `y-provider` (0.10.0-canary.9) is a small Yjs provider helper published to npm by an AFFiNE/BlockSuite maintainer. The npm package declares no license field. It appears to originate from the MIT-licensed AFFiNE monorepo, but this is inferred, not declared by the package.
+- `@img/sharp-libvips` is LGPL-3.0-or-later and is used as a dynamically linked library.
+- `@sentry/cli` (FSL-1.1-MIT) and `eslint-plugin-sonarjs` (LGPL-3.0-only) are development-only tools and are not shipped in installers.
+- Run a license scan of the packaged dependency set before each release. Full per-package license text for npm dependencies is available from each package and the lockfile.
+
 ## Distribution requirements
 
 Source snapshots contain no user data, model cache, installers, or compiled native runtime library. A source license review does not validate a model-seeded installer.

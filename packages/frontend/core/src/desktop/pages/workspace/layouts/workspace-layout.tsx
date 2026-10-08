@@ -17,6 +17,7 @@ import {
 import { LiveData, useLiveData, useService } from '@nota/infra';
 import type { PropsWithChildren } from 'react';
 
+import { WorkspaceSetup } from '../../onboarding/workspace-setup';
 import { LocalBackupSideEffect } from '../local-backup-side-effect';
 import { LocalPersistenceStatus } from '../local-persistence-status';
 import { MeetingSaveSideEffect } from '../meetings/meeting-save-side-effect';
@@ -28,6 +29,7 @@ export const WorkspaceLayout = function WorkspaceLayout({
   return (
     <SWRConfigProvider>
       <WorkspaceDialogs />
+      <WorkspaceSetup />
 
       {/* ---- some side-effect components ---- */}
       {isServerBackedWorkspaceFlavour(currentWorkspace.flavour) ? (

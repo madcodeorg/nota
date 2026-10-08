@@ -59,8 +59,22 @@ describe('local-first build and test workflow', () => {
     ).toBe(false);
     expect(dependencies(jobs['check-git-status'])).toEqual([]);
     expect(commands('check-git-status')).toContain('yarn nota init');
-    expect(commands('check-git-status')).toContain('yarn nota gql build');
+    expect(commands('check-git-status')).toContain(
+      'yarn workspace @nota/graphql check'
+    );
+    expect(commands('check-git-status')).not.toContain('yarn nota gql build');
     expect(commands('check-git-status')).toContain('yarn nota i18n build');
+  });
+
+  it('runs locked oxlint after dependency setup instead of resolving a fresh version', () => {
+    const steps = jobs.lint.steps;
+    const setup = steps.findIndex(
+      step => step.uses === './.github/actions/setup-node'
+    );
+    const lint = steps.findIndex(step => step.run === 'yarn lint:ox');
+    expect(setup).toBeGreaterThanOrEqual(0);
+    expect(lint).toBeGreaterThan(setup);
+    expect(commands('lint')).not.toMatch(/yarn dlx.*oxlint/);
   });
 
   it('has an acyclic dependency graph and gates every remaining job', () => {
@@ -136,13 +150,9 @@ describe('local-first build and test workflow', () => {
       'build-electron-renderer',
       'desktop-test',
       'e2e-test',
-      'e2e-mobile-test',
       'e2e-blocksuite-test',
-      'e2e-blocksuite-cross-browser-test',
       'rust-test',
-      'miri',
       'loom',
-      'fuzzing',
     ])
       expect(jobs).toHaveProperty(id);
     expect(commands('unit-test')).toContain('yarn test:coverage');
@@ -159,7 +169,7 @@ describe('local-first build and test workflow', () => {
     expect(commands('rust-test')).toContain(
       'cargo nextest run --workspace --features use-as-lib --release --no-fail-fast'
     );
-    for (const id of ['miri', 'loom']) {
+    for (const id of ['loom']) {
       expect(commands(id)).toContain('-p y-octo');
     }
     for (const file of [

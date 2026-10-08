@@ -11,7 +11,7 @@ import { WorkbenchService } from '@nota/core/modules/workbench';
 import { type WorkspaceMetadata } from '@nota/core/modules/workspace';
 import { ServerFeature } from '@nota/graphql';
 import { useI18n } from '@nota/i18n';
-import { useLiveData, useService } from '@nota/infra';
+import { useLiveData, useService, useServiceOptional } from '@nota/infra';
 import { track } from '@nota/track';
 import { useCallback } from 'react';
 
@@ -71,8 +71,8 @@ export const UserWithWorkspaceList = ({
 }: UserWithWorkspaceListProps) => {
   const t = useI18n();
   const globalDialogService = useService(GlobalDialogService);
-  const workspaceDialogService = useService(WorkspaceDialogService);
-  const workbench = useService(WorkbenchService).workbench;
+  const workspaceDialogService = useServiceOptional(WorkspaceDialogService);
+  const workbench = useServiceOptional(WorkbenchService)?.workbench;
   const session = useLiveData(useService(AuthService).session.session$);
   const defaultServerService = useService(DefaultServerService);
 
@@ -120,6 +120,7 @@ export const UserWithWorkspaceList = ({
   }, [globalDialogService, onCreatedWorkspace, onEventEnd]);
 
   const onOpenImportModal = useCallback(() => {
+    if (!workspaceDialogService || !workbench) return;
     track.$.navigationPanel.importModal.open();
     workspaceDialogService.open('import', undefined, payload => {
       if (!payload) return;
@@ -150,14 +151,16 @@ export const UserWithWorkspaceList = ({
         />
       </ScrollableContainer>
       <div className={styles.workspaceFooter}>
-        <MenuItem
-          className={styles.menuItem}
-          prefixIcon={<ImportIcon />}
-          onClick={onOpenImportModal}
-          data-testid="import-docs"
-        >
-          {t['com.affine.workspaceList.importDocs']()}
-        </MenuItem>
+        {workspaceDialogService && workbench ? (
+          <MenuItem
+            className={styles.menuItem}
+            prefixIcon={<ImportIcon />}
+            onClick={onOpenImportModal}
+            data-testid="import-docs"
+          >
+            {t['com.affine.workspaceList.importDocs']()}
+          </MenuItem>
+        ) : null}
         <AddWorkspace
           onAddWorkspace={onAddWorkspace}
           onNewWorkspace={onNewWorkspace}

@@ -55,14 +55,11 @@ const YOUTUBE_URL = 'https://www.youtube.com/watch?v=fakeid';
 const FIGMA_URL = 'https://www.figma.com/design/JuXs6uOAICwf4I4tps0xKZ123';
 
 test.beforeEach(async ({ page }) => {
-  await page.route(
-    'https://affine-worker.toeverything.workers.dev/api/worker/link-preview',
-    async route => {
-      await route.fulfill({
-        json: {},
-      });
-    }
-  );
+  await page.route('**/api/worker/link-preview', async route => {
+    await route.fulfill({
+      json: {},
+    });
+  });
 });
 
 const createBookmarkBlockBySlashMenu = async (
@@ -389,6 +386,13 @@ test.describe('embed youtube card', () => {
   test(scoped`change youtube card style`, async ({ page }) => {
     expectConsoleMessage(page, /Unrecognized feature/, 'warning');
     expectConsoleMessage(page, /Failed to load resource/);
+    // Style switching does not depend on third-party scripts for this fake video.
+    await page.route('https://www.youtube.com/embed/fakeid', async route => {
+      await route.fulfill({
+        contentType: 'text/html',
+        body: '<!doctype html><html><body></body></html>',
+      });
+    });
 
     await createBookmarkBlockBySlashMenu(page, YOUTUBE_URL);
     const youtube = page.locator('affine-embed-youtube-block');
