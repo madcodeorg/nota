@@ -79,7 +79,7 @@
     "tree-kill": "^1.2.2",
     "typescript": "^5.9.3",
     "uuid": "^14.0.1",
-    "vitest": "^4.0.18",
+    "vitest": "^4.1.11",
     "zod": "^3.25.76"
   },
   "dependencies": {
