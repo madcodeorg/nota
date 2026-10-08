@@ -16,9 +16,7 @@ export const UpdateSettings = () => {
     quitAndInstall,
   } = useAppUpdater();
   const [message, setMessage] = useState('');
-  const [foundVersion, setFoundVersion] = useState<string | null>(null);
-  const available =
-    updateAvailable ?? (foundVersion ? { version: foundVersion } : null);
+  const available = updateAvailable;
 
   const onCheck = () => {
     setMessage('');
@@ -28,8 +26,6 @@ export const UpdateSettings = () => {
           setMessage('Could not check for updates. Try again later.');
         } else if (result === false) {
           setMessage('Nota is up to date.');
-        } else if (typeof result === 'string') {
-          setFoundVersion(result);
         }
       })
       .catch(() => setMessage('Could not check for updates. Try again later.'));

@@ -862,6 +862,8 @@ export default {
     // We need the following line for updater
     extraResource: [
       './resources/native',
+      // electron-updater reads this from Resources to find its download cache.
+      './resources/app-update.yml',
       path.join(repoRootDir, 'LICENSE'),
       path.join(repoRootDir, 'NOTICE'),
       path.join(repoRootDir, 'THIRD_PARTY_NOTICES.md'),
