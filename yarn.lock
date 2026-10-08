@@ -8976,7 +8976,7 @@ __metadata:
     nanoid: "npm:^5.1.6"
     rxjs: "npm:^7.8.2"
     socket.io-client: "npm:^4.8.3"
-    uuid: "npm:^13.0.0"
+    uuid: "npm:^14.0.0"
     vitest: "npm:^4.1.11"
     y-protocols: "npm:^1.0.6"
     yjs: "npm:^13.6.27"
@@ -33923,12 +33923,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"uuid@npm:^13.0.0":
-  version: 13.0.2
-  resolution: "uuid@npm:13.0.2"
+"uuid@npm:^14.0.0":
+  version: 14.0.0
+  resolution: "uuid@npm:14.0.0"
   bin:
     uuid: dist-node/bin/uuid
-  checksum: 10/567dddca18a8520796dd3cd1e4513f4c7c522f25602c15381615395d60c7892f330366680fc21373f19fb83c991f3da8413f57dbd85bf976069cf0818aa6c61c
+  checksum: 10/8ee9b98f9650e25555515f7a28d3c3ae9364e72f7bb19b9e08b681bc135338beba5509b2830f6ae1cfaba4d45401da0d16d4d109b977097bc3d6ba0c5583341b
   languageName: node
   linkType: hard
 
