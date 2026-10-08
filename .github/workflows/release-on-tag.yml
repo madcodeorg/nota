@@ -1,0 +1,22 @@
+name: Release on tag
+
+# Pushing a v* tag starts the macOS build. Stable tags (v0.1.1) make a draft
+# release; add a -beta suffix (v0.1.1-beta.1) to test without touching stable.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Start Release workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run release.yml -R "$GITHUB_REPOSITORY" --ref "$GITHUB_REF_NAME" \
+            -f desktop_macos=true -f desktop_windows=false -f desktop_linux=false
