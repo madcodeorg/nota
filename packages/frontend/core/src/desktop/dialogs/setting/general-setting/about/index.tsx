@@ -9,6 +9,7 @@ import { NOTA_LINKS } from '@nota/core/utils/public-links';
 import { useI18n } from '@nota/i18n';
 
 import * as styles from './style.css';
+import { UpdateSettings } from './updates';
 
 export const AboutAffine = () => {
   const t = useI18n();
@@ -41,6 +42,7 @@ export const AboutAffine = () => {
           spreadCol={false}
         />
       </SettingWrapper>
+      {BUILD_CONFIG.isElectron ? <UpdateSettings /> : null}
       <SettingWrapper title={t['com.affine.aboutAFFiNE.contact.title']()}>
         <a
           className={styles.link}
