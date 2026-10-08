@@ -93,3 +93,15 @@ if (
     if (timerId !== null) window.clearInterval(timerId);
   });
 }
+
+// Show the current stable version from the update feed; the HTML holds a fallback.
+fetch('/updates/stable/latest-mac.yml', { cache: 'no-cache' })
+  .then(response => (response.ok ? response.text() : ''))
+  .then(text => {
+    const version = /^version:\s*([\w.+-]+)/m.exec(text)?.[1];
+    if (!version) return;
+    document.querySelectorAll('[data-nota-version]').forEach(node => {
+      node.textContent = version;
+    });
+  })
+  .catch(() => {});
