@@ -859,7 +859,7 @@ __metadata:
     "@toeverything/theme": "npm:^1.1.23"
     "@types/katex": "npm:^0.16.7"
     "@types/mdast": "npm:^4.0.4"
-    katex: "npm:^0.16.27"
+    katex: "npm:^0.18.2"
     lit: "npm:^3.2.0"
     remark-math: "npm:^6.0.0"
     rxjs: "npm:^7.8.2"
@@ -1109,7 +1109,7 @@ __metadata:
     "@types/mdast": "npm:^4.0.4"
     collapse-white-space: "npm:^2.1.0"
     date-fns: "npm:^4.0.0"
-    katex: "npm:^0.16.27"
+    katex: "npm:^0.18.2"
     lit: "npm:^3.2.0"
     lit-html: "npm:^3.2.1"
     lodash-es: "npm:^4.17.23"
@@ -1639,7 +1639,7 @@ __metadata:
     "@types/lodash-es": "npm:^4.17.12"
     collapse-white-space: "npm:^2.1.0"
     date-fns: "npm:^4.0.0"
-    katex: "npm:^0.16.27"
+    katex: "npm:^0.18.2"
     lit: "npm:^3.2.0"
     lit-html: "npm:^3.2.1"
     lodash-es: "npm:^4.17.23"
@@ -1737,7 +1737,7 @@ __metadata:
     "@types/mdast": "npm:^4.0.4"
     collapse-white-space: "npm:^2.1.0"
     date-fns: "npm:^4.0.0"
-    katex: "npm:^0.16.27"
+    katex: "npm:^0.18.2"
     lit: "npm:^3.2.0"
     lit-html: "npm:^3.2.1"
     lodash-es: "npm:^4.17.23"
@@ -2453,7 +2453,7 @@ __metadata:
     browser-fs-access: "npm:^0.37.0"
     graphql: "npm:^16.9.0"
     jszip: "npm:^3.10.1"
-    katex: "npm:^0.16.27"
+    katex: "npm:^0.18.2"
     lit: "npm:^3.2.0"
     lz-string: "npm:^1.5.0"
     magic-string: "npm:^0.30.21"
@@ -8064,7 +8064,7 @@ __metadata:
     is-svg: "npm:^6.1.0"
     jotai: "npm:^2.10.3"
     jotai-scope: "npm:^0.7.2"
-    katex: "npm:^0.16.27"
+    katex: "npm:^0.18.2"
     lib0: "npm:^0.2.114"
     lit: "npm:^3.2.1"
     lodash-es: "npm:^4.17.23"
@@ -24240,7 +24240,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"katex@npm:^0.16.0, katex@npm:^0.16.22, katex@npm:^0.16.27":
+"katex@npm:^0.16.0, katex@npm:^0.16.22":
   version: 0.16.27
   resolution: "katex@npm:0.16.27"
   dependencies:
@@ -24248,6 +24248,17 @@ __metadata:
   bin:
     katex: cli.js
   checksum: 10/7666ae11c6c1238626bffaf1a526af6ff679114d62293bf2f0e29f8a34d8e961c0edcb686c5b628158ec92a143b4bef5d83539c81b29a63c7dcf0bdb4544eec9
+  languageName: node
+  linkType: hard
+
+"katex@npm:^0.18.2":
+  version: 0.18.2
+  resolution: "katex@npm:0.18.2"
+  dependencies:
+    commander: "npm:^8.3.0"
+  bin:
+    katex: cli.js
+  checksum: 10/13c4c65ba80135d84fb2d34840092d191f3737a8d0623aadf70bd5d1cbcc091aa0e3e423123aa06ae8c518c35eb7c939461ff3740f9425998392d919f65bd063
   languageName: node
   linkType: hard
 
