@@ -8666,13 +8666,13 @@ __metadata:
     "@vitejs/plugin-react-swc": "npm:^4.0.0"
     app-builder-lib: "npm:^26.8.1"
     async-call-rpc: "npm:^6.4.2"
-    builder-util-runtime: "npm:^9.5.1"
+    builder-util-runtime: "npm:^9.7.0"
     cross-env: "npm:^10.1.0"
     debug: "npm:^4.4.0"
     electron: "npm:^41.10.6"
     electron-log: "npm:^5.4.3"
     electron-squirrel-startup: "npm:1.0.1"
-    electron-updater: "npm:^6.8.3"
+    electron-updater: "npm:^6.8.9"
     electron-window-state: "npm:^5.0.3"
     esbuild: "npm:^0.25.0"
     fs-extra: "npm:^11.2.0"
@@ -17902,17 +17902,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"builder-util-runtime@npm:9.5.1, builder-util-runtime@npm:^9.5.1":
-  version: 9.5.1
-  resolution: "builder-util-runtime@npm:9.5.1"
-  dependencies:
-    debug: "npm:^4.3.4"
-    sax: "npm:^1.2.4"
-  checksum: 10/65ecde74ae480e7c7983bccb2db3c0a33e18ecf038c7af87acdf533c365e76c5cd922d13a6f7dad99f151ab508a1366bf8944d7b9651254d56a0dadb3c4bec98
-  languageName: node
-  linkType: hard
-
-"builder-util-runtime@npm:9.7.0":
+"builder-util-runtime@npm:9.7.0, builder-util-runtime@npm:^9.7.0":
   version: 9.7.0
   resolution: "builder-util-runtime@npm:9.7.0"
   dependencies:
@@ -20747,11 +20737,11 @@ __metadata:
   languageName: node
   linkType: hard
 
-"electron-updater@npm:^6.8.3":
-  version: 6.8.3
-  resolution: "electron-updater@npm:6.8.3"
+"electron-updater@npm:^6.8.9":
+  version: 6.8.10
+  resolution: "electron-updater@npm:6.8.10"
   dependencies:
-    builder-util-runtime: "npm:9.5.1"
+    builder-util-runtime: "npm:9.7.0"
     fs-extra: "npm:^10.1.0"
     js-yaml: "npm:^4.1.0"
     lazy-val: "npm:^1.0.5"
@@ -20759,7 +20749,7 @@ __metadata:
     lodash.isequal: "npm:^4.5.0"
     semver: "npm:~7.7.3"
     tiny-typed-emitter: "npm:^2.1.0"
-  checksum: 10/6d58db495cd9192c7f02697a6c3d2173343b9613bf5e2c21eeda3714ae0ea5b862795281f66562713525293fabed115f89d63b66226c34adf38ca19a977719c6
+  checksum: 10/3e0613548d3c404fbd5abbe1a91fd6650a035db6ae4610132ce7d5cfae1b6eff5d861ac53d8632d12bb7ca4e46be1c995a8a5d5eadf996580ac751c0a617c862
   languageName: node
   linkType: hard
 
