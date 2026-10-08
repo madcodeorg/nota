@@ -47,7 +47,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v3
@@ -68,9 +68,9 @@ jobs:
     name: Lint
     runs-on: ubuntu-24.04-arm
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Setup Go (for actionlint)
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
           go-version: 'stable'
       - name: Install actionlint
@@ -108,7 +108,7 @@ jobs:
     env:
       NODE_OPTIONS: --max-old-space-size=14384
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Setup Node.js
         uses: ./.github/actions/setup-node
         with:
@@ -135,9 +135,9 @@ jobs:
     outputs:
       run-rust: ${{ steps.rust-filter.outputs.rust }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
-      - uses: dorny/paths-filter@v3
+      - uses: dorny/paths-filter@v4
         id: rust-filter
         with:
           filters: |
@@ -156,7 +156,7 @@ jobs:
     needs:
       - rust-test-filter
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/build-rust
         with:
           target: x86_64-unknown-linux-gnu
@@ -176,7 +176,7 @@ jobs:
     name: Check Git Status
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Setup Node.js
         uses: ./.github/actions/setup-node
         with:
@@ -199,7 +199,7 @@ jobs:
     name: Check yarn binary
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Run check
         run: |
           set -euo pipefail
@@ -215,7 +215,7 @@ jobs:
       matrix:
         shard: [1, 2, 3, 4, 5]
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Setup Node.js
         uses: ./.github/actions/setup-node
         with:
@@ -233,7 +233,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: test-results-e2e-bs-${{ matrix.shard }}
           path: ./test-results
@@ -251,7 +251,7 @@ jobs:
       matrix:
         shard: [1, 2, 3, 4, 5]
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Setup Node.js
         uses: ./.github/actions/setup-node
         with:
@@ -266,7 +266,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: test-results-e2e-${{ matrix.shard }}
           path: ./test-results
@@ -284,7 +284,7 @@ jobs:
       matrix:
         shard: [1, 2, 3, 4, 5]
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Install tool integration prerequisites
         run: sudo apt-get update && sudo apt-get install -y ripgrep
       - name: Setup Node.js
@@ -296,7 +296,7 @@ jobs:
           full-cache: true
 
       - name: Download nota.linux-x64-gnu.node
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: nota.linux-x64-gnu.node
           path: ./packages/frontend/native
@@ -305,7 +305,7 @@ jobs:
         run: yarn test:coverage --shard=${{ matrix.shard }}/${{ strategy.job-total }}
 
       - name: Upload unit test coverage results
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v7
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./.coverage/store/lcov.info
@@ -319,7 +319,7 @@ jobs:
     env:
       CARGO_PROFILE_RELEASE_DEBUG: '1'
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Setup Node.js
         uses: ./.github/actions/setup-node
         with:
@@ -338,7 +338,7 @@ jobs:
           target: x86_64-unknown-linux-gnu
           package: '@nota/native'
       - name: Upload ${{ steps.filename.outputs.filename }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         if: always()
         with:
           name: ${{ steps.filename.outputs.filename }}
@@ -358,7 +358,7 @@ jobs:
           - { os: macos-latest, target: aarch64-apple-darwin }
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Setup Node.js
         uses: ./.github/actions/setup-node
         with:
@@ -377,7 +377,7 @@ jobs:
           target: ${{ matrix.spec.target }}
           package: '@nota/native'
       - name: Upload ${{ steps.filename.outputs.filename }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         if: always()
         with:
           name: ${{ steps.filename.outputs.filename }}
@@ -399,8 +399,8 @@ jobs:
           - { os: windows-latest, target: aarch64-pc-windows-msvc }
 
     steps:
-      - uses: actions/checkout@v6
-      - uses: samypr100/setup-dev-drive@v3
+      - uses: actions/checkout@v7
+      - uses: samypr100/setup-dev-drive@v4
         with:
           workspace-copy: true
           drive-size: 8GB
@@ -426,7 +426,7 @@ jobs:
           target: ${{ matrix.spec.target }}
           package: '@nota/native'
       - name: Upload ${{ steps.filename.outputs.filename }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         if: always()
         with:
           name: ${{ steps.filename.outputs.filename }}
@@ -437,7 +437,7 @@ jobs:
     name: Build @nota/electron renderer
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Setup Node.js
         uses: ./.github/actions/setup-node
         with:
@@ -451,7 +451,7 @@ jobs:
       - name: zip web
         run: tar -czf dist.tar.gz --directory=packages/frontend/apps/electron-renderer/dist .
       - name: Upload web artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         if: always()
         with:
           name: web
@@ -464,14 +464,14 @@ jobs:
     needs:
       - build-native-linux
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Setup Node.js
         uses: ./.github/actions/setup-node
         with:
           extra-flags: workspaces focus @nota-tools/cli @nota/monorepo @nota/native
           electron-install: false
       - name: Download nota.linux-x64-gnu.node
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: nota.linux-x64-gnu.node
           path: ./packages/frontend/native
@@ -489,7 +489,7 @@ jobs:
       RUST_BACKTRACE: full
       CARGO_TERM_COLOR: always
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
@@ -513,7 +513,7 @@ jobs:
     env:
       CARGO_TERM_COLOR: always
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Setup Rust
         uses: ./.github/actions/build-rust
         with:
@@ -570,7 +570,7 @@ jobs:
               test: true,
             }
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Setup Node.js
         uses: ./.github/actions/setup-node
         timeout-minutes: 10
@@ -589,7 +589,7 @@ jobs:
           echo "filename=nota.$PLATFORM_ARCH_ABI.node" >> "$GITHUB_OUTPUT"
 
       - name: Download ${{ steps.filename.outputs.filename }}
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: ${{ steps.filename.outputs.filename }}
           path: ./packages/frontend/native
@@ -661,7 +661,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: test-results-e2e-${{ matrix.spec.os }}-${{ matrix.spec.arch }}
           path: ./test-results
