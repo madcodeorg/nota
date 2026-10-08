@@ -67,6 +67,9 @@ async function fetchFile(url: string, output: string, sha256?: string) {
   await fs.writeFile(output, bytes);
 }
 export async function buildLocalAsr() {
+  // The shared before-make job runs on Linux only to generate assets; each
+  // platform job builds its own native helper.
+  if (process.env.NOTA_SKIP_LOCAL_ASR === '1') return;
   await fs.mkdir(buildDir, { recursive: true });
   await fs.mkdir(resourceDir, { recursive: true });
   const whisperSource = path.join(buildDir, 'whisper.cpp');

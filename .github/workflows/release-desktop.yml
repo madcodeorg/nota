@@ -67,6 +67,7 @@ jobs:
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
           SENTRY_RELEASE: ${{ inputs.app-version }}
           RELEASE_VERSION: ${{ inputs.app-version }}
+          NOTA_SKIP_LOCAL_ASR: '1'
 
       - name: Restore Whistle STT seed cache
         uses: actions/cache@v5
