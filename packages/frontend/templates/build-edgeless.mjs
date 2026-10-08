@@ -31,11 +31,11 @@ const getZipFilesInCategroies = () => {
 
 const setupFolder = async () => {
   if (!existsSync(ASSETS_PATH)) {
-    mkdirSync(ASSETS_PATH);
+    mkdirSync(ASSETS_PATH, { recursive: true });
   }
 
   if (!existsSync(TEMPLATE_PATH)) {
-    mkdirSync(TEMPLATE_PATH);
+    mkdirSync(TEMPLATE_PATH, { recursive: true });
   }
 };
 
