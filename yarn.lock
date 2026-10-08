@@ -640,7 +640,7 @@ __metadata:
     "@vitest/browser-playwright": "npm:^4.0.18"
     lit: "npm:^3.2.0"
     rxjs: "npm:^7.8.2"
-    vitest: "npm:^4.0.18"
+    vitest: "npm:^4.1.11"
     yjs: "npm:^13.6.27"
     zod: "npm:^3.25.76"
   languageName: unknown
@@ -759,7 +759,7 @@ __metadata:
     date-fns: "npm:^4.0.0"
     lit: "npm:^3.2.0"
     rxjs: "npm:^7.8.2"
-    vitest: "npm:^4.0.18"
+    vitest: "npm:^4.1.11"
     yjs: "npm:^13.6.27"
     zod: "npm:^3.25.76"
   languageName: unknown
@@ -840,7 +840,7 @@ __metadata:
     lit: "npm:^3.2.0"
     lodash-es: "npm:^4.17.23"
     rxjs: "npm:^7.8.2"
-    vitest: "npm:^4.0.18"
+    vitest: "npm:^4.1.11"
     yjs: "npm:^13.6.27"
     zod: "npm:^3.25.76"
   languageName: unknown
@@ -871,7 +871,7 @@ __metadata:
     lit: "npm:^3.2.0"
     lodash-es: "npm:^4.17.23"
     rxjs: "npm:^7.8.2"
-    vitest: "npm:^4.0.18"
+    vitest: "npm:^4.1.11"
     yjs: "npm:^13.6.27"
     zod: "npm:^3.25.76"
   languageName: unknown
@@ -984,7 +984,7 @@ __metadata:
     "@types/mdast": "npm:^4.0.4"
     lit: "npm:^3.2.0"
     rxjs: "npm:^7.8.2"
-    vitest: "npm:^4.0.18"
+    vitest: "npm:^4.1.11"
     zod: "npm:^3.25.76"
   languageName: unknown
   linkType: soft
@@ -1149,7 +1149,7 @@ __metadata:
     nanoid: "npm:^5.1.6"
     pdf-lib: "npm:^1.17.1"
     rxjs: "npm:^7.8.2"
-    vitest: "npm:^4.0.18"
+    vitest: "npm:^4.1.11"
     yjs: "npm:^13.6.27"
     zod: "npm:^3.25.76"
   languageName: unknown
@@ -1222,7 +1222,7 @@ __metadata:
   dependencies:
     "@blocksuite/global": "workspace:*"
     "@blocksuite/store": "workspace:*"
-    vitest: "npm:^4.0.18"
+    vitest: "npm:^4.1.11"
     zod: "npm:^3.25.76"
   languageName: unknown
   linkType: soft
@@ -1431,7 +1431,7 @@ __metadata:
     lit: "npm:^3.2.0"
     lodash-es: "npm:^4.17.23"
     rxjs: "npm:^7.8.2"
-    vitest: "npm:^4.0.18"
+    vitest: "npm:^4.1.11"
     yjs: "npm:^13.6.27"
     zod: "npm:^3.25.76"
   languageName: unknown
@@ -1554,7 +1554,7 @@ __metadata:
     lit: "npm:^3.2.0"
     lodash-es: "npm:^4.17.23"
     rxjs: "npm:^7.8.2"
-    vitest: "npm:^4.0.18"
+    vitest: "npm:^4.1.11"
     yjs: "npm:^13.6.27"
     zod: "npm:^3.25.76"
   languageName: unknown
@@ -1674,7 +1674,7 @@ __metadata:
     lit-html: "npm:^3.2.1"
     lodash-es: "npm:^4.17.23"
     rxjs: "npm:^7.8.2"
-    vitest: "npm:^4.0.18"
+    vitest: "npm:^4.1.11"
     yjs: "npm:^13.6.27"
     zod: "npm:^3.25.76"
   languageName: unknown
@@ -1705,7 +1705,7 @@ __metadata:
     lit-html: "npm:^3.2.1"
     lodash-es: "npm:^4.17.23"
     rxjs: "npm:^7.8.2"
-    vitest: "npm:^4.0.18"
+    vitest: "npm:^4.1.11"
     yjs: "npm:^13.6.27"
     zod: "npm:^3.25.76"
   languageName: unknown
@@ -1961,7 +1961,7 @@ __metadata:
     ts-pattern: "npm:^5.1.0"
     unified: "npm:^11.0.5"
     unist-util-visit: "npm:^5.0.0"
-    vitest: "npm:^4.0.18"
+    vitest: "npm:^4.1.11"
     yjs: "npm:^13.6.27"
     zod: "npm:^3.25.76"
   languageName: unknown
@@ -2428,7 +2428,7 @@ __metadata:
     "@vanilla-extract/vite-plugin": "npm:^5.0.0"
     msw: "npm:^2.12.4"
     rxjs: "npm:^7.8.2"
-    vitest: "npm:^4.0.18"
+    vitest: "npm:^4.1.11"
   languageName: unknown
   linkType: soft
 
@@ -2464,7 +2464,7 @@ __metadata:
     lit: "npm:^3.2.0"
     lodash-es: "npm:^4.17.23"
     rxjs: "npm:^7.8.2"
-    vitest: "npm:^4.0.18"
+    vitest: "npm:^4.1.11"
     yjs: "npm:^13.6.27"
     zod: "npm:^3.25.76"
   languageName: unknown
@@ -2478,7 +2478,7 @@ __metadata:
     lib0: "npm:^0.2.114"
     lit: "npm:^3.2.0"
     rxjs: "npm:^7.8.2"
-    vitest: "npm:^4.0.18"
+    vitest: "npm:^4.1.11"
     zod: "npm:^3.25.76"
   languageName: unknown
   linkType: soft
@@ -2519,7 +2519,7 @@ __metadata:
     vite: "npm:^7.2.7"
     vite-plugin-istanbul: "npm:^7.2.1"
     vite-plugin-wasm: "npm:^3.5.0"
-    vitest: "npm:^4.0.18"
+    vitest: "npm:^4.1.11"
     yjs: "npm:^13.6.27"
     zod: "npm:^3.25.76"
   languageName: unknown
@@ -2588,7 +2588,7 @@ __metadata:
     rehype-parse: "npm:^9.0.0"
     rxjs: "npm:^7.8.2"
     unified: "npm:^11.0.5"
-    vitest: "npm:^4.0.18"
+    vitest: "npm:^4.1.11"
     w3c-keyname: "npm:^2.2.8"
     yjs: "npm:^13.6.27"
     zod: "npm:^3.25.76"
@@ -2613,7 +2613,7 @@ __metadata:
     minimatch: "npm:^10.2.2"
     nanoid: "npm:^5.1.6"
     rxjs: "npm:^7.8.2"
-    vitest: "npm:^4.0.18"
+    vitest: "npm:^4.1.11"
     y-protocols: "npm:^1.0.6"
     yjs: "npm:^13.6.27"
     zod: "npm:^3.25.76"
@@ -2630,7 +2630,7 @@ __metadata:
     idb-keyval: "npm:^6.2.2"
     lodash-es: "npm:^4.17.23"
     rxjs: "npm:^7.8.2"
-    vitest: "npm:^4.0.18"
+    vitest: "npm:^4.1.11"
     y-protocols: "npm:^1.0.6"
   peerDependencies:
     yjs: "*"
@@ -8262,7 +8262,7 @@ __metadata:
     tailwindcss: "npm:^4.1.17"
     tailwindcss-animate: "npm:^1.0.7"
     vaul: "npm:^1.1.2"
-    vitest: "npm:^4.0.18"
+    vitest: "npm:^4.1.11"
     zod: "npm:^3.25.76"
   languageName: unknown
   linkType: soft
@@ -8289,7 +8289,7 @@ __metadata:
     sherpa-onnx-node: "npm:1.13.8"
     tsx: "npm:^4.21.0"
     typescript: "npm:^5.9.3"
-    vitest: "npm:^4.0.18"
+    vitest: "npm:^4.1.11"
     zod: "npm:^3.25.76"
   languageName: unknown
   linkType: soft
@@ -8420,7 +8420,7 @@ __metadata:
     typescript: "npm:^5.9.3"
     unplugin-swc: "npm:^1.5.9"
     vite: "npm:^7.2.7"
-    vitest: "npm:^4.0.18"
+    vitest: "npm:^4.1.11"
     zod: "npm:^3.25.76"
   peerDependencies:
     "@blocksuite/affine": "*"
@@ -8548,7 +8548,7 @@ __metadata:
     socket.io-client: "npm:^4.8.3"
     swr: "npm:^2.3.7"
     tinykeys: "patch:tinykeys@npm%3A2.1.0#~/.yarn/patches/tinykeys-npm-2.1.0-819feeaed0.patch"
-    vitest: "npm:^4.0.18"
+    vitest: "npm:^4.1.11"
     y-protocols: "npm:^1.0.6"
     yjs: "npm:^13.6.27"
     zod: "npm:^3.25.76"
@@ -8561,7 +8561,7 @@ __metadata:
   dependencies:
     "@types/debug": "npm:^4.1.12"
     debug: "npm:^4.4.0"
-    vitest: "npm:^4.0.18"
+    vitest: "npm:^4.1.11"
   languageName: unknown
   linkType: soft
 
@@ -8680,7 +8680,7 @@ __metadata:
     tree-kill: "npm:^1.2.2"
     typescript: "npm:^5.9.3"
     uuid: "npm:^14.0.1"
-    vitest: "npm:^4.0.18"
+    vitest: "npm:^4.1.11"
     yjs: "npm:^13.6.27"
     zod: "npm:^3.25.76"
   languageName: unknown
@@ -8690,7 +8690,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@nota/env@workspace:packages/common/env"
   dependencies:
-    vitest: "npm:^4.0.18"
+    vitest: "npm:^4.1.11"
     zod: "npm:^3.25.76"
   peerDependencies:
     "@blocksuite/affine": "workspace:*"
@@ -8702,7 +8702,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@nota/error@workspace:packages/common/error"
   dependencies:
-    vitest: "npm:^4.0.18"
+    vitest: "npm:^4.1.11"
   peerDependencies:
     "@nota/graphql": "workspace:*"
     graphql: ^16.9.0
@@ -8725,7 +8725,7 @@ __metadata:
     lodash: "npm:^4.17.23"
     lodash-es: "npm:^4.17.23"
     prettier: "npm:^3.7.4"
-    vitest: "npm:^4.0.18"
+    vitest: "npm:^4.1.11"
   languageName: unknown
   linkType: soft
 
@@ -8742,7 +8742,7 @@ __metadata:
     i18next: "npm:^25.0.0"
     react: "npm:^19.2.1"
     react-i18next: "npm:^15.2.0"
-    vitest: "npm:^4.0.18"
+    vitest: "npm:^4.1.11"
   languageName: unknown
   linkType: soft
 
@@ -8772,7 +8772,7 @@ __metadata:
     nanoid: "npm:^5.1.6"
     react: "npm:^19.2.1"
     rxjs: "npm:^7.8.2"
-    vitest: "npm:^4.0.18"
+    vitest: "npm:^4.1.11"
     yjs: "npm:^13.6.27"
     zod: "npm:^3.25.76"
   peerDependencies:
@@ -8860,7 +8860,7 @@ __metadata:
     "@capacitor/core": "npm:^8.4.2"
     "@nota/core": "workspace:*"
     typescript: "npm:^5.9.3"
-    vitest: "npm:^4.0.18"
+    vitest: "npm:^4.1.11"
   languageName: unknown
   linkType: soft
 
@@ -8906,7 +8906,7 @@ __metadata:
     "@types/node": "npm:^22.0.0"
     "@typescript-eslint/parser": "npm:^8.55.0"
     "@vanilla-extract/vite-plugin": "npm:^5.0.0"
-    "@vitest/browser": "npm:^4.0.18"
+    "@vitest/browser": "npm:^4.1.11"
     "@vitest/coverage-istanbul": "npm:^4.0.18"
     "@vitest/ui": "npm:^4.0.18"
     cross-env: "npm:^10.1.0"
@@ -8933,7 +8933,7 @@ __metadata:
     typescript-eslint: "npm:^8.55.0"
     unplugin-swc: "npm:^1.5.9"
     vite: "npm:^7.2.7"
-    vitest: "npm:^4.0.18"
+    vitest: "npm:^4.1.11"
   languageName: unknown
   linkType: soft
 
@@ -8969,7 +8969,7 @@ __metadata:
     rxjs: "npm:^7.8.2"
     socket.io-client: "npm:^4.8.3"
     uuid: "npm:^13.0.0"
-    vitest: "npm:^4.0.18"
+    vitest: "npm:^4.1.11"
     y-protocols: "npm:^1.0.6"
     yjs: "npm:^13.6.27"
   peerDependencies:
@@ -8999,7 +8999,7 @@ __metadata:
   dependencies:
     "@blocksuite/affine": "workspace:*"
     lodash-es: "npm:^4.17.23"
-    vitest: "npm:^4.0.18"
+    vitest: "npm:^4.1.11"
     yjs: "npm:^13.6.27"
   peerDependencies:
     "@blocksuite/affine": "workspace:*"
@@ -9025,7 +9025,7 @@ __metadata:
     "@nota-tools/utils": "workspace:*"
     path-to-regexp: "npm:^8.3.0"
     query-string: "npm:^9.1.1"
-    vitest: "npm:^4.0.18"
+    vitest: "npm:^4.1.11"
   peerDependencies:
     react: ^19.2.1
     react-router-dom: ^7.12.0
@@ -9040,7 +9040,7 @@ __metadata:
     aws4: "npm:^1.13.2"
     fast-xml-parser: "npm:^5.3.4"
     s3mini: "npm:^0.9.1"
-    vitest: "npm:^4.0.18"
+    vitest: "npm:^4.1.11"
   languageName: unknown
   linkType: soft
 
@@ -9049,7 +9049,7 @@ __metadata:
   resolution: "@nota/templates@workspace:packages/frontend/templates"
   dependencies:
     jszip: "npm:^3.10.1"
-    vitest: "npm:^4.0.18"
+    vitest: "npm:^4.1.11"
   languageName: unknown
   linkType: soft
 
@@ -9062,7 +9062,7 @@ __metadata:
     "@types/react": "npm:^19.0.1"
     nanoid: "npm:^5.1.6"
     react-router-dom: "npm:^6.30.3"
-    vitest: "npm:^4.0.18"
+    vitest: "npm:^4.1.11"
   languageName: unknown
   linkType: soft
 
@@ -16334,7 +16334,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@vitest/browser@npm:^4.0.18":
+"@vitest/browser@npm:^4.1.11":
   version: 4.1.11
   resolution: "@vitest/browser@npm:4.1.11"
   dependencies:
@@ -34230,7 +34230,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"vitest@npm:^4.0.18":
+"vitest@npm:^4.1.11":
   version: 4.1.11
   resolution: "vitest@npm:4.1.11"
   dependencies:
