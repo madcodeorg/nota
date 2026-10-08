@@ -17941,7 +17941,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"builder-util-runtime@npm:9.5.1":
+"builder-util-runtime@npm:9.5.1, builder-util-runtime@npm:^9.5.1":
   version: 9.5.1
   resolution: "builder-util-runtime@npm:9.5.1"
   dependencies:
@@ -17951,7 +17951,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"builder-util-runtime@npm:9.7.0, builder-util-runtime@npm:^9.5.1":
+"builder-util-runtime@npm:9.7.0":
   version: 9.7.0
   resolution: "builder-util-runtime@npm:9.7.0"
   dependencies:
