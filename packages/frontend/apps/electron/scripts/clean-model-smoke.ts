@@ -40,7 +40,7 @@ assert.equal(
 );
 const resources = path.join(realpathSync(appPath), 'Contents', 'Resources');
 const downloadTiny = process.argv.includes('--download-tiny');
-const whistle = 'cactus-whistle';
+const base = 'whisper-base-q5-cpp';
 const tiny = 'whisper-tiny-q5-cpp';
 const root = realpathSync(
   await mkdtemp(path.join(os.tmpdir(), 'nota-clean-model-'))
@@ -274,7 +274,7 @@ async function checkPreload(
   assert.equal(preload.available, true, JSON.stringify(preload));
   assert.equal(
     preload.providerId,
-    providerId === 'auto' ? 'cactus-whistle' : providerId
+    providerId === 'auto' ? 'whisper-base-cpp' : providerId
   );
   assert.equal(preload.modelId, modelId);
   assert.equal(preload.cached, cached);
@@ -340,7 +340,7 @@ async function run() {
   results.packagedSeeds = seedsBefore;
   const first = await startBackend('seeded-first', profile, true);
   const modelEvidence: Record<string, unknown> = {};
-  for (const modelId of [whistle, tiny]) {
+  for (const modelId of [base, tiny]) {
     const model = await modelStatus(first, modelId);
     assert.equal(model.downloadStatus, 'downloaded', JSON.stringify(model));
     modelEvidence[modelId] = await verifyModelFiles(profile, model);
@@ -348,16 +348,11 @@ async function run() {
   results.seededFileChecksums = modelEvidence;
   const runtime = await first.request('/v1/stt/runtime');
   assert.equal(runtime.selectedProviderId, 'auto');
-  assert.equal(runtime.resolvedProviderId, 'cactus-whistle');
+  assert.equal(runtime.resolvedProviderId, 'whisper-base-cpp');
   assert.equal(runtime.transcriptAvailable, true);
   results.seededRuntime = runtime;
-  results.seededPreload = await checkPreload(first, 'auto', whistle, false);
-  results.seededCachedPreload = await checkPreload(
-    first,
-    'auto',
-    whistle,
-    true
-  );
+  results.seededPreload = await checkPreload(first, 'auto', base, false);
+  results.seededCachedPreload = await checkPreload(first, 'auto', base, true);
   assert.equal(
     existsSync(path.join(profile, '.nota', 'ai-settings.json')),
     false
@@ -371,7 +366,7 @@ async function run() {
 
   // Remove seed access on restart: reuse must come from this profile's install.
   const restart = await startBackend('seeded-restart', profile, false);
-  results.restartPreload = await checkPreload(restart, 'auto', whistle, false);
+  results.restartPreload = await checkPreload(restart, 'auto', base, false);
   assert.deepEqual(
     await inventory(path.join(profile, '.nota', 'models')),
     installedBeforeRestart
@@ -390,7 +385,7 @@ async function run() {
   await mkdir(emptyProfile);
   assert.deepEqual(await readdir(emptyProfile), []);
   const empty = await startBackend('unseeded-empty', emptyProfile, false);
-  for (const modelId of [whistle, tiny]) {
+  for (const modelId of [base, tiny]) {
     const model = await modelStatus(empty, modelId);
     assert.equal(model.downloadStatus, 'not_started', JSON.stringify(model));
   }
@@ -398,7 +393,7 @@ async function run() {
   assert.equal(emptyRuntime.transcriptAvailable, false);
   results.emptyRuntime = emptyRuntime;
   results.emptyPreloads = {};
-  for (const providerId of ['auto', 'cactus-whistle']) {
+  for (const providerId of ['auto', 'whisper-base-cpp']) {
     const { preload } = await empty.request('/v1/stt/runtime/preload', {
       providerId,
     });
@@ -411,7 +406,7 @@ async function run() {
     (results.emptyPreloads as Record<string, unknown>)[providerId] = preload;
   }
   assert.equal(
-    existsSync(path.join(emptyProfile, '.nota', 'models', whistle)),
+    existsSync(path.join(emptyProfile, '.nota', 'models', base)),
     false
   );
   assert.equal(

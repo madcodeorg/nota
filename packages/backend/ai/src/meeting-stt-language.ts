@@ -7,8 +7,6 @@ export function meetingSttLanguages(providerId: string) {
       models.find(model => model.sherpaKind === 'nemotron-streaming')
         ?.languages ?? []
     );
-  if (providerId === 'cactus-whistle')
-    return models.find(model => model.id === 'cactus-whistle')?.languages ?? [];
   if (providerId.startsWith('whisper-') && providerId.endsWith('-cpp')) {
     return (
       models.find(model => model.id === providerId.replace(/-cpp$/, '-q5-cpp'))

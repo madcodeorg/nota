@@ -21,16 +21,16 @@ describe('meeting speech gate', () => {
   test('commits continuous speech at a bounded live interval', () => {
     expect(
       shouldFinalizeMixedCaptureUtterance({
-        lastSpeechMs: 14_999,
+        lastSpeechMs: 19_999,
         utteranceStartMs: 0,
-        windowEndMs: 14_999,
+        windowEndMs: 19_999,
       })
     ).toBe(false);
     expect(
       shouldFinalizeMixedCaptureUtterance({
-        lastSpeechMs: 15_000,
+        lastSpeechMs: 20_000,
         utteranceStartMs: 0,
-        windowEndMs: 15_000,
+        windowEndMs: 20_000,
       })
     ).toBe(true);
     expect(
@@ -40,6 +40,31 @@ describe('meeting speech gate', () => {
         windowEndMs: 3_000,
       })
     ).toBe(true);
+  });
+
+  test('cuts long speech at a short pause instead of mid-word', () => {
+    // Past 10 s a 150 ms pause is enough; before that it is not.
+    expect(
+      shouldFinalizeMixedCaptureUtterance({
+        lastSpeechMs: 11_000,
+        utteranceStartMs: 0,
+        windowEndMs: 11_150,
+      })
+    ).toBe(true);
+    expect(
+      shouldFinalizeMixedCaptureUtterance({
+        lastSpeechMs: 11_000,
+        utteranceStartMs: 0,
+        windowEndMs: 11_100,
+      })
+    ).toBe(false);
+    expect(
+      shouldFinalizeMixedCaptureUtterance({
+        lastSpeechMs: 5_000,
+        utteranceStartMs: 0,
+        windowEndMs: 5_150,
+      })
+    ).toBe(false);
   });
 
   test('finalizes offline native decoding after a short silence', () => {

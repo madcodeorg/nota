@@ -8,6 +8,6 @@ Model-specific copyright, NOTICE, provenance, and actual artifact dependencies m
 
 The October 4 source review fetched small text files and inspected font metadata; it did not download model weights or certify an installer.
 
-October 5 additions: `Whistle-LICENSE.txt` was fetched from `Cactus-Compute/whistle` revision `b358ddadd89b7a713b5aa131f23032d3cca1b251`; `LFM-1.0.txt` was fetched from `LiquidAI/LFM2.5-230M-ONNX` revision `c6f46e4e3f885ebcad164d14059a49f90e27eb4d`. `Qwen3.5-LICENSE.txt` comes from the official Qwen3.5 2B base revision recorded in `models/Qwen3.5-source.txt`; the pinned converted 2B package's root LICENSE URL was absent. Retaining base license terms does not replace converter attribution or exact artifact review.
+October 5 additions: `LFM-1.0.txt` was fetched from `LiquidAI/LFM2.5-230M-ONNX` revision `c6f46e4e3f885ebcad164d14059a49f90e27eb4d`. `Qwen3.5-LICENSE.txt` comes from the official Qwen3.5 2B base revision recorded in `models/Qwen3.5-source.txt`; the pinned converted 2B package's root LICENSE URL was absent. Retaining base license terms does not replace converter attribution or exact artifact review.
 
 Offline PDF font notices: `fonts/pdf-fonts.sources.json` records the five bundled font files and exact SHA-256 values. `fonts/sarasa-gothic-OFL.txt` preserves the official Sarasa license at revision `f31c230af7fb4854f40d96560e2616eafdd85926`; `fonts/inter-3.3-OFL.txt` preserves the official Inter 3.3 tag license. Embedded copyright/version metadata is retained unchanged in the fonts and reproduced in the manifest.

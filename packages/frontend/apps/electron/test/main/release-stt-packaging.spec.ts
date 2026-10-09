@@ -11,7 +11,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type * as ModelRegistry from '../../../../../backend/ai/src/model-registry';
 
-const seeds = ['cactus-whistle', 'whisper-tiny-q5-cpp'];
+const seeds = ['whisper-base-q5-cpp', 'whisper-tiny-q5-cpp'];
 const repoRoot = fileURLToPath(new URL('../../../../../..', import.meta.url));
 const electronRoot = path.join(repoRoot, 'packages/frontend/apps/electron');
 
@@ -186,10 +186,8 @@ afterEach(() => {
 });
 
 describe('desktop STT release packaging', () => {
-  it('uses both ready, checksummed manifests and preserves explicit overrides', () => {
-    expect(
-      platform.jobs.build.env?.NOTA_BUNDLE_LOCAL_MODELS.split(',')
-    ).toEqual(seeds);
+  it('does not bundle speech models by default and keeps explicit overrides', () => {
+    expect(platform.jobs.build.env?.NOTA_BUNDLE_LOCAL_MODELS).toBeUndefined();
     expect(bundledModels({ NOTA_BUNDLE_DEFAULT_STT_MODEL: '1' })).toEqual(
       seeds
     );
@@ -203,7 +201,7 @@ describe('desktop STT release packaging', () => {
     for (const id of seeds) {
       expect(registry.localModelById(id)).toMatchObject({
         type: 'stt',
-        runtime: id === 'cactus-whistle' ? 'cactus-needle' : 'whisper.cpp',
+        runtime: 'whisper.cpp',
         releaseState: 'ready',
       });
       const files = registry.requiredFilesFor(id);
@@ -216,58 +214,16 @@ describe('desktop STT release packaging', () => {
     }
   });
 
-  it('pairs separate seed artifacts, caches, and verification before building', () => {
-    const prepareSteps = release.jobs['before-make'].steps!;
-    const buildSteps = platform.jobs.build.steps!;
-    const artifactNames = new Set<string | number | boolean>();
-    const cacheKeys = new Set<string | number | boolean>();
-    for (const id of seeds) {
-      const modelPath = `.nota/models/${id}`;
-      const uploads = prepareSteps.filter(
-        step =>
-          step.uses?.startsWith('actions/upload-artifact@') &&
-          step.with?.path === modelPath
-      );
-      expect(uploads).toHaveLength(1);
-      const upload = uploads[0];
-      expect(upload.with).toMatchObject({
-        'if-no-files-found': 'error',
-        'include-hidden-files': true,
-      });
-      artifactNames.add(upload.with!.name);
-      const downloads = buildSteps.filter(
-        step =>
-          step.uses?.startsWith('actions/download-artifact@') &&
-          step.with?.name === upload.with!.name
-      );
-      expect(downloads).toHaveLength(1);
-      expect(downloads[0].with?.path).toBe(modelPath);
-      const cache = prepareSteps.find(
-        step =>
-          step.uses?.startsWith('actions/cache@') &&
-          step.with?.path === modelPath
-      );
-      expect(cache?.with?.key).toContain(
-        "${{ hashFiles('packages/backend/ai/src/model-registry.ts') }}"
-      );
-      cacheKeys.add(cache!.with!.key);
-      const prepare = prepareSteps.findIndex(step =>
-        step.run?.includes(`prepare-model-seed --model ${id};`)
-      );
-      expect(prepare).toBeGreaterThan(prepareSteps.indexOf(cache!));
-      expect(prepare).toBeLessThan(prepareSteps.indexOf(upload));
-      const verify = buildSteps.findIndex(
-        step =>
-          step.run ===
-          `yarn workspace @nota/ai-backend prepare-model-seed --verify-only --model ${id}`
-      );
-      expect(verify).toBeGreaterThan(buildSteps.indexOf(downloads[0]));
-      expect(verify).toBeLessThan(
-        buildSteps.findIndex(step => step.name === 'Build Desktop Layers')
-      );
+  it('has no speech model seed steps in the release workflows', () => {
+    const steps = [
+      ...release.jobs['before-make'].steps!,
+      ...platform.jobs.build.steps!,
+    ];
+    for (const step of steps) {
+      expect(step.name ?? '').not.toMatch(/STT seed/i);
+      expect(step.run ?? '').not.toContain('prepare-model-seed');
+      expect(String(step.with?.name ?? '')).not.toContain('local-stt-seed');
     }
-    expect(artifactNames.size).toBe(2);
-    expect(cacheKeys.size).toBe(2);
   });
 
   it('keeps the Windows x64 release chain complete and Intel Mac disabled', () => {
@@ -481,7 +437,7 @@ describe('desktop STT release packaging', () => {
   );
 });
 
-describe('macOS release-critical seed validation', () => {
+describe('macOS release-critical output validation', () => {
   async function check(mutate?: () => void, critical = true) {
     // Match the checker's absolute output root, including the Windows drive.
     fixture.root = path.resolve('/nota-release-fixture');
@@ -508,7 +464,7 @@ describe('macOS release-critical seed validation', () => {
     await import('../../scripts/macos-arm64-output-check');
   }
 
-  it('accepts both complete seeds', async () => {
+  it('accepts complete optional seeds', async () => {
     await expect(check()).resolves.toBeUndefined();
   });
 
@@ -522,7 +478,7 @@ describe('macOS release-critical seed validation', () => {
     ).rejects.toThrow('mis-aligned LINKEDIT string pool');
   });
 
-  it.each(['nota-whistle-helper', 'nota-whisper-helper'])(
+  it.each(['nota-whisper-helper', 'nota-llama-server'])(
     'rejects a release without its native speech helper: %s',
     async helper => {
       await expect(
@@ -535,8 +491,7 @@ describe('macOS release-critical seed validation', () => {
 
   it.each([
     'whisper.cpp-LICENSE',
-    'Cactus-Needle-LICENSE',
-    'Whistle-model-LICENSE',
+    'llama.cpp-LICENSE',
     'Whisper-model-LICENSE',
     'local-asr-NOTICE.txt',
   ])(
@@ -587,12 +542,10 @@ describe('macOS release-critical seed validation', () => {
     ).rejects.toThrow('sherpa-onnx runtime libonnxruntime.dylib is missing');
   });
 
-  it.each(seeds)('rejects a missing release seed: %s', async id => {
+  it('accepts a release package with no bundled speech models', async () => {
     await expect(
-      check(() =>
-        fixture.modelRoots.delete(path.join(fixture.root, 'local-models', id))
-      )
-    ).rejects.toThrow('Bundled STT model is missing from release package');
+      check(() => fixture.modelRoots.clear())
+    ).resolves.toBeUndefined();
   });
 
   it.each(seeds)('rejects a missing speech detector in %s', async id => {

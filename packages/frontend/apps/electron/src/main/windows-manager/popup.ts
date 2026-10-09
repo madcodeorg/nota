@@ -137,9 +137,7 @@ abstract class PopupWindow {
 
     // required to make the window transparent
     browserWindow.setBackgroundColor('#00000000');
-    browserWindow.setVisibleOnAllWorkspaces(false, {
-      visibleOnFullScreen: false,
-    });
+    this.showOnAllSpaces(browserWindow);
     this.lockWindowSize(browserWindow);
 
     logger.info('loading popup', this.name, popupViewUrl);
@@ -167,6 +165,15 @@ abstract class PopupWindow {
     });
     browserWindow.loadURL(popupViewUrl).catch(err => logger.error(err));
     return browserWindow;
+  }
+
+  // Keep the pill above every app, including full-screen apps and other Spaces.
+  private showOnAllSpaces(browserWindow: BrowserWindow) {
+    browserWindow.setVisibleOnAllWorkspaces(true, {
+      visibleOnFullScreen: true,
+      skipTransformProcessType: true, // keeps the Dock icon from disappearing
+    });
+    browserWindow.setAlwaysOnTop(true, 'screen-saver', 1);
   }
 
   private get windowSize(): [number, number] {
@@ -201,10 +208,7 @@ abstract class PopupWindow {
 
     this.showing$.next(true);
 
-    browserWindow.setVisibleOnAllWorkspaces(false, {
-      visibleOnFullScreen: false,
-    });
-    browserWindow.setAlwaysOnTop(true, 'floating', 1);
+    this.showOnAllSpaces(browserWindow);
     browserWindow.showInactive(); // focus the notification is too distracting right?
     browserWindow.moveTop();
     browserWindow.setOpacity(0);

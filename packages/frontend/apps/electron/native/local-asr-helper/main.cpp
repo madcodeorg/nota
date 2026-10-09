@@ -3,6 +3,7 @@
 // UTF-8 language, then signed PCM16 samples at 16 kHz mono. Output: JSON lines.
 #include <algorithm>
 #include <cstdint>
+#include <cstdlib>
 #include <fstream>
 #include <iostream>
 #include <string>
@@ -12,11 +13,7 @@
 #include <fcntl.h>
 #include <io.h>
 #endif
-#ifdef NOTA_WHISTLE
-#include "needle.h"
-#else
 #include "whisper.h"
-#endif
 
 static std::string quote(const std::string &s) {
     std::string out = "\"";
@@ -39,23 +36,13 @@ int main(int argc, char **argv) {
     _setmode(_fileno(stdin), _O_BINARY);
 #endif
     if (argc != 2) { fail("Expected a model path."); return 1; }
-#ifdef NOTA_WHISTLE
-    std::ifstream file(argv[1], std::ios::binary | std::ios::ate);
-    if (!file || file.tellg() <= 0 || file.tellg() > 64 * 1024 * 1024) {
-        fail("Whistle model is missing or invalid."); return 1;
-    }
-    std::vector<unsigned char> model(static_cast<size_t>(file.tellg()));
-    file.seekg(0);
-    if (!file.read(reinterpret_cast<char *>(model.data()), model.size()) ||
-        needle_load(model.data(), model.size()) < 0) {
-        fail(needle_last_error()); return 1;
-    }
-#else
     auto params = whisper_context_default_params();
-    params.use_gpu = false; // Predictable CPU memory; no second GPU copy.
+    // GPU (Metal/Vulkan) when built in; NOTA_ASR_GPU=0 forces CPU. whisper.cpp
+    // falls back to CPU itself when no usable device exists.
+    const char *gpu_env = std::getenv("NOTA_ASR_GPU");
+    params.use_gpu = !(gpu_env && std::string(gpu_env) == "0");
     auto *ctx = whisper_init_from_file_with_params(argv[1], params);
     if (!ctx) { fail("Whisper model could not load."); return 1; }
-#endif
     std::cout << "{\"ready\":true}" << std::endl;
     unsigned char header[6];
     while (read_exact(reinterpret_cast<char *>(header), sizeof(header))) {
@@ -74,13 +61,6 @@ int main(int argc, char **argv) {
             int16_t s = static_cast<int16_t>(uint16_t(raw[i * 2]) | (uint16_t(raw[i * 2 + 1]) << 8));
             pcm[i] = float(s) / 32768.0f;
         }
-#ifdef NOTA_WHISTLE
-        std::vector<char> result(1024 * 1024);
-        if (needle_transcribe(pcm.data(), int(count),
-                language == "auto" ? nullptr : language.c_str(), nullptr, 0,
-                result.data(), int(result.size())) < 0) fail(needle_last_error());
-        else std::cout << result.data() << std::endl;
-#else
         auto options = whisper_full_default_params(WHISPER_SAMPLING_GREEDY);
         options.n_threads = std::max(1u, std::min(4u, std::thread::hardware_concurrency()));
         options.language = language.c_str();
@@ -101,10 +81,7 @@ int main(int argc, char **argv) {
         const char *lang = whisper_lang_str(whisper_full_lang_id(ctx));
         std::cout << "{\"text\":" << quote(text) << ",\"language\":"
                   << (lang ? quote(lang) : "null") << "}" << std::endl;
-#endif
     }
-#ifndef NOTA_WHISTLE
     whisper_free(ctx);
-#endif
     return 0;
 }

@@ -129,7 +129,7 @@ async function localOnnxSelectionError(config: AiBackendConfig) {
   if (!(await localOnnxFilesComplete(config, config.localModel))) {
     return `Download ${config.localModel} before selecting it as the default Nota AI model.`;
   }
-  if (!(await onnxTextRuntimeAvailable())) {
+  if (!(await onnxTextRuntimeAvailable(config.localModel))) {
     return `The local ONNX runtime is unavailable, so ${config.localModel} cannot be selected.`;
   }
   return null;
@@ -313,7 +313,7 @@ export function createServer() {
   async function localProviderAvailable() {
     if (isLocalOnnxTextModel(config.localModel)) {
       return (
-        (await onnxTextRuntimeAvailable()) &&
+        (await onnxTextRuntimeAvailable(config.localModel)) &&
         (await localOnnxFilesComplete(config, config.localModel))
       );
     }

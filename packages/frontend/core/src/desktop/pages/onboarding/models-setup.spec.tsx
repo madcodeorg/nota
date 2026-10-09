@@ -653,4 +653,47 @@ describe('onboarding local chat and transcription model setup', () => {
     );
     expect(requests('POST')).toHaveLength(0);
   });
+  test('offers the optional after-meeting model with its RAM note and downloads only on request', async () => {
+    const turboId = 'whisper-large-v3-turbo-q5-cpp';
+    models.push({
+      ...baseModel,
+      id: turboId,
+      type: 'stt',
+      sizeMb: 548,
+      minRamGb: 4,
+      languages: ['en', 'fr'],
+      downloadStatus: 'not_started',
+    });
+    await ready();
+    expect(
+      screen.getByText('After-meeting transcript (optional)')
+    ).toBeTruthy();
+    expect(screen.getByText(/about 2 GB more RAM/)).toBeTruthy();
+    expect(requests('POST')).toHaveLength(0);
+    post = () => {
+      models[models.length - 1] = {
+        ...models[models.length - 1],
+        downloadStatus: 'queued',
+        progress: 0,
+      };
+      return response({ download: { status: 'queued' } }, 202);
+    };
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole('button', {
+          name: 'Download Whisper Large v3 Turbo',
+        })
+      );
+    });
+    expect(requests('POST').map(([url]) => url)).toEqual([
+      `/v1/local/models/${turboId}/download`,
+    ]);
+  });
+
+  test('hides the after-meeting section when the backend does not list the model', async () => {
+    await ready();
+    expect(
+      screen.queryByText('After-meeting transcript (optional)')
+    ).toBeNull();
+  });
 });

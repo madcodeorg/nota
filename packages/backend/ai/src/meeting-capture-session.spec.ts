@@ -119,7 +119,7 @@ test('durably acknowledges audio and deduplicates retries while streaming decode
   const live = await (await request(`/v1/meetings/${id}`)).json();
   expect(live.meeting.stt.pipeline).toMatchObject({
     windowMs: 100,
-    sourceWaitMs: 200,
+    sourceWaitMs: 500,
     queuedAudioMs: 300,
     vadMode: 'energy',
   });

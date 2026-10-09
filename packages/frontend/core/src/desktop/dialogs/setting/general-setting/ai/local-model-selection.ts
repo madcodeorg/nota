@@ -1,4 +1,6 @@
 export type LocalTextModelSelectionInput = {
+  runtime?: string;
+  type?: 'text' | 'embedding' | 'stt';
   deviceFit?: 'blocked' | 'fits' | 'low_disk' | 'low_ram' | 'planned';
   deviceFitReason?: string;
   downloadStatus?:
@@ -31,6 +33,12 @@ export type LocalTextModelSelectionState = {
   reason: string | null;
   selectable: boolean;
 };
+
+// ONNX Runtime chat models are replaced by llama.cpp (GGUF) models that run
+// on the GPU. The backend migrates old ids, so the UI hides the old models.
+export function isListedLocalModel(model: LocalTextModelSelectionInput) {
+  return !(model.type === 'text' && model.runtime === 'onnxruntime');
+}
 
 export function isReleasedLocalModel(model: LocalTextModelSelectionInput) {
   return (

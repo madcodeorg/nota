@@ -57,7 +57,7 @@ describe('AI model catalog', () => {
         path.join(os.tmpdir(), 'nota-qwen-migration-')
       );
       temporaryRoots.push(workspaceRoot);
-      const newModel = 'qwen3.5-0.8b-onnx-q4f16';
+      const newModel = 'qwen3.5-0.8b-gguf-q4km';
       await installLocalOnnxModel(workspaceRoot, newModel);
       process.env.NOTA_AI_WORKSPACE_ROOT = workspaceRoot;
       process.env.NOTA_AI_SETTINGS_PATH = path.join(
@@ -87,7 +87,7 @@ describe('AI model catalog', () => {
       path.join(os.tmpdir(), 'nota-model-catalog-')
     );
     temporaryRoots.push(workspaceRoot);
-    const onnxModelId = 'qwen3.5-0.8b-onnx-q4f16';
+    const onnxModelId = 'qwen3.5-0.8b-gguf-q4km';
     await installLocalOnnxModel(workspaceRoot, onnxModelId);
 
     process.env.NOTA_AI_PROVIDER = 'local';
@@ -153,7 +153,7 @@ describe('AI model catalog', () => {
       path.join(os.tmpdir(), 'nota-model-availability-')
     );
     temporaryRoots.push(workspaceRoot);
-    const onnxModelId = 'qwen3.5-0.8b-onnx-q4f16';
+    const onnxModelId = 'qwen3.5-0.8b-gguf-q4km';
     await installLocalOnnxModel(workspaceRoot, onnxModelId);
 
     process.env.NOTA_AI_PROVIDER = 'local';
@@ -205,7 +205,7 @@ describe('AI model catalog', () => {
     temporaryRoots.push(workspaceRoot);
     process.env.NOTA_AI_PROVIDER = 'local';
     process.env.NOTA_AI_LOCAL_BASE_URL = 'http://offline-models.test/v1';
-    process.env.NOTA_AI_LOCAL_MODEL = 'gemma-4-e2b-it-onnx-q4f16';
+    process.env.NOTA_AI_LOCAL_MODEL = 'qwen3.5-2b-gguf-q4km';
     process.env.NOTA_AI_SETTINGS_PATH = path.join(
       workspaceRoot,
       'ai-settings.json'
@@ -382,7 +382,7 @@ describe('AI model catalog', () => {
       path.join(os.tmpdir(), 'nota-model-failed-probe-')
     );
     temporaryRoots.push(workspaceRoot);
-    const onnxModelId = 'qwen3.5-0.8b-onnx-q4f16';
+    const onnxModelId = 'qwen3.5-0.8b-gguf-q4km';
     await installLocalOnnxModel(workspaceRoot, onnxModelId);
 
     process.env.NOTA_AI_PROVIDER = 'local';
@@ -452,7 +452,7 @@ describe('provider-scoped default selection', () => {
     process.env.NOTA_AI_WORKSPACE_ROOT = workspaceRoot;
     const config = loadConfig();
     config.defaultProvider = 'local';
-    config.localModel = 'gemma-4-e2b-it-onnx-q4f16';
+    config.localModel = 'qwen3.5-2b-gguf-q4km';
     config.localBaseUrl = 'http://offline-local.test/v1';
     config.openaiApiKey = 'configured-openai-key';
     config.openaiModel = 'gpt-5-mini';
@@ -527,7 +527,7 @@ describe('provider-scoped default selection', () => {
 
   it('uses a ready local alternative before a saved hosted provider', async () => {
     const config = await createConfig();
-    const alternativeModel = 'qwen3.5-0.8b-onnx-q4f16';
+    const alternativeModel = 'qwen3.5-0.8b-gguf-q4km';
     await installLocalOnnxModel(config.workspaceRoot, alternativeModel);
     const router = new AiModelRouter(config);
     const catalog = await router.modelsWithDiscovery([

@@ -23,8 +23,8 @@ afterEach(async () => {
 describe('managed chat model defaults and migration', () => {
   it('uses Qwen3.5 2B for fresh local configurations', () => {
     expect(loadConfig()).toMatchObject({
-      localModel: 'qwen3.5-2b-onnx-q4f16',
-      defaultModel: 'qwen3.5-2b-onnx-q4f16',
+      localModel: 'qwen3.5-2b-gguf-q4km',
+      defaultModel: 'qwen3.5-2b-gguf-q4km',
       embeddingModel: 'all-minilm-l6-v2-embedding',
     });
   });
@@ -41,19 +41,31 @@ describe('managed chat model defaults and migration', () => {
     );
     expect(loadConfig()).toMatchObject({
       defaultProvider: 'google',
-      localModel: 'qwen3.5-0.8b-onnx-q4f16',
+      localModel: 'qwen3.5-0.8b-gguf-q4km',
     });
   });
 
-  it('preserves an existing Gemma selection', async () => {
+  it('moves retired ONNX chat models to the nearest GPU model', async () => {
+    for (const [saved, expected] of [
+      ['lfm2.5-230m-onnx-q4', 'qwen3.5-0.8b-gguf-q4km'],
+      ['gemma-4-e2b-it-onnx-q4f16', 'qwen3.5-2b-gguf-q4km'],
+      ['gemma-4-e4b-it-onnx-q4f16', 'gemma-4-e4b-it-gguf-q4'],
+    ]) {
+      await writeFile(
+        path.join(root, 'settings.json'),
+        JSON.stringify({ settings: { localModel: saved } })
+      );
+      expect(loadConfig().localModel).toBe(expected);
+    }
+  });
+
+  it('preserves an existing GGUF selection', async () => {
     await writeFile(
       path.join(root, 'settings.json'),
       JSON.stringify({
-        settings: {
-          localModel: 'gemma-4-e2b-it-onnx-q4f16',
-        },
+        settings: { localModel: 'gemma-4-12b-it-gguf-q4' },
       })
     );
-    expect(loadConfig().localModel).toBe('gemma-4-e2b-it-onnx-q4f16');
+    expect(loadConfig().localModel).toBe('gemma-4-12b-it-gguf-q4');
   });
 });

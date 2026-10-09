@@ -62,6 +62,34 @@ describe('meetingNoteMarkdown', () => {
 
   test('lists microphone and system recordings as separate sources', () => {
     const markdown = meetingNoteMarkdown({
+      meeting,
+      title: 'Meeting',
+      transcriptSegments: [
+        {
+          endMs: 37_400,
+          id: 'a',
+          source: 'mic',
+          startMs: 27_000,
+          text: 'First.',
+          type: 'final',
+        },
+        {
+          endMs: 44_000,
+          id: 'b',
+          source: 'mic',
+          startMs: 37_600,
+          text: 'Second.',
+          type: 'final',
+        },
+      ],
+    });
+    // Adjacent lines never read as overlapping because of rounding.
+    expect(markdown).toContain('[00:27 - 00:37] Speaker: First.');
+    expect(markdown).toContain('[00:38 - 00:44] Speaker: Second.');
+  });
+
+  test('lists microphone and system recordings as separate sources', () => {
+    const markdown = meetingNoteMarkdown({
       meeting: {
         ...meeting,
         microphoneRecordingPath: '/tmp/meeting-microphone.opus',

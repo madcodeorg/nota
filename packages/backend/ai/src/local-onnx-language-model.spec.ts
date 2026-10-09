@@ -277,6 +277,9 @@ describe('local ONNX generation memory use', () => {
   it.each([
     'gemma-4-e2b-it-onnx-q4f16',
     'gemma-4-e4b-it-onnx-q4f16',
+    'lfm2.5-230m-onnx-q4',
+    'lfm2.5-350m-onnx-q4f16',
+    'lfm2.5-1.2b-instruct-onnx-q4f16',
     'qwen3.5-0.8b-onnx-q4f16',
     'qwen3.5-2b-onnx-q4f16',
     'qwen3.5-4b-onnx-q4f16',
@@ -303,7 +306,7 @@ describe('local ONNX generation memory use', () => {
     );
   });
 
-  it.each(['lfm2.5-350m-onnx-q4f16', 'smollm3-3b-onnx-q4f16'])(
+  it.each(['smollm3-3b-onnx-q4f16'])(
     'leaves %s sessions and allocator settings unchanged',
     async modelId => {
       const run = vi.fn(async (_feeds: Record<string, unknown>) => ({}));

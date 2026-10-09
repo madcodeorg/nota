@@ -29,14 +29,14 @@ Current public binary work targets macOS arm64 with macOS 14 or later. Windows/L
 
 ## Models and notices
 
-A source snapshot does not include model weights. For seeded installers, choose explicit model IDs, verify the registry file hashes, and inventory every included model/runtime and conversion. Forge defaults and release CI use `cactus-whistle` and `whisper-tiny-q5-cpp`, about 47 MiB of speech weights uncompressed. The app installs those bundled seeds into local application data on first use. Text AI requires a separate model download through AI Settings unless explicitly bundled; optional AI catalog entries do not imply they are included.
+A source snapshot does not include model weights. Release installers do not bundle speech models; setup downloads Whisper Base Q5 on first use. If you build a seeded installer, choose explicit model IDs with `NOTA_BUNDLE_LOCAL_MODELS`, verify the registry file hashes, and inventory every included model/runtime and conversion. Text AI requires a separate model download through AI Settings unless explicitly bundled; optional AI catalog entries do not imply they are included.
 
-The existing seed command is:
+The seed command, only needed for seeded installers, is:
 
 ```sh
-yarn workspace @nota/ai-backend prepare-model-seed --model cactus-whistle
+yarn workspace @nota/ai-backend prepare-model-seed --model whisper-base-q5-cpp
 yarn workspace @nota/ai-backend prepare-model-seed --model whisper-tiny-q5-cpp
-yarn workspace @nota/ai-backend prepare-model-seed --verify-only --model cactus-whistle
+yarn workspace @nota/ai-backend prepare-model-seed --verify-only --model whisper-base-q5-cpp
 yarn workspace @nota/ai-backend prepare-model-seed --verify-only --model whisper-tiny-q5-cpp
 ```
 

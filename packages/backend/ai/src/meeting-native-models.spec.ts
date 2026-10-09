@@ -4,6 +4,7 @@ import path from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
+import { postMeetingSttModelCandidates } from './meetings';
 import { getLocalModelRegistry, requiredFilesFor } from './model-registry';
 import * as native from './native-asr';
 import { createServer } from './server';
@@ -71,7 +72,6 @@ async function install(modelId: string) {
 
 describe('meeting native model integration', () => {
   test.each([
-    'cactus-whistle',
     'whisper-tiny-cpp',
     'whisper-base-cpp',
     'whisper-small-cpp',
@@ -82,10 +82,7 @@ describe('meeting native model integration', () => {
     async providerId => {
       vi.spyOn(native, 'nativeAsrRuntimeAvailable').mockReturnValue(true);
       const preload = vi.spyOn(native, 'preloadNativeAsr').mockResolvedValue();
-      const modelId =
-        providerId === 'cactus-whistle'
-          ? providerId
-          : providerId.replace(/-cpp$/, '-q5-cpp');
+      const modelId = providerId.replace(/-cpp$/, '-q5-cpp');
       const model = getLocalModelRegistry().find(
         model => model.id === modelId
       )!;
@@ -133,11 +130,11 @@ describe('meeting native model integration', () => {
   );
 
   test('reports a missing helper without confusing it with a missing model', async () => {
-    await install('cactus-whistle');
+    await install('whisper-base-q5-cpp');
     vi.spyOn(native, 'nativeAsrRuntimeAvailable').mockReturnValue(false);
     const runtime = await (await request('/v1/stt/runtime')).json();
     expect(
-      runtime.providers.find((p: { id: string }) => p.id === 'cactus-whistle')
+      runtime.providers.find((p: { id: string }) => p.id === 'whisper-base-cpp')
     ).toMatchObject({
       canProduceTranscript: false,
       readiness: {
@@ -148,30 +145,103 @@ describe('meeting native model integration', () => {
     });
   });
 
-  test('rejects languages outside Whistle coverage and preserves the previous setting', async () => {
+  test('rejects languages outside the selected model and preserves the previous setting', async () => {
     expect(
       (
         await request('/api/ai/settings', {
-          meetingSttProviderId: 'cactus-whistle',
+          meetingSttProviderId: 'whisper-base-cpp',
           meetingSttLanguage: 'fr',
         })
       ).status
     ).toBe(200);
     expect(
-      (await request('/api/ai/settings', { meetingSttLanguage: 'ja' })).status
+      (await request('/api/ai/settings', { meetingSttLanguage: 'yue' })).status
     ).toBe(400);
     expect(await (await request('/api/ai/settings')).json()).toMatchObject({
-      meetings: { sttProviderId: 'cactus-whistle', sttLanguage: 'fr' },
+      meetings: { sttProviderId: 'whisper-base-cpp', sttLanguage: 'fr' },
     });
     expect(
       (
         await request('/api/ai/settings', {
-          meetingSttProviderId: 'whisper-small-cpp',
-          meetingSttLanguage: 'ja',
+          meetingSttProviderId: 'whisper-large-v3-cpp',
+          meetingSttLanguage: 'yue',
         })
       ).status
     ).toBe(200);
   });
+});
+
+describe('Whistle removal', () => {
+  test('moves a saved Whistle selection to Whisper Base', async () => {
+    await writeFile(
+      path.join(root, 'settings.json'),
+      JSON.stringify({
+        version: 1,
+        settings: {
+          meetingSttProviderId: 'cactus-whistle',
+          meetingSttModelId: 'cactus-whistle',
+        },
+      })
+    );
+    const { config } = createServer();
+    expect(config.meetingSttProviderId).toBe('whisper-base-cpp');
+    expect(config.meetingSttModelId).toBe('whisper-base-q5-cpp');
+  });
+
+  test('no longer lists Whistle and makes Whisper Base the default', async () => {
+    const runtime = await (await request('/v1/stt/runtime')).json();
+    expect(
+      runtime.providers.some((p: { id: string }) => p.id === 'cactus-whistle')
+    ).toBe(false);
+    expect(
+      runtime.providers
+        .filter((p: { defaultForPlatform: boolean }) => p.defaultForPlatform)
+        .map((p: { id: string }) => p.id)
+    ).toEqual(['whisper-base-cpp']);
+    expect(
+      getLocalModelRegistry().some(model => model.id === 'cactus-whistle')
+    ).toBe(false);
+  });
+});
+
+describe('after-meeting large-v3-turbo model', () => {
+  const turbo = 'whisper-large-v3-turbo-q5-cpp';
+  const meetingRuntime = (sttLanguage: string) =>
+    ({
+      provider: { id: 'whisper-base-cpp', modelId: 'whisper-base-q5-cpp' },
+      meeting: { sttLanguage, sttModelId: 'whisper-base-q5-cpp' },
+    }) as never;
+  const config = () => createServer().config;
+
+  test('is registered as an optional ready model with a pinned checksum', () => {
+    const model = getLocalModelRegistry().find(item => item.id === turbo)!;
+    expect(model).toMatchObject({
+      type: 'stt',
+      runtime: 'whisper.cpp',
+      releaseState: 'ready',
+    });
+    expect(model.fileSha256?.[model.files![0]]).toMatch(/^[a-f0-9]{64}$/);
+  });
+
+  test('is ignored until it is installed', async () => {
+    expect(
+      await postMeetingSttModelCandidates(config(), meetingRuntime('auto'))
+    ).not.toContain(turbo);
+  });
+
+  test.each(['auto', 'fr'])(
+    'runs first once installed, with the live model as fallback (%s)',
+    async language => {
+      await install(turbo);
+      await install('whisper-base-q5-cpp');
+      const ids = await postMeetingSttModelCandidates(
+        config(),
+        meetingRuntime(language)
+      );
+      expect(ids[0]).toBe(turbo);
+      expect(ids).toContain('whisper-base-q5-cpp');
+    }
+  );
 });
 
 describe('Apple device language inventory', () => {

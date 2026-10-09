@@ -3,8 +3,8 @@ export interface LocalModelManifest {
   type: 'embedding' | 'stt' | 'text';
   runtime:
     | 'apple-speech'
-    | 'cactus-needle'
     | 'whisper.cpp'
+    | 'llama.cpp'
     | 'onnxruntime-genai'
     | 'onnxruntime'
     | 'sherpa-onnx';
@@ -37,6 +37,30 @@ export interface LocalModelManifest {
 }
 
 // Supported language codes from the pinned whisper.cpp language table.
+// Context the llama.cpp helper runs with. KV cache memory scales with it, so
+// it is capped well below what these models can address.
+const LLAMA_CPP_CONTEXT_TOKENS = 32768;
+const LLAMA_TEXT_LANGUAGES = [
+  'en',
+  'es',
+  'fr',
+  'de',
+  'it',
+  'pt',
+  'zh',
+  'ja',
+  'ko',
+  'ar',
+  'hi',
+  'ru',
+  'id',
+  'vi',
+  'th',
+  'pl',
+  'nl',
+  'tr',
+];
+
 const WHISPER_LANGUAGES = [
   'en',
   'zh',
@@ -140,29 +164,6 @@ const WHISPER_LANGUAGES = [
 ];
 
 export const modelRegistry: LocalModelManifest[] = [
-  {
-    id: 'cactus-whistle',
-    type: 'stt',
-    runtime: 'cactus-needle',
-    downloadUrl: 'https://huggingface.co/Cactus-Compute/whistle',
-    repoId: 'Cactus-Compute/whistle',
-    revision: 'b358ddadd89b7a713b5aa131f23032d3cca1b251',
-    files: ['whistle.cact'],
-    fileSha256: {
-      'whistle.cact':
-        'b6e02f048568ac5d01a2042556c658061e699acbc0aa2a1439f52f3d461dffeb',
-    },
-    sha256: '',
-    sizeMb: 17,
-    streaming: false,
-    languages: ['en', 'de', 'fr', 'es', 'it', 'nl', 'pl'],
-    languageDetection: 'selectable',
-    license: 'apache-2.0',
-    minRamGb: 1,
-    notes:
-      'Compact seven-language Whistle via Cactus Needle. Final text after each phrase; audio stays local. No whole-meeting length limit.',
-    releaseState: 'ready',
-  },
   {
     id: 'whisper-tiny-q5-cpp',
     type: 'stt',
@@ -276,6 +277,29 @@ export const modelRegistry: LocalModelManifest[] = [
     minRamGb: 6,
     notes:
       'Multilingual Whisper large-v3 Q5_0 via whisper.cpp. Phrase-final captions with optional language selection. Device minimum is not measured runtime RAM.',
+    releaseState: 'ready',
+  },
+  {
+    id: 'whisper-large-v3-turbo-q5-cpp',
+    type: 'stt',
+    runtime: 'whisper.cpp',
+    downloadUrl: 'https://huggingface.co/ggerganov/whisper.cpp',
+    repoId: 'ggerganov/whisper.cpp',
+    revision: '5359861c739e955e79d9a303bcbc70fb988958b1',
+    files: ['ggml-large-v3-turbo-q5_0.bin'],
+    fileSha256: {
+      'ggml-large-v3-turbo-q5_0.bin':
+        '394221709cd5ad1f40c46e6031ca61bce88931e6e088c188294c6d5a55ffa7e2',
+    },
+    sha256: '',
+    sizeMb: 548,
+    streaming: false,
+    languages: [...WHISPER_LANGUAGES, 'yue'],
+    languageDetection: 'selectable',
+    license: 'mit',
+    minRamGb: 4,
+    notes:
+      'Optional Whisper large-v3-turbo Q5_0 via whisper.cpp for the after-meeting transcript. Most accurate local option; uses about 2 GB more RAM while it runs after a meeting. Device minimum is not measured runtime RAM.',
     releaseState: 'ready',
   },
   {
@@ -1141,6 +1165,136 @@ export const modelRegistry: LocalModelManifest[] = [
       'Medium curated local ONNX text model with q4f16 external data files.',
     releaseState: 'ready',
   },
+  {
+    id: 'qwen3.5-0.8b-gguf-q4km',
+    type: 'text',
+    usageGuidance:
+      'Tiny and fast. Good for rewrites and quick extraction; summaries can miss details and owners.',
+    runtime: 'llama.cpp',
+    tier: 'small',
+    downloadUrl: 'https://huggingface.co/unsloth/Qwen3.5-0.8B-GGUF',
+    repoId: 'unsloth/Qwen3.5-0.8B-GGUF',
+    revision: '6ab461498e2023f6e3c1baea90a8f0fe38ab64d0',
+    files: ['Qwen3.5-0.8B-Q4_K_M.gguf'],
+    fileSha256: {
+      'Qwen3.5-0.8B-Q4_K_M.gguf':
+        'bd258782e35f7f458f8aced1adc053e6e92e89bc735ba3be89d38a06121dc517',
+    },
+    sha256: '',
+    sizeMb: 508,
+    contextWindowTokens: LLAMA_CPP_CONTEXT_TOKENS,
+    streaming: true,
+    languages: LLAMA_TEXT_LANGUAGES,
+    license: 'apache-2.0',
+    minRamGb: 4,
+    notes:
+      'Qwen3.5 0.8B Q4_K_M GGUF run on the GPU through llama.cpp (Metal on Mac, Vulkan on Windows), with CPU fallback.',
+    releaseState: 'ready',
+  },
+  {
+    id: 'qwen3.5-2b-gguf-q4km',
+    type: 'text',
+    usageGuidance:
+      'Recommended balance for chat, summaries and tool use. Review proposed changes before applying them.',
+    runtime: 'llama.cpp',
+    tier: 'small',
+    downloadUrl: 'https://huggingface.co/unsloth/Qwen3.5-2B-GGUF',
+    repoId: 'unsloth/Qwen3.5-2B-GGUF',
+    revision: 'f6d5376be1edb4d416d56da11e5397a961aca8ae',
+    files: ['Qwen3.5-2B-Q4_K_M.gguf'],
+    fileSha256: {
+      'Qwen3.5-2B-Q4_K_M.gguf':
+        'aaf42c8b7c3cab2bf3d69c355048d4a0ee9973d48f16c731c0520ee914699223',
+    },
+    sha256: '',
+    sizeMb: 1222,
+    contextWindowTokens: LLAMA_CPP_CONTEXT_TOKENS,
+    streaming: true,
+    languages: LLAMA_TEXT_LANGUAGES,
+    license: 'apache-2.0',
+    minRamGb: 8,
+    notes:
+      'Qwen3.5 2B Q4_K_M GGUF run on the GPU through llama.cpp, with CPU fallback.',
+    releaseState: 'ready',
+  },
+  {
+    id: 'qwen3.5-4b-gguf-q4km',
+    type: 'text',
+    usageGuidance:
+      'Larger option for demanding chat and tool tasks. Takes longer and uses more memory.',
+    runtime: 'llama.cpp',
+    tier: 'medium',
+    downloadUrl: 'https://huggingface.co/unsloth/Qwen3.5-4B-GGUF',
+    repoId: 'unsloth/Qwen3.5-4B-GGUF',
+    revision: 'e87f176479d0855a907a41277aca2f8ee7a09523',
+    files: ['Qwen3.5-4B-Q4_K_M.gguf'],
+    fileSha256: {
+      'Qwen3.5-4B-Q4_K_M.gguf':
+        '00fe7986ff5f6b463e62455821146049db6f9313603938a70800d1fb69ef11a4',
+    },
+    sha256: '',
+    sizeMb: 2614,
+    contextWindowTokens: LLAMA_CPP_CONTEXT_TOKENS,
+    streaming: true,
+    languages: LLAMA_TEXT_LANGUAGES,
+    license: 'apache-2.0',
+    minRamGb: 12,
+    notes:
+      'Qwen3.5 4B Q4_K_M GGUF run on the GPU through llama.cpp, with CPU fallback.',
+    releaseState: 'ready',
+  },
+  {
+    id: 'gemma-4-e4b-it-gguf-q4',
+    type: 'text',
+    usageGuidance:
+      'Best summaries and writing in the default lineup, including from messy transcripts. Needs a device with more memory.',
+    runtime: 'llama.cpp',
+    tier: 'medium',
+    downloadUrl: 'https://huggingface.co/google/gemma-4-E4B-it-qat-q4_0-gguf',
+    repoId: 'google/gemma-4-E4B-it-qat-q4_0-gguf',
+    revision: '4b4a2c1d584be7264f87aac328a1bc739ce81b6c',
+    files: ['gemma-4-E4B_q4_0-it.gguf'],
+    fileSha256: {
+      'gemma-4-E4B_q4_0-it.gguf':
+        '676c35070db6dbe52f93e9c864ee0fba4eddea94b9c875d9cb10daff453fbaee',
+    },
+    sha256: '',
+    sizeMb: 4916,
+    contextWindowTokens: LLAMA_CPP_CONTEXT_TOKENS,
+    streaming: true,
+    languages: LLAMA_TEXT_LANGUAGES,
+    license: 'apache-2.0',
+    minRamGb: 16,
+    notes:
+      'Google Gemma 4 E4B quantization-aware q4_0 GGUF run on the GPU through llama.cpp, with CPU fallback. Text only; the vision projector is not downloaded.',
+    releaseState: 'ready',
+  },
+  {
+    id: 'gemma-4-12b-it-gguf-q4',
+    type: 'text',
+    usageGuidance:
+      'Highest quality for long or messy meetings. Needs a powerful device with 24 GB or more memory.',
+    runtime: 'llama.cpp',
+    tier: 'large',
+    downloadUrl: 'https://huggingface.co/google/gemma-4-12B-it-qat-q4_0-gguf',
+    repoId: 'google/gemma-4-12B-it-qat-q4_0-gguf',
+    revision: '29d097773436b69ff9feafd636ab4cf873786537',
+    files: ['gemma-4-12b-it-qat-q4_0.gguf'],
+    fileSha256: {
+      'gemma-4-12b-it-qat-q4_0.gguf':
+        '93567e57a8fe10b23569b9d9ec38cd005deedf71e29477c421a4b83f418a538b',
+    },
+    sha256: '',
+    sizeMb: 6653,
+    contextWindowTokens: LLAMA_CPP_CONTEXT_TOKENS,
+    streaming: true,
+    languages: LLAMA_TEXT_LANGUAGES,
+    license: 'apache-2.0',
+    minRamGb: 24,
+    notes:
+      'Google Gemma 4 12B quantization-aware q4_0 GGUF run on the GPU through llama.cpp, with CPU fallback. Text only; the vision projector is not downloaded.',
+    releaseState: 'ready',
+  },
 ];
 
 export function getLocalModelRegistry() {
@@ -1151,9 +1305,27 @@ export function localModelById(modelId: string | undefined) {
   return modelRegistry.find(model => model.id === modelId) ?? null;
 }
 
+// Despite the name, this covers every local chat model Nota can run: the
+// llama.cpp (GPU) models and the older ONNX Runtime ones.
 export function isLocalOnnxTextModel(modelId: string) {
   const model = localModelById(modelId);
-  return model?.type === 'text' && model.runtime === 'onnxruntime';
+  return (
+    model?.type === 'text' &&
+    (model.runtime === 'onnxruntime' || model.runtime === 'llama.cpp')
+  );
+}
+
+export function isLlamaCppTextModel(modelId: string) {
+  const model = localModelById(modelId);
+  return model?.type === 'text' && model.runtime === 'llama.cpp';
+}
+
+// The ONNX Runtime chat models are kept only so saved settings and older
+// tests keep resolving; they run on the CPU and are no longer offered.
+export function isListedLocalModel(
+  model: Pick<LocalModelManifest, 'runtime' | 'type'>
+) {
+  return !(model.type === 'text' && model.runtime === 'onnxruntime');
 }
 
 export function requiredFilesFor(modelId: string) {

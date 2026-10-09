@@ -16,7 +16,7 @@ import { verifyCalendarNativeBinding } from './build-apple-calendar-native';
 import { buildType, productName } from './make-env';
 
 const targetArch = 'arm64';
-const seededSttModelIds = ['cactus-whistle', 'whisper-tiny-q5-cpp'];
+const seededSttModelIds = ['whisper-base-q5-cpp', 'whisper-tiny-q5-cpp'];
 const releaseCritical = process.argv.includes('--release-critical');
 const electronRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -200,15 +200,14 @@ requireArchitecture(calendarBinding, 'EventKit binding');
 await verifyCalendarNativeBinding(calendarBinding);
 
 if (releaseCritical) {
-  for (const helper of ['nota-whistle-helper', 'nota-whisper-helper']) {
+  for (const helper of ['nota-whisper-helper', 'nota-llama-server']) {
     const helperPath = path.join(nativeRoot, helper);
     requireExecutable(helperPath, helper);
     requireArchitecture(helperPath, helper);
   }
   for (const notice of [
     'whisper.cpp-LICENSE',
-    'Cactus-Needle-LICENSE',
-    'Whistle-model-LICENSE',
+    'llama.cpp-LICENSE',
     'Whisper-model-LICENSE',
     'local-asr-NOTICE.txt',
   ]) {
@@ -243,15 +242,12 @@ if (existsSync(speechHelper)) {
   );
 }
 
+// Speech models are downloaded during setup, so bundling is optional. Any
+// model that is bundled anyway must still be complete and checksum-clean.
 for (const modelId of seededSttModelIds) {
   const bundledSttRoot = path.join(outputRoot, 'local-models', modelId);
   if (existsSync(bundledSttRoot)) {
     await verifyBundledSttModel(bundledSttRoot, modelId);
-  } else {
-    assert.ok(
-      !releaseCritical,
-      `Bundled STT model is missing from release package: ${bundledSttRoot}`
-    );
   }
 }
 

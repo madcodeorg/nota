@@ -122,18 +122,29 @@ type PersistedAiBackendSettings = Partial<
 };
 
 const PERSISTED_SETTINGS_VERSION = 1;
-const DEFAULT_LOCAL_TEXT_MODEL = 'qwen3.5-2b-onnx-q4f16';
+const DEFAULT_LOCAL_TEXT_MODEL = 'qwen3.5-2b-gguf-q4km';
 const DEFAULT_EMBEDDING_MODEL = 'all-minilm-l6-v2-embedding';
 const LEGACY_EMBEDDING_MODELS: Record<string, string> = {
   'Xenova/all-MiniLM-L6-v2': DEFAULT_EMBEDDING_MODEL,
 };
+// Saved settings that name a retired ONNX chat model move to the nearest
+// llama.cpp (GPU) model of similar size.
 const LEGACY_LOCAL_TEXT_MODELS: Record<string, string> = {
-  'qwen3-0.6b-onnx-q4f16': 'qwen3.5-0.8b-onnx-q4f16',
-  'gemma-4-e2b-qat-mobile-onnx': 'gemma-4-e2b-it-onnx-q4f16',
-  'gemma-4-e4b-qat-mobile-onnx': 'gemma-4-e4b-it-onnx-q4f16',
+  'qwen3-0.6b-onnx-q4f16': 'qwen3.5-0.8b-gguf-q4km',
+  'qwen3.5-0.8b-onnx-q4f16': 'qwen3.5-0.8b-gguf-q4km',
+  'lfm2.5-230m-onnx-q4': 'qwen3.5-0.8b-gguf-q4km',
+  'lfm2.5-350m-onnx-q4f16': 'qwen3.5-0.8b-gguf-q4km',
+  'qwen3.5-2b-onnx-q4f16': 'qwen3.5-2b-gguf-q4km',
+  'lfm2.5-1.2b-instruct-onnx-q4f16': 'qwen3.5-2b-gguf-q4km',
+  'lfm2.5-2.6b-onnx-q4f16': 'qwen3.5-2b-gguf-q4km',
+  'smollm3-3b-onnx-q4f16': 'qwen3.5-2b-gguf-q4km',
+  'gemma-4-e2b-qat-mobile-onnx': 'qwen3.5-2b-gguf-q4km',
+  'gemma-4-e2b-it-onnx-q4f16': 'qwen3.5-2b-gguf-q4km',
+  'qwen3.5-4b-onnx-q4f16': 'qwen3.5-4b-gguf-q4km',
+  'gemma-4-e4b-qat-mobile-onnx': 'gemma-4-e4b-it-gguf-q4',
+  'gemma-4-e4b-it-onnx-q4f16': 'gemma-4-e4b-it-gguf-q4',
 };
 const SELECTABLE_MEETING_STT_PROVIDERS = new Set([
-  'cactus-whistle',
   'whisper-tiny-cpp',
   'whisper-base-cpp',
   'whisper-small-cpp',
@@ -334,6 +345,10 @@ function normalizeMeetingSttProvider(value: string | undefined) {
   if (value === 'nemotron-onnx') {
     return 'nemotron-sherpa';
   }
+  // Whistle was removed; saved selections move to Whisper Base.
+  if (value === 'cactus-whistle') {
+    return 'whisper-base-cpp';
+  }
   if (!value) {
     return defaultMeetingSttProvider();
   }
@@ -343,9 +358,9 @@ function normalizeMeetingSttProvider(value: string | undefined) {
 }
 
 function normalizeMeetingSttModel(value: string | undefined) {
-  return value === 'nemotron-3.5-asr-streaming-int4'
-    ? 'sherpa-nemotron-3.5-streaming-560ms-int8'
-    : value;
+  if (value === 'nemotron-3.5-asr-streaming-int4')
+    return 'sherpa-nemotron-3.5-streaming-560ms-int8';
+  return value === 'cactus-whistle' ? 'whisper-base-q5-cpp' : value;
 }
 
 function readBooleanSetting(value: unknown) {
@@ -714,7 +729,6 @@ function defaultMeetingSttProvider() {
 }
 
 function defaultMeetingSttModel(providerId: string) {
-  if (providerId === 'cactus-whistle') return 'cactus-whistle';
   if (/^whisper-(tiny|base|small|medium|large-v3)-cpp$/.test(providerId))
     return providerId.replace(/-cpp$/, '-q5-cpp');
   switch (providerId) {

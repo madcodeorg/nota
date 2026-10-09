@@ -43,7 +43,6 @@ export function meetingLanguageSelection(
   );
   const preferred =
     providerId === 'nemotron-sherpa' ||
-    providerId === 'cactus-whistle' ||
     /^whisper-(tiny|base|small|medium|large-v3)-cpp$/.test(providerId) ||
     (providerId === 'apple-speechanalyzer' && languages.length > 0);
   const mode =

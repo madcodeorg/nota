@@ -46,7 +46,7 @@ afterEach(async () => {
 });
 
 describe('AI backend cold start', () => {
-  it('recommends Whistle on Apple Silicon and keeps Apple Speech manual-only', async () => {
+  it('defaults to Whisper Base and keeps Apple Speech manual-only', async () => {
     temporaryRoot = await mkdtemp(path.join(os.tmpdir(), 'nota-ai-stt-auto-'));
     const workspaceRoot = path.join(temporaryRoot, 'workspace');
     process.env.NOTA_AI_SETTINGS_PATH = path.join(
@@ -61,10 +61,13 @@ describe('AI backend cold start', () => {
     const { config } = createServer();
     const providers = await getSttProviderManifests(config, 'darwin');
     expect(
+      providers.find(provider => provider.id === 'whisper-base-cpp')
+    ).toMatchObject({ defaultForPlatform: true });
+    expect(
       providers.find(provider => provider.id === 'nemotron-sherpa')
     ).toMatchObject({
       name: 'Nemotron 3.5 — Fast live captions',
-      defaultForPlatform: process.arch !== 'arm64',
+      defaultForPlatform: false,
       notes: expect.stringContaining('32 ready locales'),
     });
     expect(
@@ -166,11 +169,7 @@ describe('AI backend cold start', () => {
         providers
           .filter(provider => provider.defaultForPlatform)
           .map(provider => provider.id)
-      ).toEqual([
-        platform !== 'darwin' || process.arch === 'arm64'
-          ? 'cactus-whistle'
-          : 'nemotron-sherpa',
-      ]);
+      ).toEqual(['whisper-base-cpp']);
 
       // Synthetic files test seed installation, not native inference or target OS support.
       const selectable = providers.map(provider => ({
@@ -286,7 +285,7 @@ describe('AI backend cold start', () => {
     temporaryRoot = await mkdtemp(path.join(os.tmpdir(), 'nota-ai-cold-text-'));
     const workspaceRoot = path.join(temporaryRoot, 'workspace');
     const seedRoot = path.join(temporaryRoot, 'seed');
-    const modelId = 'qwen3.5-0.8b-onnx-q4f16';
+    const modelId = 'qwen3.5-0.8b-gguf-q4km';
 
     for (const fileName of requiredFilesFor(modelId)) {
       const filePath = path.join(seedRoot, modelId, fileName);

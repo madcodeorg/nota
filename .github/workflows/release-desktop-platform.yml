@@ -61,7 +61,6 @@ jobs:
       APP_NAME: nota
       # onnxruntime-node 1.24.3's distributed macOS binary requires 14.0.
       MACOSX_DEPLOYMENT_TARGET: '14.0'
-      NOTA_BUNDLE_LOCAL_MODELS: cactus-whistle,whisper-tiny-q5-cpp
       SKIP_GENERATE_ASSETS: 1
       APPLE_ID: ${{ secrets.APPLE_ID }}
       APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
@@ -109,24 +108,6 @@ jobs:
           name: desktop-web
           path: packages/frontend/apps/electron/resources/web-static
 
-      - name: Download Whistle STT seed
-        uses: actions/download-artifact@v4
-        with:
-          name: desktop-local-stt-seed-whistle
-          path: .nota/models/cactus-whistle
-
-      - name: Download Tiny STT seed
-        uses: actions/download-artifact@v4
-        with:
-          name: desktop-local-stt-seed-whisper-tiny
-          path: .nota/models/whisper-tiny-q5-cpp
-
-      - name: Verify Whistle STT seed
-        run: yarn workspace @nota/ai-backend prepare-model-seed --verify-only --model cactus-whistle
-
-      - name: Verify Tiny STT seed
-        run: yarn workspace @nota/ai-backend prepare-model-seed --verify-only --model whisper-tiny-q5-cpp
-
       - name: Build Desktop Layers
         run: yarn nota @nota/electron build
         env:
@@ -135,8 +116,8 @@ jobs:
           # the architecture of the GitHub-hosted runner.
           NOTA_ELECTRON_TARGET_ARCH: ${{ inputs.arch }}
           NOTA_ELECTRON_TARGET_PLATFORM: ${{ inputs.platform }}
-          # Ship SpeechAnalyzer on supported Macs, plus compact Whistle and
-          # multilingual Whisper Tiny Q5 as the default local speech seed set.
+          # Ship SpeechAnalyzer on supported Macs. Whisper models are not
+          # bundled; the app downloads them during setup.
           NOTA_ENABLE_APPLE_SPEECH_HELPER: ${{ inputs.platform == 'darwin' && '1' || '0' }}
 
       - name: Validate staged macOS native helpers

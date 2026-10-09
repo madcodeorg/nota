@@ -1,6 +1,10 @@
 import { availableParallelism } from 'node:os';
 import path from 'node:path';
 
+// Benchmarks showed CoreML slower than CPU for sherpa int8 models on Apple
+// Silicon, so CPU stays the default. Builds with GPU providers can override.
+const sherpaProvider = process.env.NOTA_SHERPA_PROVIDER || 'cpu';
+
 export {
   validateMeetingSttLanguage,
   validateMeetingSttLanguageProvider,
@@ -145,7 +149,7 @@ function transducerRecognizerConfig(modelRoot: string) {
       debug: 0,
       modelType: 'nemo_transducer',
       numThreads: numThreads(),
-      provider: 'cpu',
+      provider: sherpaProvider,
       tokens: path.join(modelRoot, 'tokens.txt'),
       transducer: transducerModelConfig(modelRoot),
     },
@@ -159,7 +163,7 @@ function offlineRecognizerConfig(
   const shared = {
     debug: 0,
     numThreads: numThreads(),
-    provider: 'cpu',
+    provider: sherpaProvider,
   };
   if (kind === 'whisper-offline') {
     return {
@@ -297,7 +301,7 @@ async function loadLanguageIdentifier(modelRoot: string) {
     return new sherpa.SpokenLanguageIdentification({
       debug: 0,
       numThreads: Math.max(1, Math.min(2, availableParallelism())),
-      provider: 'cpu',
+      provider: sherpaProvider,
       whisper: {
         decoder: path.join(modelRoot, 'tiny-decoder.int8.onnx'),
         encoder: path.join(modelRoot, 'tiny-encoder.int8.onnx'),
@@ -420,7 +424,7 @@ export async function createSherpaUtteranceDecoder(
     };
 
     return {
-      executionProvider: 'sherpa-onnx/cpu',
+      executionProvider: `sherpa-onnx/${sherpaProvider}`,
       supportsPartials: true,
       pushPcm16(pcm) {
         stream.acceptWaveform({
@@ -456,7 +460,7 @@ export async function createSherpaUtteranceDecoder(
   let buffers: Int16Array[] = [];
   let totalSamples = 0;
   return {
-    executionProvider: 'sherpa-onnx/cpu',
+    executionProvider: `sherpa-onnx/${sherpaProvider}`,
     supportsPartials: false,
     pushPcm16(pcm) {
       buffers.push(pcm);

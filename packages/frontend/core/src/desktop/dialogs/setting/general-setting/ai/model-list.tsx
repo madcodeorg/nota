@@ -51,7 +51,13 @@ const modelNames: Record<string, string> = {
   'lfm2.5-1.2b-instruct-onnx-q4f16': 'LFM2.5 1.2B Instruct',
   'lfm2.5-2.6b-onnx-q4f16': 'LFM2.5 2.6B',
   'smollm3-3b-onnx-q4f16': 'SmolLM3 3B',
+  'qwen3.5-0.8b-gguf-q4km': 'Qwen3.5 0.8B (Tiny)',
+  'qwen3.5-2b-gguf-q4km': 'Qwen3.5 2B (Base)',
+  'qwen3.5-4b-gguf-q4km': 'Qwen3.5 4B',
+  'gemma-4-e4b-it-gguf-q4': 'Gemma 4 E4B (Medium)',
+  'gemma-4-12b-it-gguf-q4': 'Gemma 4 12B (Large)',
   'all-minilm-l6-v2-embedding': 'MiniLM L6 Embeddings',
+  'whisper-large-v3-turbo-q5-cpp': 'Whisper Large v3 Turbo',
 };
 
 export function localModelName(modelId: string) {
