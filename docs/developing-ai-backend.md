@@ -42,6 +42,9 @@ setup error. Explicitly selecting a configured hosted model still works.
 
 ## Offline Model Benchmark
 
+Chat now runs on llama.cpp with GPU first; see [Local AI Runtimes](local-runtimes.md).
+The benchmark below measures the ONNX text models only.
+
 Use the actual shared CPU ONNX runtime, with an already installed model:
 
 ```sh
