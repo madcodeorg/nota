@@ -36,6 +36,7 @@ import {
   ViewBody,
   ViewHeader,
   ViewIcon,
+  ViewService,
   ViewTitle,
   WorkbenchService,
 } from '@nota/core/modules/workbench';
@@ -342,8 +343,10 @@ export const Component = () => {
   const onOpenSessionDoc = useCallback(
     (docId: string, sessionId: string) => {
       const { workbench } = framework.get(WorkbenchService);
+      const viewService = framework.get(ViewService);
       workbench.open(`/${docId}?sessionId=${sessionId}`, { at: 'active' });
-      workbench.openSidebar('chat');
+      workbench.openSidebar();
+      viewService.view.activeSidebarTab('chat');
     },
     [framework]
   );

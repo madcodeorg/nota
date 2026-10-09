@@ -20,7 +20,7 @@ jobs:
     env:
       NODE_OPTIONS: --max-old-space-size=14384
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-node
         with:
           electron-install: false
@@ -32,7 +32,7 @@ jobs:
     name: Unit tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-node
         with:
           electron-install: false

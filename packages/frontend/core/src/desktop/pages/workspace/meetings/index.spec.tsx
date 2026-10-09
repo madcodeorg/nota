@@ -70,7 +70,6 @@ const mocks = vi.hoisted(() => {
       setWorkspaceSelectorOpen: vi.fn(),
       openSidebar: vi.fn(),
       closeSidebar: vi.fn(),
-      setSidebarOpen: vi.fn(),
       open: vi.fn(),
       openDoc: vi.fn(),
     },

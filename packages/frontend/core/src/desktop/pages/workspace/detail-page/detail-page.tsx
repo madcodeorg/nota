@@ -143,10 +143,11 @@ const DetailPageImpl = memo(function DetailPageImpl() {
   useEffect(() => {
     const disposables: Subscription[] = [];
     const openHandler = (params: AIChatParams | null) => {
-      if (!params || !isActiveView) {
+      if (!params) {
         return;
       }
-      workbench.openSidebar('chat');
+      workbench.openSidebar();
+      view.activeSidebarTab('chat');
     };
     disposables.push(
       AIProvider.slots.requestOpenWithChat.subscribe(openHandler)
@@ -155,7 +156,7 @@ const DetailPageImpl = memo(function DetailPageImpl() {
       AIProvider.slots.requestSendWithChat.subscribe(openHandler)
     );
     return () => disposables.forEach(d => d.unsubscribe());
-  }, [activeSidebarTab, isActiveView, view, workbench]);
+  }, [activeSidebarTab, view, workbench]);
 
   useEffect(() => {
     if (isActiveView) {
