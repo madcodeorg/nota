@@ -684,12 +684,17 @@ const PagePanel = ({ visible }: { visible: boolean }) => {
   // Page tabs only render their body while the workbench sidebar is "open".
   // That sidebar no longer has its own column, so the flag follows this panel.
   useEffect(() => {
-    workbench.setSidebarOpen(visible);
+    if (visible) workbench.openSidebar();
+    else workbench.closeSidebar();
   }, [visible, workbench]);
-  const slotRef = useCallback((node: HTMLDivElement | null) => {
-    pagePanelSlot$.next(node);
-  }, []);
-  return <div className={styles.pagePanel} ref={slotRef} />;
+  return (
+    <div
+      className={styles.pagePanel}
+      ref={node => {
+        if (pagePanelSlot$.value !== node) pagePanelSlot$.next(node);
+      }}
+    />
+  );
 };
 
 export const RootAppSidebar = memo((): ReactElement => {

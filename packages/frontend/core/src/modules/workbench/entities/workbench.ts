@@ -1,9 +1,4 @@
 import type { ReferenceParams } from '@blocksuite/affine/model';
-import {
-  pagePanelSlot$,
-  setSidebarSection,
-  sidebarSection$,
-} from '@nota/core/components/root-app-sidebar/ai-panel-slot';
 import { toDocSearchParams } from '@nota/core/modules/navigation/utils';
 import { Unreachable } from '@nota/env/constant';
 import { Entity, LiveData } from '@nota/infra';
@@ -11,7 +6,6 @@ import { type To } from 'history';
 import { omit } from 'lodash-es';
 import { nanoid } from 'nanoid';
 
-import { AppSidebarService } from '../../app-sidebar/services/app-sidebar';
 import type { GlobalState } from '../../storage';
 import type { WorkbenchNewTabHandler } from '../services/workbench-new-tab-handler';
 import type { WorkbenchDefaultState } from '../services/workbench-view-state';
@@ -117,33 +111,15 @@ export class Workbench extends Entity {
     return index;
   }
 
-  openSidebar(tabId?: string) {
-    if (pagePanelSlot$.value) {
-      setSidebarSection(tabId === 'chat' ? 'ai' : 'page');
-      const sidebar = this.framework.getOptional(AppSidebarService)?.sidebar;
-      sidebar?.setHovering(false);
-      sidebar?.setOpen(true);
-    }
+  openSidebar() {
     this.setSidebarOpen(true);
   }
 
   closeSidebar() {
-    if (
-      pagePanelSlot$.value &&
-      (sidebarSection$.value === 'page' || sidebarSection$.value === 'ai')
-    ) {
-      this.framework.getOptional(AppSidebarService)?.sidebar.setOpen(false);
-    }
     this.setSidebarOpen(false);
   }
 
   toggleSidebar() {
-    if (pagePanelSlot$.value) {
-      const sidebar = this.framework.getOptional(AppSidebarService)?.sidebar;
-      if (sidebar?.open$.value) this.closeSidebar();
-      else this.openSidebar();
-      return;
-    }
     this.setSidebarOpen(!this.sidebarOpen$.value);
   }
 
