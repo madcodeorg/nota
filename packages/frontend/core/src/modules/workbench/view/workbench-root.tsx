@@ -1,14 +1,9 @@
-import { ResizePanel } from '@nota/component/resize-panel';
 import { AffineErrorComponent } from '@nota/core/components/affine/affine-error-boundary/affine-error-fallback';
+import { pagePanelSlot$ } from '@nota/core/components/root-app-sidebar/ai-panel-slot';
 import { workbenchRoutes } from '@nota/core/desktop/workbench-router';
-import {
-  appSettingAtom,
-  FrameworkScope,
-  useLiveData,
-  useService,
-} from '@nota/infra';
-import { useAtomValue } from 'jotai';
-import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { FrameworkScope, useLiveData, useService } from '@nota/infra';
+import { memo, useCallback, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { type RouteObject, useLocation } from 'react-router-dom';
 
 import type { View } from '../entities/view';
@@ -70,12 +65,26 @@ export const WorkbenchRoot = memo(() => {
         renderer={panelRenderer}
         onMove={onMove}
       />
-      <WorkbenchSidebar />
+      <PagePanelPortal />
     </ViewIslandRegistryProvider>
   );
 });
 
 WorkbenchRoot.displayName = 'memo(WorkbenchRoot)';
+
+// Renders the active view's page panels into the left sidebar's Page section.
+const PagePanelPortal = () => {
+  const workbench = useService(WorkbenchService).workbench;
+  const activeView = useLiveData(workbench.activeView$);
+  const slot = useLiveData(pagePanelSlot$);
+  if (!slot) return null;
+  return createPortal(
+    <FrameworkScope scope={activeView.scope}>
+      <SidebarContainer style={{ height: '100%' }} />
+    </FrameworkScope>,
+    slot
+  );
+};
 
 const WorkbenchView = ({ view }: { view: View }) => {
   const workbench = useService(WorkbenchService).workbench;
@@ -105,84 +114,5 @@ const WorkbenchView = ({ view }: { view: View }) => {
     <div className={styles.workbenchViewContainer} ref={containerRef}>
       <ViewRoot routes={routes} key={view.id} view={view} />
     </div>
-  );
-};
-
-const MIN_SIDEBAR_WIDTH = 320;
-const MAX_SIDEBAR_WIDTH = 1400;
-
-const WorkbenchSidebar = () => {
-  const { clientBorder } = useAtomValue(appSettingAtom);
-
-  const [resizing, setResizing] = useState(false);
-
-  const workbench = useService(WorkbenchService).workbench;
-  const sidebarWidth = useLiveData(workbench.sidebarWidth$);
-  const [width, setWidth] = useState(workbench.sidebarWidth$.value ?? 0);
-
-  const views = useLiveData(workbench.views$);
-  const activeView = useLiveData(workbench.activeView$);
-  const sidebarOpen = useLiveData(workbench.sidebarOpen$);
-  const [floating, setFloating] = useState(false);
-
-  const onWidthChanged = useCallback(
-    (width: number) => {
-      workbench.setSidebarWidth(width);
-      setWidth(width);
-    },
-    [workbench]
-  );
-
-  const handleOpenChange = useCallback(
-    (open: boolean) => {
-      if (open) {
-        workbench.openSidebar();
-      } else {
-        workbench.closeSidebar();
-      }
-    },
-    [workbench]
-  );
-
-  useEffect(() => {
-    const onResize = () => setFloating(!!(window.innerWidth < 768));
-    onResize();
-    window.addEventListener('resize', onResize);
-    return () => {
-      window.removeEventListener('resize', onResize);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (resizing) return;
-    setWidth(sidebarWidth ?? 0);
-  }, [resizing, sidebarWidth]);
-
-  return (
-    <ResizePanel
-      floating={floating}
-      resizeHandlePos="left"
-      resizeHandleOffset={clientBorder && sidebarOpen ? 3 : 0}
-      width={width}
-      resizing={resizing}
-      onResizing={setResizing}
-      className={styles.workbenchSidebar}
-      data-client-border={clientBorder && sidebarOpen}
-      open={sidebarOpen ?? false}
-      onOpen={handleOpenChange}
-      onWidthChange={setWidth}
-      onWidthChanged={onWidthChanged}
-      minWidth={MIN_SIDEBAR_WIDTH}
-      maxWidth={MAX_SIDEBAR_WIDTH}
-      unmountOnExit={false}
-    >
-      {views.map(view => (
-        <FrameworkScope key={view.id} scope={view.scope}>
-          <SidebarContainer
-            style={{ display: activeView !== view ? 'none' : undefined }}
-          />
-        </FrameworkScope>
-      ))}
-    </ResizePanel>
   );
 };

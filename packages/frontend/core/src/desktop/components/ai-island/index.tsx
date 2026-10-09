@@ -1,3 +1,8 @@
+import {
+  aiPanelSlot$,
+  sidebarSection$,
+} from '@nota/core/components/root-app-sidebar/ai-panel-slot';
+import { AppSidebarService } from '@nota/core/modules/app-sidebar';
 import { WorkbenchService } from '@nota/core/modules/workbench';
 import { useLiveData, useService } from '@nota/infra';
 import clsx from 'clsx';
@@ -18,17 +23,18 @@ export const AIIsland = () => {
 
   const workbench = useService(WorkbenchService).workbench;
   const activeView = useLiveData(workbench.activeView$);
-  const haveChatTab = useLiveData(
-    activeView.sidebarTabs$.map(tabs => tabs.some(t => t.id === 'chat'))
+  const aiSlot = useLiveData(aiPanelSlot$);
+  const section = useLiveData(sidebarSection$);
+  const appSidebarOpen = useLiveData(
+    useService(AppSidebarService).sidebar.open$
   );
+  const haveChatTab = !!aiSlot;
   const activeLocation = useLiveData(activeView.location$);
-  const activeTab = useLiveData(activeView.activeSidebarTab$);
-  const sidebarOpen = useLiveData(workbench.sidebarOpen$);
 
   useEffect(() => {
     let hide = true;
     if (haveChatTab) {
-      hide = !!sidebarOpen && activeTab?.id === 'chat';
+      hide = !!appSidebarOpen && section === 'ai';
     } else {
       const path = activeLocation.pathname;
       hide = hideChat.some(item =>
@@ -36,18 +42,17 @@ export const AIIsland = () => {
       );
     }
     setHide(hide);
-  }, [activeLocation.pathname, activeTab, haveChatTab, sidebarOpen]);
+  }, [activeLocation.pathname, appSidebarOpen, haveChatTab, section]);
 
   const onOpenChat = useCallback(() => {
     if (hide) return;
     if (haveChatTab) {
-      workbench.openSidebar();
-      activeView.activeSidebarTab('chat');
+      workbench.openSidebar('chat');
     } else {
       workbench.open('/chat');
       workbench.closeSidebar();
     }
-  }, [activeView, haveChatTab, hide, workbench]);
+  }, [haveChatTab, hide, workbench]);
 
   return (
     <IslandContainer className={clsx(toolStyle, { hide })}>

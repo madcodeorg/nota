@@ -19,7 +19,7 @@ describe('AppSidebar', () => {
 
   test('default values', () => {
     expect(sidebar.open$.value).toBe(true);
-    expect(sidebar.width$.value).toBe(248);
+    expect(sidebar.width$.value).toBe(320);
     expect(sidebar.smallScreenMode$.value).toBe(false);
     expect(sidebar.hovering$.value).toBe(false);
   });
@@ -33,9 +33,9 @@ describe('AppSidebar', () => {
     expect(sidebar.open$.value).toBe(true);
     expect(memento.get('open')).toBe(true);
 
-    sidebar.setWidth(260);
-    expect(sidebar.width$.value).toBe(260);
-    expect(memento.get('width')).toBe(260);
+    sidebar.setWidth(360);
+    expect(sidebar.width$.value).toBe(360);
+    expect(memento.get('width')).toBe(360);
 
     sidebar.setSmallScreenMode(true);
     expect(sidebar.smallScreenMode$.value).toBe(true);

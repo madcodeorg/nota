@@ -1,5 +1,5 @@
 // credits: tab overlay impl inspired by Figma desktop
-import { CloseIcon, PlusIcon, RightSidebarIcon } from '@blocksuite/icons/rc';
+import { CloseIcon, PlusIcon } from '@blocksuite/icons/rc';
 import {
   type DropTargetDropEvent,
   type DropTargetOptions,
@@ -402,10 +402,6 @@ export const AppTabsHeader = ({
     });
   }, [tabsHeaderService]);
 
-  const onToggleRightSidebar = useAsyncCallback(async () => {
-    await tabsHeaderService.onToggleRightSidebar?.();
-  }, [tabsHeaderService]);
-
   useEffect(() => {
     if (mode === 'app' && ready) {
       desktopApi.handler.ui.pingAppLayoutReady().catch(console.error);
@@ -553,9 +549,6 @@ export const AppTabsHeader = ({
           icon={<PlusIcon />}
         />
       </div>
-      <IconButton size="24" onClick={onToggleRightSidebar}>
-        <RightSidebarIcon />
-      </IconButton>
       {isWindowsDesktop && (
         <div className={styles.windowsAppControlsPlaceholder} />
       )}

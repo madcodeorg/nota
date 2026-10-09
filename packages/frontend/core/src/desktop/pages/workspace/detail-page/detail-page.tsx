@@ -3,7 +3,6 @@ import { RefNodeSlotsProvider } from '@blocksuite/affine/inlines/reference';
 import { focusBlockEnd } from '@blocksuite/affine/shared/commands';
 import { getLastNoteBlock } from '@blocksuite/affine/shared/utils';
 import {
-  AiIcon,
   ChartPanelIcon,
   CommentIcon,
   ExportIcon,
@@ -30,6 +29,7 @@ import { useActiveBlocksuiteEditor } from '@nota/core/components/hooks/use-block
 import { PageDetailEditor } from '@nota/core/components/page-detail-editor';
 import { WorkspacePropertySidebar } from '@nota/core/components/properties/sidebar';
 import { TrashPageFooter } from '@nota/core/components/pure/trash-page-footer';
+import { aiPanelSlot$ } from '@nota/core/components/root-app-sidebar/ai-panel-slot';
 import { TopTip } from '@nota/core/components/top-tip';
 import { ServerService } from '@nota/core/modules/cloud';
 import { DocService } from '@nota/core/modules/doc';
@@ -63,6 +63,7 @@ import track from '@nota/track';
 import clsx from 'clsx';
 import { nanoid } from 'nanoid';
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useParams } from 'react-router-dom';
 import type { Subscription } from 'rxjs';
 
@@ -106,7 +107,7 @@ const DetailPageImpl = memo(function DetailPageImpl() {
   const isInTrash = useLiveData(doc.meta$.map(meta => meta.trash));
   const editorContainer = useLiveData(editor.editorContainer$);
 
-  const isSideBarOpen = useLiveData(workbench.sidebarOpen$);
+  const aiPanelSlot = useLiveData(aiPanelSlot$);
   const { appSettings } = useAppSettingHelper();
 
   const peekView = useService(PeekViewService).peekView;
@@ -142,11 +143,10 @@ const DetailPageImpl = memo(function DetailPageImpl() {
   useEffect(() => {
     const disposables: Subscription[] = [];
     const openHandler = (params: AIChatParams | null) => {
-      if (!params) {
+      if (!params || !isActiveView) {
         return;
       }
-      workbench.openSidebar();
-      view.activeSidebarTab('chat');
+      workbench.openSidebar('chat');
     };
     disposables.push(
       AIProvider.slots.requestOpenWithChat.subscribe(openHandler)
@@ -155,7 +155,7 @@ const DetailPageImpl = memo(function DetailPageImpl() {
       AIProvider.slots.requestSendWithChat.subscribe(openHandler)
     );
     return () => disposables.forEach(d => d.unsubscribe());
-  }, [activeSidebarTab, view, workbench]);
+  }, [activeSidebarTab, isActiveView, view, workbench]);
 
   useEffect(() => {
     if (isActiveView) {
@@ -367,7 +367,7 @@ const DetailPageImpl = memo(function DetailPageImpl() {
             </Scrollable.Root>
             <EditorOutlineViewer
               editor={editorContainer?.host ?? null}
-              show={mode === 'page' && !isSideBarOpen}
+              show={mode === 'page'}
               openOutlinePanel={openOutlinePanel}
             />
           </AffineErrorBoundary>
@@ -375,15 +375,12 @@ const DetailPageImpl = memo(function DetailPageImpl() {
         </div>
       </ViewBody>
 
-      {enableAI && (
-        <ViewSidebarTab
-          tabId="chat"
-          icon={<AiIcon />}
-          unmountOnInactive={false}
-        >
-          <EditorChatPanel editor={editorContainer} />
-        </ViewSidebarTab>
-      )}
+      {enableAI && isActiveView && aiPanelSlot
+        ? createPortal(
+            <EditorChatPanel editor={editorContainer} />,
+            aiPanelSlot
+          )
+        : null}
 
       <ViewSidebarTab tabId="properties" icon={<PropertyIcon />}>
         <Scrollable.Root className={styles.sidebarScrollArea}>

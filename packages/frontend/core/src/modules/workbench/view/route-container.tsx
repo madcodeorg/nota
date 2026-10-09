@@ -1,16 +1,10 @@
-import { RightSidebarIcon } from '@blocksuite/icons/rc';
-import { IconButton } from '@nota/component';
 import { AffineErrorBoundary } from '@nota/core/components/affine/affine-error-boundary';
-import { useLiveData, useService } from '@nota/infra';
-import { Suspense, useCallback } from 'react';
+import { useService } from '@nota/infra';
+import { Suspense } from 'react';
 import { Outlet } from 'react-router-dom';
 
-import { AppSidebarService } from '../../app-sidebar';
-import { SidebarSwitch } from '../../app-sidebar/views/sidebar-header';
 import { ViewService } from '../services/view';
-import { WorkbenchService } from '../services/workbench';
 import * as styles from './route-container.css';
-import { useViewPosition } from './use-view-position';
 import { ViewBodyTarget, ViewHeaderTarget } from './view-islands';
 
 export interface Props {
@@ -19,64 +13,17 @@ export interface Props {
   };
 }
 
-const ToggleButton = ({
-  onToggle,
-  className,
-  show,
-}: {
-  onToggle?: () => void;
-  className: string;
-  show: boolean;
-}) => {
-  return (
-    <IconButton
-      size="24"
-      onClick={onToggle}
-      className={className}
-      data-show={show}
-      data-testid="right-sidebar-toggle"
-    >
-      <RightSidebarIcon />
-    </IconButton>
-  );
-};
-
 export const RouteContainer = () => {
-  const viewPosition = useViewPosition();
-  const appSidebarService = useService(AppSidebarService).sidebar;
-  const leftSidebarOpen = useLiveData(appSidebarService.open$);
-  const workbench = useService(WorkbenchService).workbench;
   const view = useService(ViewService).view;
-  const sidebarOpen = useLiveData(workbench.sidebarOpen$);
-  const handleToggleSidebar = useCallback(() => {
-    workbench.toggleSidebar();
-  }, [workbench]);
-
-  const showSwitch = !BUILD_CONFIG.isElectron && viewPosition.isFirst;
 
   return (
     <div className={styles.root}>
-      <div
-        className={styles.header}
-        data-show-switch={showSwitch && !leftSidebarOpen}
-      >
-        {showSwitch && (
-          <SidebarSwitch
-            show={!leftSidebarOpen}
-            className={styles.leftSidebarButton}
-          />
-        )}
+      {/* The always-visible sidebar rail owns the sidebar toggle. */}
+      <div className={styles.header}>
         <ViewHeaderTarget
           viewId={view.id}
           className={styles.viewHeaderContainer}
         />
-        {!BUILD_CONFIG.isElectron && viewPosition.isLast && (
-          <ToggleButton
-            show={!sidebarOpen}
-            className={styles.rightSidebarButton}
-            onToggle={handleToggleSidebar}
-          />
-        )}
       </div>
 
       <AffineErrorBoundary>
