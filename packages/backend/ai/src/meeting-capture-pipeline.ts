@@ -9,10 +9,23 @@ import type {
 const SAMPLE_RATE = 16_000;
 const WINDOW_MS = 100;
 const WINDOW_SAMPLES = SAMPLE_RATE / 10;
-const SOURCE_WAIT_SAMPLES = WINDOW_SAMPLES * 2;
+// System audio comes through a separate capture path and can trail the mic by
+// a few hundred ms. Waiting longer keeps it in the live mix instead of
+// dropping it as late; the wait only applies while one source is behind.
+const SOURCE_WAIT_MS = 500;
+const SOURCE_WAIT_SAMPLES = (SAMPLE_RATE * SOURCE_WAIT_MS) / 1000;
 const PREFIX_MS = 600;
+// Long speech is cut at the first short pause after the soft limit, so words
+// are not split mid-sentence. The hard limit only applies to non-stop speech.
+const SOFT_UTTERANCE_MS = 10_000;
+const HARD_UTTERANCE_MS = 20_000;
+const SOFT_CUT_SILENCE_MS = 150;
 const ENERGY_THRESHOLD = 0.006;
 const GAIN_FLOOR = 0.0008;
+const TARGET_SPEECH_RMS = 0.06;
+// First-order 80 Hz high-pass for the microphone, as in Meetily's mic chain:
+// removes rumble, desk thumps and mains hum before gain and VAD.
+const MIC_HIGH_PASS_ALPHA = 1 / (1 + 2 * Math.PI * 80 * (1 / SAMPLE_RATE));
 
 export interface MeetingUtteranceDecoder {
   readonly executionProvider?: string;
@@ -66,9 +79,12 @@ export function shouldFinalizeMixedCaptureUtterance(input: {
 }) {
   // Keep phrase context for offline models. Do not turn every capture packet
   // into an ASR request or repeatedly decode a growing Whisper buffer.
+  const length = input.windowEndMs - input.utteranceStartMs;
+  const silence = input.windowEndMs - input.lastSpeechMs;
   return (
-    input.windowEndMs - input.utteranceStartMs >= 15_000 ||
-    input.windowEndMs - input.lastSpeechMs >= (input.silenceFinalizeMs ?? 500)
+    length >= HARD_UTTERANCE_MS ||
+    silence >= (input.silenceFinalizeMs ?? 500) ||
+    (length >= SOFT_UTTERANCE_MS && silence >= SOFT_CUT_SILENCE_MS)
   );
 }
 
@@ -104,7 +120,18 @@ function createMixer(onLateAudio: (samples: number) => void) {
     mic: null,
     system: null,
   };
-  const gains = { mic: 1, system: 1 };
+  // Speech loudness per source. Learned only from speech-level audio, held
+  // through pauses, and released slowly, so gain stays steady across a phrase
+  // instead of pumping background noise up between words.
+  const levels: Record<MeetingAudioSource, number | null> = {
+    mic: null,
+    system: null,
+  };
+  const applied: Record<MeetingAudioSource, number | null> = {
+    mic: null,
+    system: null,
+  };
+  const highPass = { input: 0, output: 0 };
   let cursor: number | null = null;
   let consumed = false;
 
@@ -131,28 +158,47 @@ function createMixer(onLateAudio: (samples: number) => void) {
     return out;
   }
 
+  function filterMic(samples: Float32Array) {
+    for (let i = 0; i < samples.length; i++) {
+      const x = samples[i];
+      highPass.output =
+        MIC_HIGH_PASS_ALPHA * (highPass.output + x - highPass.input);
+      highPass.input = x;
+      samples[i] = highPass.output;
+    }
+  }
+
+  // Returns a [start, end] gain ramp for this window. Sources are normalized
+  // separately so loud microphone speech cannot set quiet system gain.
   function gainFor(
     source: MeetingAudioSource,
     samples: Float32Array,
-    level: number
-  ) {
-    // Normalize the sources separately so louder microphone speech cannot
-    // determine the gain of quiet system audio. Do not carry a speech boost
-    // into digital silence or a signal below the fixed gain floor.
+    level: number,
+    learn: boolean
+  ): [number, number] {
+    // Never boost digital silence or a signal below the fixed gain floor.
     if (level <= GAIN_FLOOR) {
-      gains[source] = 1;
-      return 1;
+      applied[source] = 1;
+      return [1, 1];
+    }
+    const known = levels[source];
+    if (learn || known === null) {
+      // Fast attack for louder speech, slow (~5 s) release for quieter.
+      levels[source] =
+        known === null
+          ? level
+          : known + (level - known) * (level > known ? 0.5 : 0.02);
     }
     let peak = 0;
     for (const sample of samples) peak = Math.max(peak, Math.abs(sample));
-    const desired = Math.max(0.5, Math.min(12, 0.06 / level, 0.9 / peak));
-    // Release excess gain immediately on loud speech/peaks. Raising gain is
-    // gradual, so a quiet packet cannot request an unbounded volume jump.
-    gains[source] =
-      desired < gains[source]
-        ? desired
-        : gains[source] + (desired - gains[source]) * 0.2;
-    return gains[source];
+    const target = Math.max(
+      0.5,
+      Math.min(12, TARGET_SPEECH_RMS / (levels[source] ?? level), 0.9 / peak)
+    );
+    // Drop gain at once on louder input; only increases are ramped.
+    const from = Math.min(applied[source] ?? target, target);
+    applied[source] = target;
+    return [from, target];
   }
 
   return {
@@ -180,7 +226,7 @@ function createMixer(onLateAudio: (samples: number) => void) {
         });
       }
     },
-    next(flush = false): MixedWindow | null {
+    next(flush = false, learn = true): MixedWindow | null {
       if (cursor === null) return null;
       const seenEnds = sources.flatMap(source => {
         const end = ends[source];
@@ -188,7 +234,7 @@ function createMixer(onLateAudio: (samples: number) => void) {
       });
       const latest = Math.max(...seenEnds);
       // One packet of initial lookahead lets the other source join. With both
-      // sources present, wait at most 200 ms of audio for a stalled source.
+      // sources present, wait at most SOURCE_WAIT_MS of audio for a stalled source.
       const watermark = flush
         ? latest
         : seenEnds.length === 1
@@ -208,24 +254,35 @@ function createMixer(onLateAudio: (samples: number) => void) {
       // capture gap. Timestamps still reflect the gap on the meeting timeline.
       if (Number.isFinite(nextStart) && nextStart - cursor > SAMPLE_RATE * 2) {
         cursor = nextStart - SAMPLE_RATE / 2;
-        gains.mic = gains.system = 1;
+        levels.mic = levels.system = null;
+        applied.mic = applied.system = null;
+        highPass.input = highPass.output = 0;
       }
       const count = Math.min(WINDOW_SAMPLES, watermark - cursor);
       if (count <= 0) return null;
       const startMs = (cursor * 1000) / SAMPLE_RATE;
       const mic = drain('mic', cursor, count);
       const system = drain('system', cursor, count);
+      filterMic(mic);
       const micRms = rms(mic);
       const systemRms = rms(system);
-      const micGain = gainFor('mic', mic, micRms);
-      const systemGain = gainFor('system', system, systemRms);
+      const [micFrom, micTo] = gainFor('mic', mic, micRms, learn);
+      const [systemFrom, systemTo] = gainFor(
+        'system',
+        system,
+        systemRms,
+        learn
+      );
       let rawEnergy = 0;
       let peak = 0;
       const mixed = new Float32Array(count);
       for (let i = 0; i < count; i++) {
         const raw = mic[i] + system[i];
         rawEnergy += raw * raw;
-        mixed[i] = mic[i] * micGain + system[i] * systemGain;
+        const t = count > 1 ? i / (count - 1) : 1;
+        mixed[i] =
+          mic[i] * (micFrom + (micTo - micFrom) * t) +
+          system[i] * (systemFrom + (systemTo - systemFrom) * t);
         peak = Math.max(peak, Math.abs(mixed[i]));
       }
       const limit = peak > 0.95 ? 0.95 / peak : 1;
@@ -263,7 +320,7 @@ export function createMeetingCapturePipeline(input: {
     lastDecodeMs: 0,
     lastFinalDecodeMs: 0,
     lateAudioMs: 0,
-    sourceWaitMs: 200,
+    sourceWaitMs: SOURCE_WAIT_MS,
     vadMode: input.vad ? 'silero' : 'energy',
     windowMs: WINDOW_MS,
   };
@@ -278,7 +335,7 @@ export function createMeetingCapturePipeline(input: {
   let lastEndMs = 0;
   let lastPartial = '';
   let vadSpeech = false;
-  let noiseFloor: number | null = null;
+  let vadKnown = false;
   let micEnergy = 0;
   let systemEnergy = 0;
   let decodeTotalMs = 0;
@@ -298,34 +355,40 @@ export function createMeetingCapturePipeline(input: {
       // A healthy detector can be waiting for the rest of its 512-sample
       // window at stop. Only report degradation when it actually failed.
       if (!input.vad || input.vad.failed !== false) metrics.vadMode = 'energy';
-      return level >= ENERGY_THRESHOLD;
+      return vadKnown && input.vad?.failed === false
+        ? vadSpeech
+        : level >= ENERGY_THRESHOLD;
     }
+    // A healthy Silero decides alone. Letting energy override it kept steady
+    // fans, hum or music "speaking" forever and forced 15 s cuts.
     vadSpeech = probability >= (vadSpeech ? 0.35 : 0.5);
-    if (noiseFloor === null) {
-      const initial = initialMixedCaptureSpeechGate(level, vadSpeech);
-      noiseFloor = initial.noiseFloorRms;
-      return initial.speech;
-    }
-    const energySpeech = level >= Math.max(0.0014, noiseFloor * 1.4);
-    if (!active && !vadSpeech && !energySpeech)
-      noiseFloor += (level - noiseFloor) * 0.05;
-    return vadSpeech || energySpeech;
+    vadKnown = true;
+    return vadSpeech;
   }
 
   async function finish(endMs: number) {
     if (!active) return;
     const decodeStart = performance.now();
-    const result = await input.decoder.finish();
-    metrics.lastFinalDecodeMs = performance.now() - decodeStart;
-    decodeTotalMs += metrics.lastFinalDecodeMs;
-    active = false;
+    let result: { language: string | null; text: string };
+    try {
+      result = await input.decoder.finish();
+    } finally {
+      // A failed decode must not glue the next phrase onto this one.
+      metrics.lastFinalDecodeMs = performance.now() - decodeStart;
+      decodeTotalMs += metrics.lastFinalDecodeMs;
+      active = false;
+      ring = [];
+      lastPartial = '';
+      micEnergy = systemEnergy = 0;
+    }
     const text = result.text.trim();
+    const phraseSource = source();
     if (text) {
       await input.onTranscript({
         endMs,
         id,
         ...(result.language ? { language: result.language } : {}),
-        source: source(),
+        source: phraseSource,
         startMs,
         text,
         type: 'final',
@@ -333,9 +396,6 @@ export function createMeetingCapturePipeline(input: {
     } else {
       input.onEmptyFinal(id);
     }
-    ring = [];
-    lastPartial = '';
-    micEnergy = systemEnergy = 0;
     report();
   }
 
@@ -411,7 +471,13 @@ export function createMeetingCapturePipeline(input: {
   }
 
   async function drain(flush: boolean) {
-    for (let window = mixer.next(flush); window; window = mixer.next(flush)) {
+    // Do not learn source loudness from audio Silero just called non-speech.
+    const learn = () => !(vadKnown && !vadSpeech);
+    for (
+      let window = mixer.next(flush, learn());
+      window;
+      window = mixer.next(flush, learn())
+    ) {
       await handle(window);
       // Give disk acceptance, HTTP and transcript delivery a turn while a
       // delayed source or a large recovered frame is being caught up.

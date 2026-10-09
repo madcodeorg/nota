@@ -141,7 +141,10 @@ const sherpaRuntimePackage = (targetPlatform, targetArch) => {
   );
 };
 
-const DEFAULT_SEEDED_LOCAL_MODELS = ['cactus-whistle', 'whisper-tiny-q5-cpp'];
+const DEFAULT_SEEDED_LOCAL_MODELS = [
+  'whisper-base-q5-cpp',
+  'whisper-tiny-q5-cpp',
+];
 const localModelSeedSourceRoot = path.resolve(
   process.env.NOTA_LOCAL_MODEL_SEED_SOURCE ??
     path.join(repoRootDir, '.nota', 'models')

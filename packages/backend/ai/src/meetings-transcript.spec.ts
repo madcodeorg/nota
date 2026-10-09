@@ -5,6 +5,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
 import {
+  dedupeRecoveredTranscriptSegments,
   discardMeetingFallbackAudioAfterRecovery,
   fallbackAudioChunksWithoutTranscriptCoverage,
   firstSuccessfulMeetingSttModel,
@@ -170,6 +171,34 @@ describe('meeting transcript integrity', () => {
         [{ ...segment, endMs: 500 }]
       )
     ).toEqual([chunk]);
+  });
+
+  test('keeps one copy when mic and system recovery decode the same speech', () => {
+    const system = {
+      endMs: 26_000,
+      source: 'system' as const,
+      startMs: 1_000,
+      text: 'Okay, so as many of you know, I have been living in India for eight and a half years.',
+    };
+    const micEcho = {
+      endMs: 28_000,
+      source: 'mic' as const,
+      startMs: 1_000,
+      text: 'Okay so as many of you know I have been living in Indiana for eight and a half years',
+    };
+    const otherSpeaker = {
+      endMs: 20_000,
+      source: 'mic' as const,
+      startMs: 18_000,
+      text: 'Sorry, can you repeat the last part?',
+    };
+    const later = { ...system, endMs: 40_000, startMs: 30_000 };
+    expect(
+      dedupeRecoveredTranscriptSegments([system, micEcho, otherSpeaker, later])
+    ).toEqual(expect.arrayContaining([system, otherSpeaker, later]));
+    expect(
+      dedupeRecoveredTranscriptSegments([system, micEcho, otherSpeaker, later])
+    ).toHaveLength(3);
   });
 
   test('keeps simultaneous nondominant-source audio while deduping the covered source', () => {

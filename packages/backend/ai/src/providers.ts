@@ -320,7 +320,13 @@ export class AiModelRouter {
     }
 
     for (const model of modelRegistry) {
-      if (model.type === 'text' && this.localOnnxModelInstalled(model.id)) {
+      // Retired ONNX chat models stay selectable only through migration; the
+      // catalog lists the GPU (llama.cpp) models.
+      if (
+        model.type === 'text' &&
+        model.runtime !== 'onnxruntime' &&
+        this.localOnnxModelInstalled(model.id)
+      ) {
         addModel('local', model.id, 'Local');
       }
     }

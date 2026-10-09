@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import {
   canDownloadLocalModel,
+  isListedLocalModel,
   isReleasedLocalModel,
   localModelDownloadFeedback,
   localModelStatusLabel,
@@ -22,6 +23,12 @@ type Model = LocalModelInfo & {
   languageDetection?: 'automatic' | 'fixed' | 'selectable';
   languages?: string[];
 };
+// Optional model that re-transcribes the recording once a meeting ends.
+const RECOMMENDED_CHAT_MODELS = [
+  'gemma-4-e4b-it-gguf-q4',
+  'qwen3.5-2b-gguf-q4km',
+];
+const POST_MEETING_MODEL_ID = 'whisper-large-v3-turbo-q5-cpp';
 type SpeechProvider = MeetingProviderSelectionInput & {
   id: string;
   name: string;
@@ -197,7 +204,13 @@ export function NotaModelsSetup({
     };
   }, [activeDownload, refreshHealth, settings]);
 
-  const chatModels = health.models.filter(model => model.type === 'text');
+  const chatModels = health.models.filter(
+    model => model.type === 'text' && isListedLocalModel(model)
+  );
+  // Gemma E4B needs 16 GB (device fit checks it); Qwen 2B is the fallback.
+  const recommendedChatId = RECOMMENDED_CHAT_MODELS.find(id =>
+    chatModels.some(model => model.id === id && model.deviceFit === 'fits')
+  );
   const chat = chatModels.find(model => model.id === chatId);
   const speechProviders = runtime?.providers ?? [];
   const draftAutoPending =
@@ -213,6 +226,9 @@ export function NotaModelsSetup({
       : speechProviders.find(provider => provider.id === speechId);
   const speechModel = health.models.find(
     model => model.type === 'stt' && model.id === speechProvider?.modelId
+  );
+  const postMeetingModel = health.models.find(
+    model => model.type === 'stt' && model.id === POST_MEETING_MODEL_ID
   );
   const chatChanged =
     !!chatId &&
@@ -447,6 +463,7 @@ export function NotaModelsSetup({
                   }
                 >
                   {localModelName(model.id)}
+                  {model.id === recommendedChatId ? ' (recommended)' : ''}
                 </option>
               ))}
             </select>
@@ -523,6 +540,29 @@ export function NotaModelsSetup({
               </p>
             ) : null}
             {actions(speechModel, speechProvider?.name)}
+          </section>
+        ) : null}
+        {showSpeech && postMeetingModel ? (
+          <section className={styles.choice}>
+            <h3 className={styles.choiceTitle}>
+              After-meeting transcript (optional)
+            </h3>
+            <p className={styles.detail}>
+              Re-reads the recording when a meeting ends for a more accurate
+              final transcript. Uses about 2 GB more RAM while it runs, then
+              frees it. Live captions are unchanged.
+            </p>
+            {requirements(postMeetingModel)}
+            <p className={styles.detail} role="status">
+              {busy === `probe:${postMeetingModel.id}`
+                ? 'Checking model…'
+                : busy === `download:${postMeetingModel.id}`
+                  ? 'Starting download…'
+                  : postMeetingModel.downloadStatus === 'downloaded'
+                    ? 'Downloaded; used automatically after meetings.'
+                    : localModelStatusLabel(postMeetingModel, false)}
+            </p>
+            {actions(postMeetingModel, localModelName(postMeetingModel.id))}
           </section>
         ) : null}
       </div>

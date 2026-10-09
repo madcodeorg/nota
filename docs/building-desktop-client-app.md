@@ -120,15 +120,14 @@ Configured macOS release builds include the Apple SpeechAnalyzer Swift helper.
 For a local package on a compatible Mac, add
 `NOTA_ENABLE_APPLE_SPEECH_HELPER=1` to the make command.
 
-Normal ad-hoc installer builds do not bundle model weights. Forge defaults and
-release CI use the same speech-model pair: `cactus-whistle` and
-`whisper-tiny-q5-cpp`, about 47 MiB of weights uncompressed. Release builds
-prepare and checksum-verify both seeds. For local builds,
-`NOTA_BUNDLE_DEFAULT_STT_MODEL=1` selects this pair;
+Installer builds, including release CI, do not bundle model weights. Setup
+downloads Whisper Base Q5 on first use. To bundle speech models anyway,
+`NOTA_BUNDLE_DEFAULT_STT_MODEL=1` selects `whisper-base-q5-cpp` and
+`whisper-tiny-q5-cpp` (about 88 MiB uncompressed);
 `NOTA_BUNDLE_LOCAL_MODELS=model-id,model-id` selects explicit complete models
 from `.nota/models`.
 
-The app installs bundled speech seeds into local application data on first use.
+If speech seeds are bundled, the app installs them into local application data on first use.
 Local text AI needs a separate text-model download through AI Settings unless
 that model was explicitly bundled. Writing remains available without model
 setup. Check each published release's notes for the actual bundled contents.

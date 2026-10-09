@@ -345,7 +345,11 @@ describe('local tool protocol', () => {
       }),
     });
   });
-  it.each(modelRegistry.filter(model => model.type === 'text'))(
+  it.each(
+    modelRegistry.filter(
+      model => model.type === 'text' && model.runtime === 'onnxruntime'
+    )
+  )(
     'runs $id through SDK execution and returns tool results to the model',
     async manifest => {
       const execute = vi.fn(async ({ query }: { query: string }) => ({

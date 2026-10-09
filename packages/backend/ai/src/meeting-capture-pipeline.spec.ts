@@ -105,8 +105,8 @@ describe('shared meeting capture pipeline', () => {
     await f.pipeline.push(frame(0, 100, 0.1, 'system'));
     expect(f.metrics.at(-1)?.lateAudioMs).toBe(100);
     await f.pipeline.push(frame(200, 500));
-    // A stalled system source only holds the last 200 ms of microphone audio.
-    expect(f.events.at(-1)?.endMs).toBe(500);
+    // A stalled system source only holds the last 500 ms of microphone audio.
+    expect(f.events.at(-1)?.endMs).toBe(200);
     await f.pipeline.stop();
     expect(f.events.at(-1)?.endMs).toBe(700);
     expect(f.fed.reduce((n, pcm) => n + pcm.length, 0)).toBe(700 * 16);
@@ -294,5 +294,84 @@ describe('shared meeting capture pipeline', () => {
     await f.pipeline.push(frame(0, 25));
     await f.pipeline.stop();
     expect(f.metrics.at(-1)?.vadMode).toBe('silero');
+  });
+
+  test('lets a healthy VAD reject steady background noise', async () => {
+    const seen: Int16Array[] = [];
+    const f = fixture(false, {
+      failed: false,
+      push: async pcm => {
+        seen.push(pcm);
+        return 0.01;
+      },
+    });
+    // 30 s of fan-like noise well above the energy threshold.
+    await f.pipeline.push(frame(0, 30_000, 0.014));
+    await f.pipeline.stop();
+    expect(f.decoder.pushPcm16).not.toHaveBeenCalled();
+    expect(f.decoder.finish).not.toHaveBeenCalled();
+    // Gain is not learned from rejected noise, so it is not pumped up.
+    const late = seen.at(-1)!;
+    const first = seen[0];
+    expect(Math.max(...late.map(Math.abs))).toBeLessThanOrEqual(
+      Math.max(...first.map(Math.abs)) + 2
+    );
+  });
+
+  test('holds speech gain through a pause instead of re-boosting it', async () => {
+    const seen: Int16Array[] = [];
+    let speaking = true;
+    const f = fixture(true, {
+      failed: false,
+      push: async pcm => {
+        seen.push(pcm);
+        return speaking ? 0.9 : 0.05;
+      },
+    });
+    await f.pipeline.push(frame(0, 1000, 0.03, 'system'));
+    speaking = false;
+    await f.pipeline.push(frame(1000, 3000, 0.004, 'system'));
+    await f.pipeline.stop();
+    // Speech at 0.03 sets ~2.8x; quieter pause audio keeps that gain.
+    expect(Math.max(...seen.at(-1)!.map(Math.abs))).toBeLessThan(
+      32767 * 0.004 * 3.5
+    );
+  });
+
+  test('resets phrase state when the final decoder throws', async () => {
+    const f = fixture(false);
+    f.decoder.finish = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('decoder crashed'))
+      .mockResolvedValue({ language: 'en', text: 'second phrase' });
+    await f.pipeline.push(frame(0, 500));
+    await expect(f.pipeline.push(frame(500, 500, 0))).rejects.toThrow(
+      'decoder crashed'
+    );
+    await f.pipeline.push(frame(1000, 500));
+    await f.pipeline.push(frame(1500, 500, 0));
+    expect(f.events.at(-1)).toMatchObject({
+      text: 'second phrase',
+      type: 'final',
+    });
+    // The failed phrase (0-500 ms) is not glued onto the new one.
+    expect(f.events.at(-1)!.startMs).toBeGreaterThanOrEqual(500);
+  });
+
+  test('high-passes microphone rumble before recognition', async () => {
+    const f = fixture();
+    const rumble = frame(0, 1000, 0);
+    rumble.pcm16 = Int16Array.from(
+      { length: 16_000 },
+      (_, i) =>
+        0.2 * 32767 * Math.sin((2 * Math.PI * 20 * i) / 16000) +
+        0.02 * 32767 * Math.cos((2 * Math.PI * 1000 * i) / 16000)
+    );
+    await f.pipeline.push(rumble);
+    await f.pipeline.stop();
+    const tail = f.fed.at(-1)!;
+    const energy = tail.reduce((n, s) => n + s * s, 0) / tail.length;
+    // Without filtering, the 20 Hz rumble dominates and gain stays near 0.5x.
+    expect(Math.sqrt(energy) / 32767).toBeGreaterThan(0.04);
   });
 });

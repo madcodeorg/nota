@@ -19,31 +19,10 @@ const buildDir = path.join(
 );
 const resourceDir = path.join(electronDir, 'resources/native');
 const whisperCommit = '60c0be6ac8fa71b1a2ae2dd938a31a34a508e774';
-const needleRevision = 'c7c415a3d1b3d929014bc6e866d51ebb971f7089';
-const whistleRevision = 'b358ddadd89b7a713b5aa131f23032d3cca1b251';
+// llama.cpp serves chat and meeting summaries on the GPU (Metal on macOS,
+// Vulkan on Windows) from a separate helper process.
+const llamaCommit = 'd81235049384534c167caea52b85a694f6103d14';
 const whisperModelLicenseRevision = '31243bad24cc746f07d4c8bfdd2d974872cb1803';
-const needlePlatforms: Record<string, { folder: string; sha256: string }> = {
-  'darwin-arm64': {
-    folder: 'macos-arm64',
-    sha256: 'a3b9163abe7b4bd52487c4005506cb35c5163bb9b9587af4ae07ed7587de697d',
-  },
-  'linux-arm64': {
-    folder: 'linux-arm64',
-    sha256: 'd6e33724cab170f0a25bd943d3a8ed5da925fcb793e9fcb1f201bf2478a50f91',
-  },
-  'linux-x64': {
-    folder: 'linux-x86_64',
-    sha256: '5c0ff309dcf9c2238bd07986d9d100069d568596c2378f0bfedc1677cc02f756',
-  },
-  'win32-arm64': {
-    folder: 'windows-arm64',
-    sha256: 'e6c479a4094896785a22c2a54e3c8bfd8f60903488651ad6d4b47685512cec61',
-  },
-  'win32-x64': {
-    folder: 'windows-x86_64',
-    sha256: 'a2501f416a562bf0c2ad734821dd190571d22ced22c104372b8cd41b40245114',
-  },
-};
 async function fetchFile(url: string, output: string, sha256?: string) {
   if (sha256) {
     try {
@@ -66,6 +45,90 @@ async function fetchFile(url: string, output: string, sha256?: string) {
   await fs.mkdir(path.dirname(output), { recursive: true });
   await fs.writeFile(output, bytes);
 }
+async function cloneAt(url: string, source: string, commit: string) {
+  try {
+    await fs.access(path.join(source, 'CMakeLists.txt'));
+  } catch {
+    await run(
+      'git',
+      ['clone', '--no-checkout', '--filter=blob:none', url, source],
+      {
+        maxBuffer: 16 * 1024 * 1024,
+      }
+    );
+  }
+  await run('git', ['-C', source, 'checkout', '--detach', commit]);
+}
+
+async function buildLlamaServer(cmake: string) {
+  const source = path.join(buildDir, 'llama.cpp');
+  const build = path.join(buildDir, 'llama-cmake');
+  await cloneAt(
+    'https://github.com/ggml-org/llama.cpp.git',
+    source,
+    llamaCommit
+  );
+  const args = [
+    '-S',
+    source,
+    '-B',
+    build,
+    '-DCMAKE_BUILD_TYPE=Release',
+    '-DBUILD_SHARED_LIBS=OFF',
+    '-DGGML_NATIVE=OFF',
+    '-DLLAMA_OPENSSL=OFF',
+    '-DLLAMA_BUILD_TESTS=OFF',
+    '-DLLAMA_BUILD_EXAMPLES=OFF',
+    '-DLLAMA_BUILD_APP=OFF',
+    '-DLLAMA_BUILD_UI=OFF',
+    '-DLLAMA_USE_PREBUILT_UI=OFF',
+    '-DLLAMA_BUILD_TOOLS=ON',
+    '-DLLAMA_BUILD_SERVER=ON',
+  ];
+  if (targetPlatform === 'darwin') {
+    args.push(
+      '-DGGML_METAL=ON',
+      '-DGGML_METAL_EMBED_LIBRARY=ON',
+      `-DCMAKE_OSX_ARCHITECTURES=${targetArch === 'x64' ? 'x86_64' : 'arm64'}`
+    );
+  }
+  const vulkan =
+    process.env.NOTA_LLAMA_VULKAN ?? (targetPlatform === 'win32' ? '1' : '0');
+  if (vulkan === '1') args.push('-DGGML_VULKAN=ON');
+  await run(cmake, args, { maxBuffer: 16 * 1024 * 1024 });
+  await run(
+    cmake,
+    [
+      '--build',
+      build,
+      '--config',
+      'Release',
+      '--target',
+      'llama-server',
+      '-j',
+      '4',
+    ],
+    { maxBuffer: 64 * 1024 * 1024 }
+  );
+  const suffix = targetPlatform === 'win32' ? '.exe' : '';
+  let built: string | undefined;
+  for (const candidate of [
+    path.join(build, 'bin', 'llama-server' + suffix),
+    path.join(build, 'bin/Release', 'llama-server' + suffix),
+  ]) {
+    try {
+      await fs.access(candidate);
+      built = candidate;
+      break;
+    } catch {}
+  }
+  if (!built) throw new Error('Missing compiled llama-server.');
+  const output = path.join(resourceDir, 'nota-llama-server' + suffix);
+  await fs.copyFile(built, output);
+  await fs.chmod(output, 0o755);
+  return source;
+}
+
 export async function buildLocalAsr() {
   // The shared before-make job runs on Linux only to generate assets; each
   // platform job builds its own native helper.
@@ -95,7 +158,6 @@ export async function buildLocalAsr() {
     '--detach',
     whisperCommit,
   ]);
-  const needle = needlePlatforms[`${targetPlatform}-${targetArch}`];
   const cmakeArgs = [
     '-S',
     sourceDir,
@@ -104,24 +166,15 @@ export async function buildLocalAsr() {
     '-DCMAKE_BUILD_TYPE=Release',
     `-DWHISPER_SOURCE=${whisperSource}`,
   ];
+  // Windows builds ship the Vulkan GPU backend (CPU fallback stays in the
+  // binary); macOS uses Metal via CMakeLists. Linux opts in explicitly.
+  const vulkan =
+    process.env.NOTA_WHISPER_VULKAN ?? (targetPlatform === 'win32' ? '1' : '0');
+  if (vulkan === '1') cmakeArgs.push('-DNOTA_WHISPER_VULKAN=ON');
   if (targetPlatform === 'darwin')
     cmakeArgs.push(
       `-DCMAKE_OSX_ARCHITECTURES=${targetArch === 'x64' ? 'x86_64' : 'arm64'}`
     );
-  if (needle) {
-    const needleDir = path.join(buildDir, 'needle');
-    const base = `https://huggingface.co/Cactus-Compute/needle3/resolve/${needleRevision}/${needle.folder}`;
-    await fetchFile(
-      `${base}/libneedle.a`,
-      path.join(needleDir, 'libneedle.a'),
-      needle.sha256
-    );
-    await fetchFile(`${base}/needle.h`, path.join(needleDir, 'needle.h'));
-    cmakeArgs.push(
-      `-DNEEDLE_LIBRARY=${path.join(needleDir, 'libneedle.a')}`,
-      `-DNEEDLE_INCLUDE=${needleDir}`
-    );
-  } else cmakeArgs.push('-DNEEDLE_LIBRARY=');
   const cmake = process.env.NOTA_CMAKE_PATH ?? 'cmake';
   await run(cmake, cmakeArgs, { maxBuffer: 16 * 1024 * 1024 });
   await run(
@@ -129,10 +182,7 @@ export async function buildLocalAsr() {
     ['--build', path.join(buildDir, 'cmake'), '--config', 'Release', '-j', '4'],
     { maxBuffer: 32 * 1024 * 1024 }
   );
-  for (const name of [
-    'nota-whisper-helper',
-    ...(needle ? ['nota-whistle-helper'] : []),
-  ]) {
+  for (const name of ['nota-whisper-helper']) {
     const binary = name + (targetPlatform === 'win32' ? '.exe' : '');
     const candidates = [
       path.join(buildDir, 'cmake/bin', binary),
@@ -150,22 +200,16 @@ export async function buildLocalAsr() {
     await fs.copyFile(built, path.join(resourceDir, binary));
     await fs.chmod(path.join(resourceDir, binary), 0o755);
   }
+  const llamaSource = await buildLlamaServer(cmake);
   const licenseDir = path.join(resourceDir, 'licenses');
   await fs.mkdir(licenseDir, { recursive: true });
   await fs.copyFile(
+    path.join(llamaSource, 'LICENSE'),
+    path.join(licenseDir, 'llama.cpp-LICENSE')
+  );
+  await fs.copyFile(
     path.join(whisperSource, 'LICENSE'),
     path.join(licenseDir, 'whisper.cpp-LICENSE')
-  );
-  if (needle)
-    await fetchFile(
-      `https://huggingface.co/Cactus-Compute/needle3/resolve/${needleRevision}/LICENSE`,
-      path.join(licenseDir, 'Cactus-Needle-LICENSE'),
-      'cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30'
-    );
-  await fetchFile(
-    `https://huggingface.co/Cactus-Compute/whistle/resolve/${whistleRevision}/LICENSE`,
-    path.join(licenseDir, 'Whistle-model-LICENSE'),
-    'cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30'
   );
   await fetchFile(
     `https://raw.githubusercontent.com/openai/whisper/${whisperModelLicenseRevision}/LICENSE`,
@@ -174,8 +218,10 @@ export async function buildLocalAsr() {
   );
   await fs.writeFile(
     path.join(licenseDir, 'local-asr-NOTICE.txt'),
-    `Whisper.cpp: ggml-org, MIT license (${whisperCommit}).\nWhisper model: OpenAI, MIT license; weights from https://huggingface.co/ggerganov/whisper.cpp (5359861c739e955e79d9a303bcbc70fb988958b1).\nCactus Needle and Whistle: Cactus Compute, Apache-2.0.\nNeedle runtime: https://huggingface.co/Cactus-Compute/needle3 (${needleRevision}).\nWhistle model: https://huggingface.co/Cactus-Compute/whistle (${whistleRevision}).\n`
+    `Whisper.cpp: ggml-org, MIT license (${whisperCommit}).\nWhisper model: OpenAI, MIT license; weights from https://huggingface.co/ggerganov/whisper.cpp (5359861c739e955e79d9a303bcbc70fb988958b1).\nllama.cpp: ggml-org, MIT license (${llamaCommit}). Runs chat models (Qwen, Gemma) from GGUF files on the GPU.\n`
   );
-  console.log(`Local ASR helpers built for ${targetPlatform}/${targetArch}.`);
+  console.log(
+    `Local ASR and llama.cpp helpers built for ${targetPlatform}/${targetArch}.`
+  );
 }
 if (import.meta.url === `file://${process.argv[1]}`) await buildLocalAsr();

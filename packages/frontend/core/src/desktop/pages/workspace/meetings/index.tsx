@@ -618,8 +618,8 @@ function parseMeetingPayload(event: MessageEvent) {
 function formatSegmentTimestamp(
   segment: Pick<TranscriptSegment, 'endMs' | 'startMs'>
 ) {
-  const start = formatElapsedTime(Math.floor(segment.startMs / 1000));
-  const end = formatElapsedTime(Math.ceil(segment.endMs / 1000));
+  const start = formatElapsedTime(Math.round(segment.startMs / 1000));
+  const end = formatElapsedTime(Math.round(segment.endMs / 1000));
   return `${start} - ${end}`;
 }
 

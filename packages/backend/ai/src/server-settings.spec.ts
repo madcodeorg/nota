@@ -29,7 +29,7 @@ beforeEach(async () => {
   workspaceRoot = await mkdtemp(path.join(os.tmpdir(), 'nota-ai-settings-'));
   process.env.NOTA_AI_BACKEND_TOKEN = TOKEN;
   process.env.NOTA_AI_PROVIDER = 'local';
-  process.env.NOTA_AI_LOCAL_MODEL = 'gemma-4-e2b-it-onnx-q4f16';
+  process.env.NOTA_AI_LOCAL_MODEL = 'qwen3.5-2b-gguf-q4km';
   process.env.NOTA_AI_SETTINGS_PATH = path.join(
     workspaceRoot,
     'ai-settings.json'
@@ -186,14 +186,14 @@ describe('AI settings model selection', () => {
   );
   it('rejects an undownloaded curated ONNX model as the default', async () => {
     const response = await postSettings({
-      defaultModel: 'qwen3.5-0.8b-onnx-q4f16',
+      defaultModel: 'qwen3.5-0.8b-gguf-q4km',
       defaultProvider: 'local',
-      localModel: 'qwen3.5-0.8b-onnx-q4f16',
+      localModel: 'qwen3.5-0.8b-gguf-q4km',
     });
 
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toMatchObject({
-      error: expect.stringContaining('Download qwen3.5-0.8b-onnx-q4f16'),
+      error: expect.stringContaining('Download qwen3.5-0.8b-gguf-q4km'),
     });
   });
 
@@ -218,7 +218,7 @@ describe('AI settings model selection', () => {
   });
 
   it('removes a failed local probe from direct chat and the advertised catalog', async () => {
-    const modelId = 'qwen3.5-0.8b-onnx-q4f16';
+    const modelId = 'qwen3.5-0.8b-gguf-q4km';
     await installLocalOnnxFixture(modelId);
 
     const probeResponse = await fetch(

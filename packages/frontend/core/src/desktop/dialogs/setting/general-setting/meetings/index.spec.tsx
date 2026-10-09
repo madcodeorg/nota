@@ -1999,7 +1999,6 @@ describe('meeting transcription settings', () => {
 
 describe('native speech model language controls', () => {
   test.each([
-    'cactus-whistle',
     'whisper-tiny-cpp',
     'whisper-base-cpp',
     'whisper-small-cpp',
@@ -2010,7 +2009,7 @@ describe('native speech model language controls', () => {
       ...readyNemotron,
       id,
       name: id,
-      modelId: id === 'cactus-whistle' ? id : id.replace(/-cpp$/, '-q5-cpp'),
+      modelId: id.replace(/-cpp$/, '-q5-cpp'),
       transcriptMode: 'vad-chunk' as const,
     };
     const nativeModel = {
@@ -2034,19 +2033,19 @@ describe('native speech model language controls', () => {
   });
 
   test('resets an incompatible language between two selectable models', async () => {
-    const whistle = {
+    const whisper = {
       ...readyNemotron,
-      id: 'cactus-whistle',
-      name: 'Whistle',
-      modelId: 'cactus-whistle',
+      id: 'whisper-base-cpp',
+      name: 'Whisper Base',
+      modelId: 'whisper-base-q5-cpp',
       transcriptMode: 'vad-chunk' as const,
     };
     settings.meetings.sttProviderId = nemotron.id;
     settings.meetings.sttLanguage = 'fr-CA';
-    settings.meetings.sttProviders = [readyNemotron, whistle];
+    settings.meetings.sttProviders = [readyNemotron, whisper];
     settings.meetings.localModels.push({
       ...model('downloaded', 1, 'selectable'),
-      id: whistle.modelId,
+      id: whisper.modelId,
       languages: ['en', 'fr'],
       streaming: false,
     });
@@ -2054,15 +2053,15 @@ describe('native speech model language controls', () => {
     fetchMock
       .mockImplementationOnce(async (_url, init) => {
         expect(JSON.parse(String(init?.body))).toMatchObject({
-          meetingSttProviderId: 'cactus-whistle',
+          meetingSttProviderId: 'whisper-base-cpp',
           meetingSttLanguage: 'auto',
         });
-        settings.meetings.sttProviderId = whistle.id;
+        settings.meetings.sttProviderId = whisper.id;
         settings.meetings.sttLanguage = 'auto';
         runtime = backendRuntime(
-          whistle,
+          whisper,
           settings.meetings.sttProviders,
-          whistle.id
+          whisper.id
         );
         return Response.json({ ok: true });
       })
@@ -2072,7 +2071,7 @@ describe('native speech model language controls', () => {
     await act(async () => {
       fireEvent.click(
         screen.getByRole('button', {
-          name: 'Select Whistle transcription model',
+          name: 'Select Whisper Base transcription model',
         })
       );
     });

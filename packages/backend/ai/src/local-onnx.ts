@@ -6,7 +6,14 @@ import type { ModelMessage } from 'ai';
 
 import type { AiBackendConfig } from './config';
 import {
+  assertLlamaTextReady,
+  isLlamaTextResident,
+  llamaRuntimeAvailable,
+  streamLlamaText,
+} from './local-llama';
+import {
   dtypeForLocalTextModel,
+  isLlamaCppTextModel,
   isLocalOnnxTextModel,
   localModelById,
   requiredFilesFor,
@@ -80,6 +87,10 @@ let pipelineUseSequence = 0;
 const TEXT_MODELS_WITHOUT_CPU_ARENA = new Set([
   'gemma-4-e2b-it-onnx-q4f16',
   'gemma-4-e4b-it-onnx-q4f16',
+  'lfm2.5-230m-onnx-q4',
+  'lfm2.5-350m-onnx-q4f16',
+  'lfm2.5-1.2b-instruct-onnx-q4f16',
+  'lfm2.5-2.6b-onnx-q4f16',
   'qwen3.5-0.8b-onnx-q4f16',
   'qwen3.5-2b-onnx-q4f16',
   'qwen3.5-4b-onnx-q4f16',
@@ -89,6 +100,9 @@ export function isLocalOnnxTextResident(
   config: AiBackendConfig,
   modelId: string
 ) {
+  if (isLlamaCppTextModel(modelId)) {
+    return isLlamaTextResident(config, modelId);
+  }
   const entry = pipelines.get(`${modelRoot(config)}:${modelId}`);
   return !!entry?.loaded && !entry.disposing && !entry.disposeWhenIdle;
 }
@@ -115,7 +129,10 @@ export async function localOnnxFilesComplete(
   return true;
 }
 
-export async function onnxTextRuntimeAvailable() {
+export async function onnxTextRuntimeAvailable(modelId?: string) {
+  if (modelId && isLlamaCppTextModel(modelId)) {
+    return llamaRuntimeAvailable();
+  }
   try {
     await dynamicImport('@huggingface/transformers');
     return true;
@@ -467,9 +484,10 @@ function loadLocalOnnxPipeline(config: AiBackendConfig, modelId: string) {
       local_files_only: true,
       ...(TEXT_MODELS_WITHOUT_CPU_ARENA.has(modelId)
         ? {
-            // The arena retains Gemma and Qwen's large prefill allocations
-            // long enough to terminate Electron's utility process. Other
-            // local text models keep the default allocator behavior.
+            // The arena retains Gemma, Qwen and Liquid's large prefill
+            // allocations long enough to terminate Electron's utility
+            // process (BFCArena::Extend aborts). Other local text models
+            // keep the default allocator behavior.
             session_options: { enableCpuMemArena: false },
           }
         : {}),
@@ -521,6 +539,10 @@ export async function assertLocalOnnxTextReady(
 ) {
   if (!isLocalOnnxTextModel(modelId)) {
     return false;
+  }
+
+  if (isLlamaCppTextModel(modelId)) {
+    return assertLlamaTextReady(config, modelId);
   }
 
   const lease = acquirePipeline(config, modelId);
@@ -585,6 +607,9 @@ export async function streamLocalOnnxText(input: {
   onText: (text: string) => void;
 }) {
   throwIfAborted(input.abortSignal);
+  if (isLlamaCppTextModel(input.modelId)) {
+    return streamLlamaText(input);
+  }
   const lease = acquirePipeline(input.config, input.modelId);
   try {
     const [generator, transformers] = await Promise.all([
@@ -667,6 +692,9 @@ export async function generateLocalOnnxText(input: {
   modelId: string;
 }) {
   throwIfAborted(input.abortSignal);
+  if (isLlamaCppTextModel(input.modelId)) {
+    return streamLlamaText(input);
+  }
   if (input.modelId === ALWAYS_REASONING_MODEL_ID) {
     return streamLocalOnnxText({ ...input, onText: () => {} });
   }

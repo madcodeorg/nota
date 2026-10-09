@@ -311,7 +311,7 @@ beforeEach(() => {
     createdAt: new Date(Date.now() - 65_000).toISOString(),
     updatedAt: new Date().toISOString(),
     status: 'stopped',
-    providerId: 'cactus-whistle',
+    providerId: 'whisper-base-cpp',
     recordingDurationMs: 65_000,
     docId: 'saved-meeting-note',
     transcriptSegments: [segment],

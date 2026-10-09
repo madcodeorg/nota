@@ -27,6 +27,7 @@ import {
 
 import {
   canDownloadLocalModel,
+  isListedLocalModel,
   isReleasedLocalModel,
   localModelDownloadFeedback,
   localModelStatusLabel,
@@ -284,9 +285,9 @@ const embeddingModeDescriptions: Record<EmbeddingMode, string> = {
 
 const fallbackSettings: AIBackendSettings = {
   provider: 'local',
-  model: 'qwen3.5-2b-onnx-q4f16',
+  model: 'qwen3.5-2b-gguf-q4km',
   models: {
-    defaultModel: 'local:qwen3.5-2b-onnx-q4f16',
+    defaultModel: 'local:qwen3.5-2b-gguf-q4km',
     optionalModels: [],
     proModels: [],
   },
@@ -298,7 +299,7 @@ const fallbackSettings: AIBackendSettings = {
     ...openAICompatibleProviderNames,
   ],
   localBaseUrl: 'http://localhost:11434/v1',
-  localModel: 'qwen3.5-2b-onnx-q4f16',
+  localModel: 'qwen3.5-2b-gguf-q4km',
   openaiModel: 'gpt-5-mini',
   anthropicModel: 'claude-sonnet-4-5-20250929',
   googleModel: 'gemini-2.5-flash',
@@ -633,7 +634,12 @@ export const AISettingsPanel = ({
   const localTextModels = useMemo(
     () =>
       settings.meetings.localModels
-        .filter(model => model.type === 'text' && isReleasedLocalModel(model))
+        .filter(
+          model =>
+            model.type === 'text' &&
+            isListedLocalModel(model) &&
+            isReleasedLocalModel(model)
+        )
         .sort((a, b) => {
           const tierOrder = { small: 0, medium: 1, large: 2 };
           return tierOrder[a.tier ?? 'large'] - tierOrder[b.tier ?? 'large'];

@@ -19,6 +19,7 @@ import multer from 'multer';
 
 import type { AiBackendConfig } from './config';
 import { availableMemoryBytes } from './device-memory';
+import { llamaExecutionProvider, llamaRuntimeAvailable } from './local-llama';
 import {
   assertLocalOnnxTextReady,
   isLocalOnnxTextResident,
@@ -38,6 +39,11 @@ import {
 } from './meeting-capture-pipeline';
 import { MeetingFinalizationTracker } from './meeting-finalization';
 import { generateMeetingSummary } from './meeting-summary';
+import { checkMeetingTranscript } from './meeting-transcript-check';
+import {
+  cleanTranscriptText,
+  isIsolatedFillerLine,
+} from './meeting-transcript-clean';
 import {
   createMeetingSileroVad,
   resolveMeetingVadAsset,
@@ -79,7 +85,6 @@ export {
 
 type PlatformId = 'darwin' | 'win32' | 'linux' | NodeJS.Platform;
 type SttProviderId =
-  | 'cactus-whistle'
   | 'whisper-tiny-cpp'
   | 'whisper-base-cpp'
   | 'whisper-small-cpp'
@@ -115,7 +120,6 @@ const CHUNKED_ONNX_STT_PROVIDER_IDS = new Set<SttProviderId>([
 ]);
 
 const KNOWN_STT_PROVIDER_IDS = new Set<SttProviderId>([
-  'cactus-whistle',
   'whisper-tiny-cpp',
   'whisper-base-cpp',
   'whisper-small-cpp',
@@ -143,9 +147,7 @@ function isKnownSttProviderId(id: unknown): id is SttProviderId {
 function nativeAsrRuntime(
   model: LocalModelManifest | null | undefined
 ): NativeAsrRuntime | null {
-  return model?.runtime === 'cactus-needle' || model?.runtime === 'whisper.cpp'
-    ? model.runtime
-    : null;
+  return model?.runtime === 'whisper.cpp' ? model.runtime : null;
 }
 function nativeAsrModelPath(
   config: AiBackendConfig,
@@ -267,6 +269,7 @@ interface LocalModelRuntimeProbe {
 
 interface LocalModelDeviceHealth {
   arch: string;
+  chatExecutionProvider: string;
   availableDiskGb: number | null;
   availableRamGb: number;
   executionProviders: string[];
@@ -557,10 +560,14 @@ function fitModelToDevice(
     };
   }
 
-  if (!resident && device.availableRamGb < model.minRamGb) {
+  // llama.cpp maps the weights, so what matters is the machine size, not how
+  // much memory other apps happen to hold at this moment.
+  const memoryGb =
+    model.runtime === 'llama.cpp' ? device.totalRamGb : device.availableRamGb;
+  if (!resident && memoryGb < model.minRamGb) {
     return {
       deviceFit: 'low_ram',
-      deviceFitReason: `Needs ${model.minRamGb}GB RAM target; this device currently reports ${device.availableRamGb}GB available.`,
+      deviceFitReason: `Needs ${model.minRamGb}GB RAM target; this device reports ${memoryGb}GB ${model.runtime === 'llama.cpp' ? 'total' : 'available'}.`,
     };
   }
 
@@ -1575,6 +1582,7 @@ export async function getLocalModelHealth(config: AiBackendConfig): Promise<{
     arch: os.arch(),
     availableDiskGb,
     availableRamGb,
+    chatExecutionProvider: llamaExecutionProvider(),
     executionProviders: executionProvidersForPlatform(process.platform),
     modelRoot,
     platform: process.platform,
@@ -1603,28 +1611,9 @@ export async function getLocalModelHealth(config: AiBackendConfig): Promise<{
 }
 
 function getBaseSttProviderManifests(
-  platform: PlatformId = process.platform
+  _platform: PlatformId = process.platform
 ): BaseSttProviderManifest[] {
-  const isMac = platform === 'darwin';
-  const whistleSupported = !isMac || process.arch === 'arm64';
-  const isWindows = platform === 'win32';
-  const isLinux = platform === 'linux';
-
   return [
-    {
-      id: 'cactus-whistle',
-      name: 'Whistle — Small, 7 languages',
-      platform: whistleSupported
-        ? ['macos', 'windows', 'linux']
-        : ['windows', 'linux'],
-      local: true,
-      streaming: false,
-      downloadRequired: true,
-      defaultForPlatform: whistleSupported,
-      modelId: 'cactus-whistle',
-      notes:
-        'Compact local transcription in English, German, French, Spanish, Italian, Dutch and Polish. Final text after each phrase.',
-    },
     ...(['tiny', 'base', 'small', 'medium', 'large-v3'] as const).map(size => ({
       id: `whisper-${size}-cpp` as SttProviderId,
       name: `Whisper ${size === 'large-v3' ? 'Large v3' : size[0].toUpperCase() + size.slice(1)} Q5`,
@@ -1634,7 +1623,7 @@ function getBaseSttProviderManifests(
       local: true,
       streaming: false,
       downloadRequired: true,
-      defaultForPlatform: false,
+      defaultForPlatform: size === 'base',
       modelId: `whisper-${size}-q5-cpp`,
       notes:
         'Multilingual whisper.cpp with automatic detection or a preferred language. Final text after each phrase.',
@@ -1663,7 +1652,7 @@ function getBaseSttProviderManifests(
       local: true,
       streaming: true,
       downloadRequired: true,
-      defaultForPlatform: !whistleSupported && (isMac || isWindows || isLinux),
+      defaultForPlatform: false,
       unavailableReason:
         'Native Nemotron requires the sherpa-onnx runtime and downloaded 560 ms INT8 model files.',
       modelId: 'sherpa-nemotron-3.5-streaming-560ms-int8',
@@ -1865,8 +1854,8 @@ function updateAppleSpeechBridge(input: {
 }
 
 async function runtimeAvailable(runtime: LocalModelManifest['runtime']) {
-  if (runtime === 'cactus-needle' || runtime === 'whisper.cpp')
-    return nativeAsrRuntimeAvailable(runtime);
+  if (runtime === 'whisper.cpp') return nativeAsrRuntimeAvailable(runtime);
+  if (runtime === 'llama.cpp') return llamaRuntimeAvailable();
   if (runtime === 'apple-speech') {
     return appleSpeechBridge.available;
   }
@@ -2009,12 +1998,15 @@ async function probeLocalModelRuntime(
   }
 
   if (model.type === 'text') {
-    const runtimeReady = await onnxTextRuntimeAvailable();
+    const runtimeReady = await onnxTextRuntimeAvailable(model.id);
     if (!runtimeReady) {
       return localModelProbeResult(model, {
         canLoad: false,
         config,
-        message: '@huggingface/transformers is not installed.',
+        message:
+          model.runtime === 'llama.cpp'
+            ? 'The local model runtime (nota-llama-server) is not installed.'
+            : '@huggingface/transformers is not installed.',
         runtimeAvailable: false,
         status: 'missing_runtime',
       });
@@ -2620,7 +2612,26 @@ async function transcribeSttChunks(input: {
   return transcriptionText(result);
 }
 
-async function postMeetingSttModelCandidates(
+// Optional high-accuracy model used only for the after-meeting transcript, and
+// only when the user downloaded it during onboarding or in settings.
+const POST_MEETING_TURBO_MODEL_ID = 'whisper-large-v3-turbo-q5-cpp';
+
+async function installedPostMeetingTurboModelIds(
+  config: AiBackendConfig,
+  language?: string
+) {
+  const model = modelById(POST_MEETING_TURBO_MODEL_ID);
+  if (model?.type !== 'stt') return [];
+  if (language && language !== 'auto') {
+    const base = new Intl.Locale(language).language;
+    if (!model.languages.includes(base)) return [];
+  }
+  return (await localModelFilesStatus(config, model)).complete
+    ? [model.id]
+    : [];
+}
+
+export async function postMeetingSttModelCandidates(
   config: AiBackendConfig,
   runtime: MeetingRuntime
 ) {
@@ -2633,12 +2644,21 @@ async function postMeetingSttModelCandidates(
       runtime.meeting.sttLanguage,
       runtime.provider.id
     );
-    return [runtime.provider.modelId || runtime.meeting.sttModelId];
+    return [
+      ...(await installedPostMeetingTurboModelIds(
+        config,
+        runtime.meeting.sttLanguage
+      )),
+      runtime.provider.modelId || runtime.meeting.sttModelId,
+    ].filter(
+      (modelId, index, all): modelId is string =>
+        !!modelId && all.indexOf(modelId) === index
+    );
   }
   const candidateIds = [
+    ...(await installedPostMeetingTurboModelIds(config)),
     runtime.provider.modelId,
     runtime.meeting.sttModelId,
-    'cactus-whistle',
     'whisper-small-q5-cpp',
     'whisper-base-q5-cpp',
     'whisper-tiny-q5-cpp',
@@ -2776,6 +2796,29 @@ export async function discardMeetingFallbackAudioAfterRecovery(input: {
   await input.fallbackAudioSpool.discard();
 }
 
+// Recovery must decode in the language the meeting was spoken in; an unlocked
+// 'auto' pass can switch language on short or noisy audio.
+function recoveryLanguage(runtime: MeetingRuntime) {
+  const configured = runtime.meeting.sttLanguage;
+  if (configured && configured !== 'auto') return configured;
+  return runtime.stt.detectedLanguage ?? 'auto';
+}
+
+// The recovered text is the better copy of the same speech, so it replaces the
+// live final segments it covers instead of sitting beside them.
+export function replaceLiveSegmentsWithRecovery(
+  runtime: Pick<MeetingRuntime, 'transcriptSegments'>,
+  recovered: Pick<TranscriptSegment, 'endMs' | 'source' | 'startMs'>
+) {
+  runtime.transcriptSegments = runtime.transcriptSegments.filter(existing => {
+    if (existing.type !== 'final' || existing.source !== recovered.source) {
+      return true;
+    }
+    const duration = Math.max(1, existing.endMs - existing.startMs);
+    return transcriptSegmentOverlap(existing, recovered) / duration < 0.5;
+  });
+}
+
 async function transcribeStoppedMeetingFallback(
   config: AiBackendConfig,
   runtime: MeetingRuntime
@@ -2814,7 +2857,7 @@ async function transcribeStoppedMeetingFallback(
         recoveredChunks += group.length;
         modelIds ??= await postMeetingSttModelCandidates(config, runtime);
         const decoded = await transcribeSttChunksWithModelFallback({
-          language: runtime.meeting.sttLanguage ?? 'auto',
+          language: recoveryLanguage(runtime),
           chunks: group,
           config,
           modelIds,
@@ -2822,9 +2865,13 @@ async function transcribeStoppedMeetingFallback(
             runtime.stt.message = `Recovering transcript gap ${completedWindows} with ${modelId}.`;
           },
         });
-        const { text } = decoded;
-        if (!text.trim()) {
+        if (!decoded.text.trim()) {
           unresolvedGroups++;
+          continue;
+        }
+        // Tags and filler are not speech; an empty result is still resolved.
+        const text = cleanTranscriptText(decoded.text);
+        if (!text) {
           continue;
         }
         const first = group[0];
@@ -2846,12 +2893,15 @@ async function transcribeStoppedMeetingFallback(
       }
     }
 
-    fallbackSegments
+    dedupeRecoveredTranscriptSegments(fallbackSegments)
       .sort(
         (first, second) =>
           first.startMs - second.startMs || first.endMs - second.endMs
       )
-      .forEach(segment => applyTranscriptSegment(runtime, segment));
+      .forEach(segment => {
+        replaceLiveSegmentsWithRecovery(runtime, segment);
+        applyTranscriptSegment(runtime, segment);
+      });
     await persistMeetings(config);
     // Every uncovered speech window produced a non-empty transcript, or was
     // already covered by a final segment. Only then is it safe to drop the
@@ -3242,7 +3292,6 @@ function transcriptModeForProvider(
   }
   if (
     readiness.runtimeId === 'sherpa-onnx' ||
-    readiness.runtimeId === 'cactus-needle' ||
     readiness.runtimeId === 'whisper.cpp'
   ) {
     return 'vad-chunk';
@@ -3258,7 +3307,6 @@ function canProduceTranscript(
     readiness.available &&
     (provider.id === 'apple-speechanalyzer' ||
       readiness.runtimeId === 'sherpa-onnx' ||
-      readiness.runtimeId === 'cactus-needle' ||
       readiness.runtimeId === 'whisper.cpp' ||
       isChunkedOnnxProviderId(provider.id))
   );
@@ -3327,10 +3375,9 @@ export function selectMeetingSttProvider(input: {
   }
 
   const platformOrder = [
-    'cactus-whistle',
+    'whisper-base-cpp',
     'nemotron-sherpa',
     'whisper-small-cpp',
-    'whisper-base-cpp',
     'whisper-tiny-cpp',
     'whisper-medium-cpp',
     'whisper-large-v3-cpp',
@@ -3518,6 +3565,9 @@ async function persistMeetingMutation(
 // only needs to be roughly current (it is rebuildable runtime cache).
 let persistMeetingsTimer: ReturnType<typeof setTimeout> | null = null;
 const PERSIST_MEETINGS_DEBOUNCE_MS = 3000;
+// Set while the background save is failing (disk full, permissions). Live
+// sessions show it so a transcript is not silently left unsaved.
+let meetingSaveError: string | null = null;
 
 function schedulePersistMeetings(config: AiBackendConfig) {
   if (persistMeetingsTimer) {
@@ -3525,7 +3575,15 @@ function schedulePersistMeetings(config: AiBackendConfig) {
   }
   persistMeetingsTimer = setTimeout(() => {
     persistMeetingsTimer = null;
-    persistMeetings(config).catch(() => {});
+    persistMeetings(config).then(
+      () => {
+        meetingSaveError = null;
+      },
+      saveError => {
+        meetingSaveError = errorMessage(saveError);
+        console.error('[nota-meetings] Saving meetings failed:', saveError);
+      }
+    );
   }, PERSIST_MEETINGS_DEBOUNCE_MS);
 }
 
@@ -3614,10 +3672,14 @@ function readPersistedMeeting(value: unknown) {
   }
   const record = value as Record<string, unknown>;
   const meeting = record.meeting as Record<string, unknown> | undefined;
+  // Whistle was removed; keep meetings recorded with it readable and let
+  // their retained audio be re-transcribed with Whisper Base.
+  const legacyWhistle = meeting?.providerId === 'cactus-whistle';
   if (
     !meeting ||
     typeof meeting.id !== 'string' ||
-    (!isKnownSttProviderId(meeting.providerId) &&
+    (!legacyWhistle &&
+      !isKnownSttProviderId(meeting.providerId) &&
       meeting.providerId !== 'nemotron-onnx') ||
     typeof meeting.sttModelId !== 'string' ||
     typeof meeting.createdAt !== 'string' ||
@@ -3652,7 +3714,9 @@ function readPersistedMeeting(value: unknown) {
         typeof meeting.microphoneRecordingPath === 'string'
           ? meeting.microphoneRecordingPath
           : null,
-      providerId: meeting.providerId,
+      providerId: legacyWhistle
+        ? ('whisper-base-cpp' as const)
+        : (meeting.providerId as SttProviderId | 'nemotron-onnx'),
       recordingDurationMs:
         typeof meeting.recordingDurationMs === 'number' &&
         Number.isFinite(meeting.recordingDurationMs)
@@ -3674,7 +3738,7 @@ function readPersistedMeeting(value: unknown) {
         meeting.savedTranscriptSegmentSnapshots
       ),
       status: 'stopped',
-      sttModelId: meeting.sttModelId,
+      sttModelId: legacyWhistle ? 'whisper-base-q5-cpp' : meeting.sttModelId,
       sttLanguage:
         typeof meeting.sttLanguage === 'string' ? meeting.sttLanguage : 'auto',
       summary: typeof meeting.summary === 'string' ? meeting.summary : null,
@@ -3783,8 +3847,11 @@ function formatMsRange(segment: Pick<TranscriptSegment, 'endMs' | 'startMs'>) {
   return `${formatMs(segment.startMs)} - ${formatMs(segment.endMs)}`;
 }
 
-function transcriptText(runtime: MeetingRuntime) {
-  return runtime.transcriptSegments
+function transcriptText(
+  runtime: MeetingRuntime,
+  segments: TranscriptSegment[] = runtime.transcriptSegments
+) {
+  return segments
     .map(segment => {
       const speaker =
         runtime.provider.id === 'apple-speechanalyzer'
@@ -3841,6 +3908,33 @@ export function fallbackAudioChunksWithoutTranscriptCoverage(
       );
     });
   });
+}
+
+function transcriptWords(text: string) {
+  return text.toLowerCase().match(/[\p{L}\p{N}']+/gu) ?? [];
+}
+
+// Recovery decodes each source's durable audio separately. When the mic hears
+// the speakers, both sources yield the same sentence at the same time. Keep
+// the fuller copy; genuinely simultaneous speakers use different words.
+export function dedupeRecoveredTranscriptSegments<
+  T extends Pick<TranscriptSegment, 'endMs' | 'source' | 'startMs' | 'text'>,
+>(segments: T[]) {
+  const kept: T[] = [];
+  const ordered = [...segments].sort(
+    (a, b) => transcriptWords(b.text).length - transcriptWords(a.text).length
+  );
+  for (const segment of ordered) {
+    const words = transcriptWords(segment.text);
+    const duplicate = kept.some(other => {
+      if (transcriptSegmentOverlap(segment, other) <= 0) return false;
+      const otherWords = new Set(transcriptWords(other.text));
+      const shared = words.filter(word => otherWords.has(word)).length;
+      return words.length > 0 && shared / words.length >= 0.6;
+    });
+    if (!duplicate) kept.push(segment);
+  }
+  return kept;
 }
 
 export function shouldCoalesceFinalTranscriptSegments(
@@ -3938,6 +4032,16 @@ function applyTranscriptSegment(
   if (segment.type === 'partial') {
     runtime.partialSegment = segment;
   } else {
+    const text = cleanTranscriptText(segment.text);
+    if (
+      !text ||
+      (runtime.provider.id !== 'apple-speechanalyzer' &&
+        isIsolatedFillerLine(text, segment.endMs - segment.startMs))
+    ) {
+      runtime.partialSegment = null;
+      return;
+    }
+    segment = { ...segment, text };
     const overlapIndex = runtime.transcriptSegments.findIndex(existing => {
       if (existing.type !== 'final' || existing.source !== segment.source) {
         return false;
@@ -3991,7 +4095,9 @@ async function persistTranscriptEvent(
 ) {
   schedulePersistMeetings(config);
   if (segment.type === 'final') {
-    await upsertMeetingSearchDocument(config, runtime).catch(() => {});
+    await upsertMeetingSearchDocument(config, runtime).catch(indexError => {
+      console.warn('[nota-meetings] Search index update failed:', indexError);
+    });
   }
 }
 
@@ -4686,7 +4792,8 @@ function createMixedCaptureSttSession(
   let acceptingFrames = true;
   let vadWarning = '';
   let lateWarning = '';
-  const warning = () => `${vadWarning}${lateWarning}`;
+  let saveWarning = '';
+  const warning = () => `${vadWarning}${lateWarning}${saveWarning}`;
 
   runtime.stt.status = 'starting';
   runtime.stt.message = `Loading ${provider.name} for live transcription.`;
@@ -4721,9 +4828,17 @@ function createMixedCaptureSttSession(
           metrics.lateAudioMs > 0
             ? ' Some late audio missed live mixing; the recording is preserved.'
             : '';
-        if (nextVadWarning !== vadWarning || nextLateWarning !== lateWarning) {
+        const nextSaveWarning = meetingSaveError
+          ? ` The transcript is not being saved to disk: ${meetingSaveError}`
+          : '';
+        if (
+          nextVadWarning !== vadWarning ||
+          nextLateWarning !== lateWarning ||
+          nextSaveWarning !== saveWarning
+        ) {
           vadWarning = nextVadWarning;
           lateWarning = nextLateWarning;
+          saveWarning = nextSaveWarning;
           runtime.stt.message = `Live transcription is running with ${provider.name}.${warning()}`;
           broadcast(runtime, 'status', {
             type: 'status',
@@ -4959,11 +5074,17 @@ async function startSttSession(
   runtime.sttSession = createPendingAdapterSttSession(runtime, provider);
 }
 
-function meetingSummaryInput(req: Request, runtime: MeetingRuntime) {
+function meetingSummaryInput(
+  req: Request,
+  runtime: MeetingRuntime,
+  checkedTranscript?: string
+) {
   const meeting = runtime.meeting;
   const body = req.body && typeof req.body === 'object' ? req.body : {};
   const transcript =
-    typeof body.transcript === 'string' ? body.transcript.trim() : '';
+    typeof body.transcript === 'string' && body.transcript.trim()
+      ? body.transcript.trim()
+      : (checkedTranscript ?? '');
   const notes = typeof body.notes === 'string' ? body.notes.trim() : '';
   const title = typeof body.title === 'string' ? body.title.trim() : 'Meeting';
   const source =
@@ -6065,9 +6186,43 @@ export function registerMeetingRoutes({
       const requestedModelId =
         typeof req.body?.modelId === 'string' ? req.body.modelId : undefined;
       const selected = _models.select(requestedModelId);
+      // Opt-in: check the recognized transcript with the same text model
+      // before summarizing (adds a full extra model pass). The stored
+      // transcript is unchanged; a failed check only means the summary reads
+      // the unchecked lines.
+      let transcriptCheck: {
+        error?: string;
+        fixed: number;
+        removed: number;
+      } | null = null;
+      let checkedTranscript: string | undefined;
+      const finals = runtime.transcriptSegments.filter(
+        segment => segment.type === 'final' && segment.text.trim()
+      );
+      if (
+        req.body?.checkTranscript === true &&
+        typeof req.body?.transcript !== 'string' &&
+        finals.length
+      ) {
+        try {
+          const checked = await checkMeetingTranscript({
+            config,
+            lines: finals,
+            selected,
+          });
+          checkedTranscript = transcriptText(runtime, checked.lines);
+          transcriptCheck = { fixed: checked.fixed, removed: checked.removed };
+        } catch (checkError) {
+          transcriptCheck = {
+            error: errorMessage(checkError),
+            fixed: 0,
+            removed: 0,
+          };
+        }
+      }
       const summary = await generateMeetingSummary({
         config,
-        prompt: meetingSummaryInput(req, runtime),
+        prompt: meetingSummaryInput(req, runtime, checkedTranscript),
         selected,
       });
 
@@ -6084,6 +6239,7 @@ export function registerMeetingRoutes({
           structured: summary.structured,
           text: summary.text,
         },
+        transcriptCheck,
       });
     } catch (summaryError) {
       error(res, 500, errorMessage(summaryError));

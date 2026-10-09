@@ -5,20 +5,14 @@ import { createInterface } from 'node:readline';
 
 import type { MeetingUtteranceDecoder } from './meeting-capture-pipeline';
 
-export type NativeAsrRuntime = 'cactus-needle' | 'whisper.cpp';
+export type NativeAsrRuntime = 'whisper.cpp';
 type Recognition = { text: string; language: string | null };
 const workers = new Map<string, NativeAsrWorker>();
 const IDLE_MS = 60_000;
 
-export function nativeAsrHelperPath(runtime: NativeAsrRuntime) {
-  const name =
-    runtime === 'cactus-needle' ? 'nota-whistle-helper' : 'nota-whisper-helper';
-  const override =
-    process.env[
-      runtime === 'cactus-needle'
-        ? 'NOTA_WHISTLE_HELPER_PATH'
-        : 'NOTA_WHISPER_HELPER_PATH'
-    ];
+export function nativeAsrHelperPath(_runtime: NativeAsrRuntime) {
+  const name = 'nota-whisper-helper';
+  const override = process.env.NOTA_WHISPER_HELPER_PATH;
   const binary = name + (process.platform === 'win32' ? '.exe' : '');
   const candidates = [
     override,
@@ -230,7 +224,7 @@ export async function createNativeAsrDecoder(
   let count = 0;
   return {
     executionProvider:
-      runtime === 'cactus-needle' ? 'cactus-cpu' : 'whisper-cpp-cpu',
+      process.env.NOTA_ASR_GPU === '0' ? 'whisper-cpp-cpu' : 'whisper-cpp-gpu',
     supportsPartials: false,
     pushPcm16(pcm) {
       chunks.push(pcm.slice());

@@ -2,6 +2,7 @@ import { describe, expect, test } from 'vitest';
 
 import {
   canDownloadLocalModel,
+  isListedLocalModel,
   isReleasedLocalModel,
   localModelDownloadFeedback,
   localModelStatusLabel,
@@ -405,5 +406,22 @@ describe('local model download feedback', () => {
         error: 'Less specific error',
       })
     ).toEqual({ accepted: false, message: '' });
+  });
+});
+
+describe('isListedLocalModel', () => {
+  test('hides retired ONNX chat models but keeps GPU chat and other types', () => {
+    expect(isListedLocalModel({ runtime: 'onnxruntime', type: 'text' })).toBe(
+      false
+    );
+    expect(isListedLocalModel({ runtime: 'llama.cpp', type: 'text' })).toBe(
+      true
+    );
+    expect(
+      isListedLocalModel({ runtime: 'onnxruntime', type: 'embedding' })
+    ).toBe(true);
+    expect(isListedLocalModel({ runtime: 'whisper.cpp', type: 'stt' })).toBe(
+      true
+    );
   });
 });

@@ -6,7 +6,6 @@ type SelectionInput = Parameters<typeof selectMeetingSttProvider>[0];
 type Provider = SelectionInput['providers'][number];
 
 const modelIds: Record<Provider['id'], string | undefined> = {
-  'cactus-whistle': 'cactus-whistle',
   'whisper-tiny-cpp': 'whisper-tiny-q5-cpp',
   'whisper-base-cpp': 'whisper-base-q5-cpp',
   'whisper-small-cpp': 'whisper-small-q5-cpp',
@@ -74,17 +73,17 @@ function config(meetingSttProviderId = 'auto'): SelectionInput['config'] {
 describe.each([
   {
     platform: 'darwin',
-    primary: 'cactus-whistle',
+    primary: 'whisper-base-cpp',
     secondary: 'nemotron-sherpa',
   },
   {
     platform: 'win32',
-    primary: 'cactus-whistle',
+    primary: 'whisper-base-cpp',
     secondary: 'nemotron-sherpa',
   },
   {
     platform: 'linux',
-    primary: 'cactus-whistle',
+    primary: 'whisper-base-cpp',
     secondary: 'nemotron-sherpa',
   },
 ] as const)(
@@ -245,7 +244,7 @@ describe('Apple Speech stays manual-only', () => {
         })
       ).toMatchObject({
         error: null,
-        provider: { id: 'cactus-whistle', available: false },
+        provider: { id: 'whisper-base-cpp', available: false },
         requestedProviderId: 'auto',
       });
     }
