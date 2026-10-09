@@ -68,6 +68,9 @@ const mocks = vi.hoisted(() => {
       }),
       workspaceSelectorOpen$: liveData(false),
       setWorkspaceSelectorOpen: vi.fn(),
+      openSidebar: vi.fn(),
+      closeSidebar: vi.fn(),
+      setSidebarOpen: vi.fn(),
       open: vi.fn(),
       openDoc: vi.fn(),
     },
@@ -171,6 +174,9 @@ vi.mock('@nota/infra', async () => {
   ]);
   const getService = (token: symbol) => services.get(token) ?? {};
   return {
+    LiveData: {
+      computed: () => ({ value: [], subscribe: () => () => {} }),
+    },
     useFramework: () => ({ getOptional: () => undefined }),
     useService: getService,
     useServiceOptional: getService,
@@ -191,7 +197,38 @@ vi.mock('@nota/infra', async () => {
       ),
   };
 });
-vi.mock('@nota/component', () => ({ notify: mocks.notify }));
+vi.mock('@nota/core/components/root-app-sidebar/ai-panel-slot', () => ({
+  aiPanelSlot$: { value: null, next: () => {}, subscribe: () => () => {} },
+  pagePanelSlot$: { value: null, next: () => {}, subscribe: () => () => {} },
+  // Meeting history lives in the rail's Meetings section.
+  sidebarSection$: { value: 'meetings', subscribe: () => () => {} },
+  setSidebarSection: () => {},
+}));
+vi.mock('@nota/core/modules/app-sidebar/services/app-sidebar', () => ({
+  AppSidebarService: Symbol('AppSidebarService'),
+}));
+vi.mock('@nota/core/modules/dialogs', () => ({
+  WorkspaceDialogService: Symbol('WorkspaceDialogService'),
+}));
+vi.mock('@nota/core/modules/doc', () => ({
+  DocsService: Symbol('DocsService'),
+}));
+vi.mock('@nota/core/modules/doc-display-meta', () => ({
+  DocDisplayMetaService: Symbol('DocDisplayMetaService'),
+}));
+vi.mock('@nota/core/modules/quicksearch/services/cmdk', () => ({
+  CMDKQuickSearchService: Symbol('CMDKQuickSearchService'),
+}));
+vi.mock('@nota/core/components/root-app-sidebar/user-info', () => ({
+  default: () => null,
+}));
+vi.mock('@nota/component', () => ({
+  notify: mocks.notify,
+  Menu: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  MenuItem: () => null,
+  MenuSeparator: () => null,
+  Tooltip: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+}));
 vi.mock('@nota/i18n', () => ({
   useI18n: () => new Proxy({}, { get: (_, key) => () => String(key) }),
 }));
@@ -445,18 +482,20 @@ describe('stopped meeting review', () => {
     expect(within(historyItem).getByText('Open notes')).toBeTruthy();
   });
 
-  test('keeps ordinary note navigation free of unrelated meeting history', async () => {
+  test('lists meeting history in the Meetings panel without selecting it on an unrelated note', async () => {
     mocks.workbench.location$.set({ pathname: '/ordinary-note', search: '' });
     render(<RootAppSidebar />);
     await waitFor(() => expect(mocks.fetch).toHaveBeenCalled());
-    expect(screen.queryByText('Open notes')).toBeNull();
-    expect(screen.getByText('Favorites')).toBeTruthy();
+    const item = (
+      await screen.findByText('01:05 · 1 transcript lines')
+    ).closest('button')!;
+    expect(item.dataset.selected).not.toBe('true');
     await act(async () => {
       mocks.workbench.location$.set({
         pathname: '/saved-meeting-note',
         search: '',
       });
     });
-    expect(await screen.findByText('Open notes')).toBeTruthy();
+    await waitFor(() => expect(item.dataset.selected).toBe('true'));
   });
 });

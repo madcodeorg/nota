@@ -7,7 +7,7 @@ import type { AffineDNDData } from '@nota/core/types/dnd';
 import { useI18n } from '@nota/i18n';
 import { useLiveData, useService, useServiceOptional } from '@nota/infra';
 import clsx from 'clsx';
-import type { PropsWithChildren, ReactElement } from 'react';
+import type { PropsWithChildren, ReactElement, ReactNode } from 'react';
 import { useCallback, useContext, useEffect, useMemo } from 'react';
 
 import { WorkbenchService } from '../../workbench';
@@ -21,21 +21,26 @@ import {
   navHeaderStyle,
   navStyle,
   navWrapperStyle,
+  railColumnStyle,
   resizeHandleShortcutStyle,
   sidebarFloatMaskStyle,
 } from './index.css';
-import { SidebarHeader } from './sidebar-header';
+import { SidebarHeader, SidebarSwitch } from './sidebar-header';
 
 export type History = {
   stack: string[];
   current: number;
 };
 
-const MAX_WIDTH = 480;
-const MIN_WIDTH = 248;
+const MAX_WIDTH = 560;
+const MIN_WIDTH = 300;
+const RAIL_WIDTH = 52;
 const isMacosDesktop = BUILD_CONFIG.isElectron && environment.isMacOs;
 
-export function AppSidebar({ children }: PropsWithChildren) {
+export function AppSidebar({
+  children,
+  rail,
+}: PropsWithChildren<{ rail?: ReactNode }>) {
   const { appSettings } = useAppSettingHelper();
 
   const clientBorder = appSettings.clientBorder;
@@ -99,7 +104,7 @@ export function AppSidebar({ children }: PropsWithChildren) {
         return;
       }
 
-      if (e.clientX > width + 20) {
+      if (e.clientX > width + (rail ? RAIL_WIDTH : 0) + 20) {
         appSidebarService.setHovering(false);
       }
     };
@@ -107,7 +112,7 @@ export function AppSidebar({ children }: PropsWithChildren) {
     return () => {
       document.removeEventListener('mousemove', onMouseMove);
     };
-  }, [appSidebarService, resizing, sidebarState, width]);
+  }, [appSidebarService, rail, resizing, sidebarState, width]);
 
   const resizeHandleDropTargetOptions = useMemo(() => {
     return () => ({
@@ -136,6 +141,28 @@ export function AppSidebar({ children }: PropsWithChildren) {
 
   return (
     <>
+      {rail ? (
+        <div
+          className={railColumnStyle}
+          data-testid="app-sidebar-rail-column"
+          onMouseMove={() => {
+            if (
+              !open &&
+              !appSidebarService.hovering$.value &&
+              !appSidebarService.preventHovering$.value
+            ) {
+              appSidebarService.setHovering(true);
+            }
+          }}
+        >
+          {!BUILD_CONFIG.isElectron && (
+            <div className={navHeaderStyle}>
+              <SidebarSwitch show />
+            </div>
+          )}
+          {rail}
+        </div>
+      ) : null}
       <ResizePanel
         resizeHandleDropTargetOptions={resizeHandleDropTargetOptions}
         floating={
@@ -172,7 +199,7 @@ export function AppSidebar({ children }: PropsWithChildren) {
         data-is-electron={BUILD_CONFIG.isElectron}
       >
         <nav className={navStyle} data-testid="app-sidebar">
-          {!BUILD_CONFIG.isElectron && sidebarState !== 'floating' && (
+          {!rail && !BUILD_CONFIG.isElectron && sidebarState !== 'floating' && (
             <SidebarHeader />
           )}
           <div className={navBodyStyle} data-testid="sliderBar-inner">

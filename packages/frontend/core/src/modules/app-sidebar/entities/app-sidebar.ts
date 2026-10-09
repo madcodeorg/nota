@@ -28,8 +28,11 @@ export class AppSidebar extends Entity {
   width$ = LiveData.from(
     this.appSidebarState
       .watch<number>(APP_SIDEBAR_STATE.WIDTH)
-      .pipe(map(value => value ?? 248)),
-    this.appSidebarState.get<number>(APP_SIDEBAR_STATE.WIDTH) ?? 248
+      .pipe(map(value => Math.max(value ?? 320, 300))),
+    Math.max(
+      this.appSidebarState.get<number>(APP_SIDEBAR_STATE.WIDTH) ?? 320,
+      300
+    )
   );
 
   activeTab$ = LiveData.from(

@@ -16,4 +16,4 @@ Push a tag like `v0.1.4-beta.1`. It is published as a pre-release and feeds
 ## Rules
 - Never publish a draft you have not installed.
 - `v*` tags are locked. Fix a bad release with a new version, never a moved tag.
-- Only macOS is built today.
+- Only macOS is built today. See docs/PLATFORMS.md for Windows and Linux.
