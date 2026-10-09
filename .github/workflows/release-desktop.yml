@@ -50,7 +50,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: ${{ inputs.build-type }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Setup Version
         uses: ./.github/actions/setup-version
         with:
@@ -71,7 +71,7 @@ jobs:
           NOTA_SKIP_LOCAL_ASR: '1'
 
       - name: Upload web artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: desktop-web
           path: packages/frontend/apps/electron/resources/web-static
@@ -164,7 +164,7 @@ jobs:
     outputs:
       FILES_TO_BE_SIGNED_x64: ${{ steps.get_files_to_be_signed.outputs.FILES_TO_BE_SIGNED_x64 }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Setup Version
         uses: ./.github/actions/setup-version
         with:
@@ -179,14 +179,14 @@ jobs:
         env:
           npm_config_arch: ${{ matrix.spec.arch }}
       - name: Download packaged artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: packaged-${{ matrix.spec.platform }}-${{ matrix.spec.arch }}
           path: packaged-unsigned
       - name: unzip packaged artifacts
         run: Expand-Archive -Path packaged-unsigned/archive.zip -DestinationPath packages/frontend/apps/electron/out
       - name: Download signed packaged file diff
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: signed-packaged-${{ matrix.spec.platform }}-${{ matrix.spec.arch }}
           path: signed-packaged-diff
@@ -234,7 +234,7 @@ jobs:
           echo $FILES_TO_BE_SIGNED
 
       - name: Save installer for signing
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: installer-${{ matrix.spec.platform }}-${{ matrix.spec.arch }}
           path: archive.zip
@@ -260,14 +260,14 @@ jobs:
     runs-on: ${{ matrix.spec.runner }}
     steps:
       - name: Download installer artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: installer-${{ matrix.spec.platform }}-${{ matrix.spec.arch }}
           path: installer-unsigned
       - name: unzip installer artifacts
         run: Expand-Archive -Path installer-unsigned/archive.zip -DestinationPath packages/frontend/apps/electron/out/${{ env.BUILD_TYPE }}/make
       - name: Download signed installer file diff
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: signed-installer-${{ matrix.spec.platform }}-${{ matrix.spec.arch }}
           path: signed-installer-diff
@@ -313,7 +313,7 @@ jobs:
             ./builds/nota-${{ env.RELEASE_VERSION }}-${{ env.BUILD_TYPE }}-windows-${{ matrix.spec.arch }}.nsis.exe
 
       - name: Upload Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: nota-${{ matrix.spec.platform }}-${{ matrix.spec.arch }}-builds
           path: builds
@@ -336,22 +336,22 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Download Artifacts (macos-arm64)
         if: ${{ inputs.desktop_macos }}
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: nota-darwin-arm64-builds
           path: ./release
       - name: Download Artifacts (windows-x64)
         if: ${{ inputs.desktop_windows }}
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: nota-win32-x64-builds
           path: ./release
       - name: Download Artifacts (linux-x64)
         if: ${{ inputs.desktop_linux }}
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: nota-linux-x64-builds
           path: ./release
@@ -369,7 +369,7 @@ jobs:
         env:
           RELEASE_VERSION: ${{ env.RELEASE_VERSION }}
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           name: ${{ env.RELEASE_VERSION }}
           draft: ${{ inputs.build-type == 'stable' }}
