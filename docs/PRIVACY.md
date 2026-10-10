@@ -1,6 +1,8 @@
 # Nota privacy policy
 
-Updated October 5, 2026.
+Updated October 10, 2026.
+
+Nota stores your app data locally on your device. Local AI processes prompts and context on your device. If you enable note sync, it syncs to your own connected Google Drive account. Optional hosted AI sends relevant content to the provider you select.
 
 This page describes the current source implementation. A release's build configuration and enabled integrations affect its network behavior; read the release notes for the installer you use.
 
@@ -18,7 +20,7 @@ Recording uses operating-system permissions for microphone and system audio. Sav
 
 ## Optional Google connection
 
-You can use Nota locally without a Google account. Connecting Google uses Google sign-in and the configured hosted OAuth broker. The current connection requests these permissions; review Google's consent screen for the permissions requested by your build:
+You can use Nota locally without a Google account. The current desktop source and standard release configuration use Google sign-in directly, with a local callback and PKCE. A separately configured build can use the optional hosted OAuth broker flow described below. The current connection requests these permissions; review Google's consent screen for the permissions requested by your build:
 
 - `openid`, `email`, and `profile` identify the connected account and display its basic profile, including account identifier, email address, name, and profile picture when supplied by Google.
 - `https://www.googleapis.com/auth/drive.appdata` reads and writes Nota workspace documents, attachments, and other synced workspace data in Google Drive's app-specific `appDataFolder`. It does not grant access to your ordinary Drive files. Workspace content sent to Drive remains in your Google account.
@@ -26,13 +28,17 @@ You can use Nota locally without a Google account. Connecting Google uses Google
 
 Nota does not request Gmail mailbox access. Signing in with a Gmail address does not allow Nota to read your email.
 
+Connecting Google Calendar does not by itself send calendar events to an AI provider. Calendar access supports displaying events, meeting reminders, and opening meeting links. If you create a workspace note from a Calendar event, its title becomes part of that note and can be included in workspace AI context when you use AI on that workspace.
+
 ### Google data handling and security
 
-The OAuth broker processes authorization codes, access and refresh tokens, and basic account-profile information to complete and refresh a connection. Its Calendar routes process calendar and event responses. The current broker has no durable account or token database: it returns encrypted token envelopes to the app and decrypts them when needed for authorized requests. It uses AES-256-GCM for those envelopes. Authorization-code handoff envelopes expire after five minutes; refresh-token envelopes expire after 180 days. Those expiry periods are not a retention promise for Google or the hosting service's operational logs.
+In the default direct connection, authorization-code exchange and token refresh take place between your device and Google. The local app service requests Calendar information from Google and returns it to the app.
+
+If a build is configured to use a hosted OAuth broker, the broker participates in sign-in and token refresh and can process authorization codes, tokens, and basic account-profile information. Requests through its Calendar routes also pass calendar and event responses through that broker. The broker operator's implementation and hosting configuration govern its handling and retention.
 
 Supported desktop builds persist the Google session using Electron's operating-system-backed encryption. The app refuses to persist the session if encryption is unavailable or uses the unprotected `basic_text` fallback. This protection applies to the Google session; it is not a claim that every local setting or hosted-provider key uses a keychain.
 
-Google and the broker's hosting service can receive operational metadata, such as IP addresses, request times, and error information, and maintain their own logs. Their applicable policies and infrastructure configuration govern that processing. This policy does not promise that infrastructure records no requests.
+Google, and the broker's hosting service when that optional flow is configured, can receive operational metadata, such as IP addresses, request times, and error information, and maintain their own logs. Their applicable policies and infrastructure configuration govern that processing. This policy does not promise that infrastructure records no requests.
 
 ### Google API Limited Use
 
@@ -48,7 +54,7 @@ Human access to Google user data is limited to cases permitted by the Limited Us
 
 Disconnecting Google in Nota clears the local Google session. It does not revoke Google's authorization grant or delete synced workspace data and backups. To stop future Google access, also remove Nota's access from [your Google account's third-party connections](https://myaccount.google.com/connections).
 
-You control retained local workspace content, exports, backups, and the app data in your Google account. Delete copies you no longer want from the relevant device or service. Revoking authorization prevents further authorized access; it does not automatically erase content already saved locally, exported, or retained by another service. Broker envelope expiry does not delete those copies.
+You control retained local workspace content, exports, backups, and the app data in your Google account. Delete copies you no longer want from the relevant device or service. Revoking authorization prevents further authorized access; it does not automatically erase content already saved locally, exported, or retained by another service. Disconnecting a broker-based connection does not delete those copies.
 
 ## Other integrations
 
