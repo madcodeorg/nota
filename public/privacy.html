@@ -24,12 +24,23 @@
       <main id="content" tabindex="-1">
         <h1>Nota privacy policy</h1>
 
-        <p class="updated">Updated October 5, 2026.</p>
+        <p class="updated">
+          Updated October 10, 2026.
+        </p>
+
+        <p>
+          Nota stores your app data locally on your device. Local AI
+          processes prompts and context on your device. If you enable note
+          sync, it syncs to your own connected Google Drive account.
+          Optional hosted AI sends relevant content to the provider you
+          select.
+        </p>
 
         <p>
           This page describes the current source implementation. A
-          release&#x27;s build configuration and enabled integrations affect its
-          network behavior; read the release notes for the installer you use.
+          release&#x27;s build configuration and enabled integrations affect
+          its network behavior; read the release notes for the installer you
+          use.
         </p>
 
         <h2>Local workspace and AI</h2>
@@ -73,10 +84,13 @@
         <h2>Optional Google connection</h2>
 
         <p>
-          You can use Nota locally without a Google account. Connecting Google
-          uses Google sign-in and the configured hosted OAuth broker. The
-          current connection requests these permissions; review Google&#x27;s
-          consent screen for the permissions requested by your build:
+          You can use Nota locally without a Google account. The current
+          desktop source and standard release configuration use Google
+          sign-in directly, with a local callback and PKCE. A separately
+          configured build can use the optional hosted OAuth broker flow
+          described below. The current connection requests these
+          permissions; review Google&#x27;s consent screen for the
+          permissions requested by your build:
         </p>
 
         <ul>
@@ -106,23 +120,36 @@
         </ul>
 
         <p>
-          Nota does not request Gmail mailbox access. Signing in with a Gmail
-          address does not allow Nota to read your email.
+          Nota does not request Gmail mailbox access. Signing in with a
+          Gmail address does not allow Nota to read your email.
+        </p>
+
+        <p>
+          Connecting Google Calendar does not by itself send calendar events
+          to an AI provider. Calendar access supports displaying events,
+          meeting reminders, and opening meeting links. If you create a
+          workspace note from a Calendar event, its title becomes part of
+          that note and can be included in workspace AI context when you use
+          AI on that workspace.
         </p>
 
         <h3>Google data handling and security</h3>
 
         <p>
-          The OAuth broker processes authorization codes, access and refresh
-          tokens, and basic account-profile information to complete and refresh
-          a connection. Its Calendar routes process calendar and event
-          responses. The current broker has no durable account or token
-          database: it returns encrypted token envelopes to the app and decrypts
-          them when needed for authorized requests. It uses AES-256-GCM for
-          those envelopes. Authorization-code handoff envelopes expire after
-          five minutes; refresh-token envelopes expire after 180 days. Those
-          expiry periods are not a retention promise for Google or the hosting
-          service&#x27;s operational logs.
+          In the default direct connection, authorization-code exchange and
+          token refresh take place between your device and Google. The local
+          app service requests Calendar information from Google and returns
+          it to the app.
+        </p>
+
+        <p>
+          If a build is configured to use a hosted OAuth broker, the broker
+          participates in sign-in and token refresh and can process
+          authorization codes, tokens, and basic account-profile
+          information. Requests through its Calendar routes also pass
+          calendar and event responses through that broker. The broker
+          operator&#x27;s implementation and hosting configuration govern
+          its handling and retention.
         </p>
 
         <p>
@@ -135,11 +162,12 @@
         </p>
 
         <p>
-          Google and the broker&#x27;s hosting service can receive operational
-          metadata, such as IP addresses, request times, and error information,
-          and maintain their own logs. Their applicable policies and
-          infrastructure configuration govern that processing. This policy does
-          not promise that infrastructure records no requests.
+          Google, and the broker&#x27;s hosting service when that optional
+          flow is configured, can receive operational metadata, such as IP
+          addresses, request times, and error information, and maintain
+          their own logs. Their applicable policies and infrastructure
+          configuration govern that processing. This policy does not promise
+          that infrastructure records no requests.
         </p>
 
         <h3>Google API Limited Use</h3>
@@ -201,12 +229,13 @@
         </p>
 
         <p>
-          You control retained local workspace content, exports, backups, and
-          the app data in your Google account. Delete copies you no longer want
-          from the relevant device or service. Revoking authorization prevents
-          further authorized access; it does not automatically erase content
-          already saved locally, exported, or retained by another service.
-          Broker envelope expiry does not delete those copies.
+          You control retained local workspace content, exports, backups,
+          and the app data in your Google account. Delete copies you no
+          longer want from the relevant device or service. Revoking
+          authorization prevents further authorized access; it does not
+          automatically erase content already saved locally, exported, or
+          retained by another service. Disconnecting a broker-based
+          connection does not delete those copies.
         </p>
 
         <h2>Other integrations</h2>
