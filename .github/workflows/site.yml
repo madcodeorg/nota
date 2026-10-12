@@ -1,7 +1,7 @@
 name: Site
 
 # Deploys thenota.app to GitHub Pages. The page comes from public/, and the
-# update manifest and download redirect come from the latest published release,
+# update manifest and download page come from the latest published release,
 # so publishing a release is all it takes to ship an update.
 on:
   release:
@@ -50,7 +50,7 @@ jobs:
             # Point every file at its GitHub release asset so clients download from GitHub.
             sed -E "s#^([[:space:]]*(- )?(url|path): )(nota-[^ ]*)\$#\1$BASE/\4#" /tmp/feed/latest-mac.yml > _site/updates/stable/latest-mac.yml
             DMG="$(grep -oE 'url: \S+\.dmg' _site/updates/stable/latest-mac.yml | head -1 | cut -d' ' -f2)"
-            printf '<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="0;url=%s"><title>Nota download</title><a href="%s">Download Nota</a>\n' "${DMG}" "${DMG}" > _site/download/index.html
+            printf '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex, follow"><title>Download Nota</title><link rel="stylesheet" href="/legal.css"></head><body><div class="page"><header class="header"><a class="brand" href="/">Nota</a></header><main><h1>Download Nota</h1><p>The current desktop installer is for macOS.</p><p><a href="%s">Download Nota for Mac</a></p><p>For Windows and Linux availability, check the <a href="https://github.com/madcodeorg/nota/releases">release notes and available installers</a>.</p></main></div></body></html>\n' "${DMG}" > _site/download/index.html
             sed -i "s#\(data-nota-version[^>]*>\)[0-9][0-9.]*#\1${VERSION}#" _site/index.html
             echo "Site will ship ${TAG}"
           else
