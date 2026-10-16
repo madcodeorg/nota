@@ -103,6 +103,16 @@ jobs:
           name: desktop-web
           path: packages/frontend/apps/electron/resources/web-static
 
+      # Windows helpers build whisper.cpp and llama.cpp with Vulkan, which
+      # needs the SDK headers, loader library, and glslc shader compiler.
+      - name: Install Vulkan SDK
+        if: ${{ inputs.platform == 'win32' }}
+        uses: jakoch/install-vulkan-sdk-action@v1.7.0
+        with:
+          vulkan_version: 1.4.363.0
+          install_runtime: false
+          cache: true
+
       - name: Build Desktop Layers
         run: yarn nota @nota/electron build
         env:

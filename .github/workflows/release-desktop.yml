@@ -323,13 +323,16 @@ jobs:
           name: nota-${{ matrix.spec.platform }}-${{ matrix.spec.arch }}-builds
           path: builds
 
+  # Publish every platform that built, so one failed platform does not hold
+  # back the others. The failed run stays red to flag the missing platform.
   release:
     if: >-
       ${{
-        always() &&
-        !contains(needs.*.result, 'failure') &&
-        !contains(needs.*.result, 'cancelled') &&
-        (inputs.desktop_macos || inputs.desktop_linux || inputs.desktop_windows)
+        !cancelled() &&
+        needs.before-make.result == 'success' &&
+        (needs.make-distribution-macos.result == 'success' ||
+          needs.make-distribution-linux.result == 'success' ||
+          needs.finalize-installer-windows.result == 'success')
       }}
     needs:
       [
@@ -343,19 +346,19 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: Download Artifacts (macos-arm64)
-        if: ${{ inputs.desktop_macos }}
+        if: ${{ needs.make-distribution-macos.result == 'success' }}
         uses: actions/download-artifact@v7
         with:
           name: nota-darwin-arm64-builds
           path: ./release
       - name: Download Artifacts (windows-x64)
-        if: ${{ inputs.desktop_windows }}
+        if: ${{ needs.finalize-installer-windows.result == 'success' }}
         uses: actions/download-artifact@v7
         with:
           name: nota-win32-x64-builds
           path: ./release
       - name: Download Artifacts (linux-x64)
-        if: ${{ inputs.desktop_linux }}
+        if: ${{ needs.make-distribution-linux.result == 'success' }}
         uses: actions/download-artifact@v7
         with:
           name: nota-linux-x64-builds
