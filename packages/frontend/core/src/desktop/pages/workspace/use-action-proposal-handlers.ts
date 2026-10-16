@@ -293,6 +293,14 @@ export function useActionProposalHandlers({
           }
         }
 
+        if (proposal.type === 'trash_doc') {
+          await deleteWorkspaceContentDocuments({
+            docIds: [mutation.docId],
+            workspaceId,
+          }).catch(console.error);
+          notify.success({ title: 'Note moved to trash' });
+          return applied;
+        }
         await syncWorkspaceContentIndex({
           accessForDocument: indexAccessForDocument,
           documentIds: [mutation.docId],

@@ -404,6 +404,36 @@ describe('agent action proposal helpers', () => {
     expect(proposalPreview(clearDoc.proposal)).toContain('Remove all body');
   });
 
+  test('moves a note to the trash with a restore undo', () => {
+    const proposal = {
+      docId: 'doc-1',
+      title: 'Old plan',
+      type: 'trash_doc' as const,
+    };
+    expect(proposalTitle(proposal)).toBe('Move to trash: Old plan');
+    expect(proposalPreview(proposal)).toContain('trash');
+    expect(applyPermissionForActionProposal(proposal)).toEqual({
+      action: 'Doc_Trash',
+      docId: 'doc-1',
+    });
+
+    const result = buildAppliedActionProposalResult({
+      mutation: { docId: 'doc-1' },
+      proposal,
+      workspaceId: 'workspace-1',
+    });
+    expect(result.undo).toEqual({ docId: 'doc-1', type: 'restore_doc' });
+
+    const applied = stored(proposal);
+    applied.status = 'applied';
+    applied.result = result;
+    expect(canUndoAppliedProposal(applied)).toBe(true);
+    expect(undoInfo(applied)).toEqual({ docId: 'doc-1', type: 'restore_doc' });
+    expect(
+      undoPermissionForActionProposal({ docId: 'doc-1', type: 'restore_doc' })
+    ).toEqual({ action: 'Doc_Trash', docId: 'doc-1' });
+  });
+
   test('binds mutations and undo operations to target-note permissions', () => {
     expect(
       applyPermissionForActionProposal({

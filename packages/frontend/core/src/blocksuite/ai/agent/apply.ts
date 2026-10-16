@@ -901,6 +901,17 @@ export async function applyActionProposalToWorkspace(options: {
         docId: appended.docId,
       };
     }
+    case 'trash_doc': {
+      const docRecord = options.docsService.list.doc$(proposal.docId).value;
+      if (!docRecord) {
+        throw new Error(`Doc not found: ${proposal.docId}`);
+      }
+      if (docRecord.trash$.value) {
+        throw new Error('This note is already in the trash.');
+      }
+      docRecord.moveToTrash();
+      return { docId: proposal.docId };
+    }
     case 'clear_doc':
       throw new Error(
         'Clearing an entire document is disabled until Nota can restore it safely.'
@@ -956,6 +967,14 @@ export function undoActionProposalInWorkspace(options: {
   workspace: Workspace;
 }) {
   const { undo, workspace } = options;
+  if (undo.type === 'restore_doc') {
+    const docRecord = options.docsService.list.doc$(undo.docId).value;
+    if (!docRecord) {
+      throw new Error(`Doc not found: ${undo.docId}`);
+    }
+    docRecord.restoreFromTrash();
+    return;
+  }
   if (undo.type === 'trash_doc') {
     const docRecord = options.docsService.list.doc$(undo.docId).value;
     if (!docRecord) {

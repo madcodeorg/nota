@@ -49,6 +49,7 @@ import type { AgentActionProposalHandler } from '../components/ai-tools/agent-ac
 import type { TextRendererOptions } from '../components/text-renderer';
 import { AIChatErrorRenderer } from '../messages/error';
 import { type AIError, AIProvider } from '../provider';
+import { createStreamBatcher } from '../utils/batch-stream';
 import { appendStreamChunk, mergeStreamContent } from '../utils/stream-objects';
 import { PeekViewStyles } from './styles';
 import type { ChatContext } from './types';
@@ -373,6 +374,17 @@ export class AIChatBlockPeekView extends LitElement {
    * Retry the last chat message
    */
   retry = async () => {
+    const batcher = createStreamBatcher(chunks => {
+      const messages = this.chatContext.messages.slice(0);
+      const last = messages.at(-1);
+      if (last && isChatMessage(last)) {
+        messages[messages.length - 1] = chunks.reduce(
+          (acc, chunk) => ({ ...acc, ...appendStreamChunk(acc, chunk) }),
+          last
+        );
+        this.updateContext({ messages, status: 'transmitting' });
+      }
+    });
     try {
       const forkSessionId = this.forkSession?.sessionId;
       if (!this._forkBlockId || !forkSessionId) return;
@@ -410,21 +422,15 @@ export class AIChatBlockPeekView extends LitElement {
       });
 
       for await (const text of stream) {
-        const messages = this.chatContext.messages.slice(0);
-        const last = messages.at(-1);
-        if (last && isChatMessage(last)) {
-          messages[messages.length - 1] = {
-            ...last,
-            ...appendStreamChunk(last, text),
-          };
-          this.updateContext({ messages, status: 'transmitting' });
-        }
+        batcher.push(text);
       }
+      batcher.flush();
 
       this.updateContext({ status: 'success' });
       // Update new chat block messages if there are contents returned from AI
       await this.updateChatBlockMessages();
     } catch (error) {
+      batcher.flush();
       this.updateContext({ status: 'error', error: error as AIError });
     } finally {
       this.updateContext({ abortController: null });

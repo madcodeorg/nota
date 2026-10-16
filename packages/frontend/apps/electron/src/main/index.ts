@@ -135,18 +135,20 @@ function setMacDockIcon() {
  */
 applicationInitialization = app
   .whenReady()
-  .then(() => setMacDockIcon())
-  .then(() => startAiBackendSafely())
-  .then(registerProtocol)
-  .then(registerHandlers)
-  .then(() =>
+  .then(() => {
+    // Neither the backend nor the loopback server gates the window: Nota works
+    // as a plain notes app, and API requests wait for the backend on demand.
+    startAiBackendSafely().catch(() => {});
     startLoopbackServer().catch(error => {
       // Nota can still launch when another process owns the loopback port.
       // Google connect will retry binding before opening the browser and fail
       // closed if the trusted callback server is still unavailable.
       logger.error('Google OAuth loopback server is unavailable:', error);
-    })
-  )
+    });
+    setMacDockIcon();
+  })
+  .then(registerProtocol)
+  .then(registerHandlers)
   .then(registerEvents)
   .then(launch)
   .then(createApplicationMenu)

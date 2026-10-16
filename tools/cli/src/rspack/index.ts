@@ -147,7 +147,7 @@ export function createHTMLTargetConfig(
               options: {
                 // https://swc.rs/docs/configuring-swc/
                 jsc: {
-                  preserveAllComments: true,
+                  preserveAllComments: buildConfig.debug,
                   parser: {
                     syntax: 'typescript',
                     dynamicImport: true,
@@ -163,7 +163,7 @@ export function createHTMLTargetConfig(
                   },
                 },
                 sourceMaps: true,
-                inlineSourcesContent: true,
+                inlineSourcesContent: buildConfig.debug,
               },
             },
             {
@@ -173,7 +173,7 @@ export function createHTMLTargetConfig(
               options: {
                 // https://swc.rs/docs/configuring-swc/
                 jsc: {
-                  preserveAllComments: true,
+                  preserveAllComments: buildConfig.debug,
                   parser: {
                     syntax: 'typescript',
                     dynamicImport: true,
@@ -190,7 +190,7 @@ export function createHTMLTargetConfig(
                   },
                 },
                 sourceMaps: true,
-                inlineSourcesContent: true,
+                inlineSourcesContent: buildConfig.debug,
               },
             },
             {
@@ -426,7 +426,7 @@ export function createWorkerTargetConfig(
               options: {
                 // https://swc.rs/docs/configuring-swc/
                 jsc: {
-                  preserveAllComments: true,
+                  preserveAllComments: buildConfig.debug,
                   parser: {
                     syntax: 'typescript',
                     dynamicImport: true,
@@ -442,7 +442,7 @@ export function createWorkerTargetConfig(
                   },
                 },
                 sourceMaps: true,
-                inlineSourcesContent: true,
+                inlineSourcesContent: buildConfig.debug,
               },
             },
           ],

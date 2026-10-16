@@ -135,8 +135,10 @@ jobs:
       target: x86_64-pc-windows-msvc
       enable_scripts: true
 
+  # Signing needs the self-hosted win-signer runner. Leave the WINDOWS_SIGNING
+  # repo variable unset to ship unsigned builds (SmartScreen warns on install).
   sign-packaged-artifacts-windows_x64:
-    if: ${{ inputs.desktop_windows }}
+    if: ${{ inputs.desktop_windows && vars.WINDOWS_SIGNING == 'true' }}
     needs: package-distribution-windows-x64
     uses: ./.github/workflows/windows-signer.yml
     with:
@@ -144,8 +146,9 @@ jobs:
       artifact-name: packaged-win32-x64
 
   make-windows-installer:
-    if: ${{ inputs.desktop_windows }}
+    if: ${{ !cancelled() && inputs.desktop_windows && needs.package-distribution-windows-x64.result == 'success' && needs.sign-packaged-artifacts-windows_x64.result != 'failure' }}
     needs:
+      - package-distribution-windows-x64
       - sign-packaged-artifacts-windows_x64
     strategy:
       fail-fast: false
@@ -179,11 +182,13 @@ jobs:
       - name: unzip packaged artifacts
         run: Expand-Archive -Path packaged-unsigned/archive.zip -DestinationPath packages/frontend/apps/electron/out
       - name: Download signed packaged file diff
+        if: ${{ vars.WINDOWS_SIGNING == 'true' }}
         uses: actions/download-artifact@v7
         with:
           name: signed-packaged-${{ matrix.spec.platform }}-${{ matrix.spec.arch }}
           path: signed-packaged-diff
       - name: Apply signed packaged file diff
+        if: ${{ vars.WINDOWS_SIGNING == 'true' }}
         shell: pwsh
         run: |
           $DiffRoot = 'signed-packaged-diff/files'
@@ -233,7 +238,7 @@ jobs:
           path: archive.zip
 
   sign-installer-artifacts-windows-x64:
-    if: ${{ inputs.desktop_windows }}
+    if: ${{ inputs.desktop_windows && vars.WINDOWS_SIGNING == 'true' }}
     needs: make-windows-installer
     uses: ./.github/workflows/windows-signer.yml
     with:
@@ -241,8 +246,13 @@ jobs:
       artifact-name: installer-win32-x64
 
   finalize-installer-windows:
-    if: ${{ inputs.desktop_windows }}
-    needs: [sign-installer-artifacts-windows-x64, before-make]
+    if: ${{ !cancelled() && inputs.desktop_windows && needs.make-windows-installer.result == 'success' && needs.sign-installer-artifacts-windows-x64.result != 'failure' }}
+    needs:
+      [
+        before-make,
+        make-windows-installer,
+        sign-installer-artifacts-windows-x64,
+      ]
     strategy:
       fail-fast: false
       matrix:
@@ -260,11 +270,13 @@ jobs:
       - name: unzip installer artifacts
         run: Expand-Archive -Path installer-unsigned/archive.zip -DestinationPath packages/frontend/apps/electron/out/${{ env.BUILD_TYPE }}/make
       - name: Download signed installer file diff
+        if: ${{ vars.WINDOWS_SIGNING == 'true' }}
         uses: actions/download-artifact@v7
         with:
           name: signed-installer-${{ matrix.spec.platform }}-${{ matrix.spec.arch }}
           path: signed-installer-diff
       - name: Apply signed installer file diff
+        if: ${{ vars.WINDOWS_SIGNING == 'true' }}
         shell: pwsh
         run: |
           $DiffRoot = 'signed-installer-diff/files'

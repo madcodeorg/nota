@@ -125,7 +125,7 @@ export interface WorkspaceSearchResult {
 interface WorkspaceSearchChunk {
   blockId?: string;
   content: string;
-  denseVector?: number[];
+  denseVector?: Float32Array;
   denseVectorNorm?: number;
   docId: string;
   embeddingModel?: string;
@@ -208,11 +208,11 @@ interface EmbeddingCacheEntry {
   docId: string;
   id: string;
   updatedAt?: string;
-  vector: number[];
+  vector: Float32Array;
 }
 
 interface EmbeddingCacheFile {
-  entries?: EmbeddingCacheEntry[];
+  entries?: Array<Omit<EmbeddingCacheEntry, 'vector'> & { vector: unknown }>;
   modelId?: string;
   updatedAt?: string;
   version?: number;
@@ -242,8 +242,11 @@ interface WorkspaceContentReplacementInput {
 }
 
 interface WorkspaceContentReplacementSession {
+  // Pages are buffered here and committed once, so searches during a sync keep
+  // seeing the previous content. Its keys are also the docs seen so far.
+  documents: Map<string, StoredWorkspaceContentDocument>;
+  expiry?: ReturnType<typeof setTimeout>;
   nextPage: number;
-  seenDocIds: Set<string>;
   syncId: string;
   updatedAt: number;
 }
@@ -356,14 +359,18 @@ function cosineSimilarity(
   return dot / leftNorm / rightNorm;
 }
 
-function denseNorm(vector: number[]) {
-  return Math.sqrt(vector.reduce((sum, value) => sum + value * value, 0));
+function denseNorm(vector: Float32Array) {
+  let sum = 0;
+  for (const value of vector) {
+    sum += value * value;
+  }
+  return Math.sqrt(sum);
 }
 
 function denseCosineSimilarity(
-  left: number[],
+  left: Float32Array,
   leftNorm: number,
-  right: number[],
+  right: Float32Array,
   rightNorm: number
 ) {
   if (!leftNorm || !rightNorm || left.length !== right.length) {
@@ -424,10 +431,32 @@ function workspaceContentReplacementKey(
   return `${workspaceContentPath(config)}:${workspaceId}`;
 }
 
+function deleteWorkspaceContentReplacementSession(key: string) {
+  clearTimeout(workspaceContentReplacementSessions.get(key)?.expiry);
+  workspaceContentReplacementSessions.delete(key);
+}
+
+// Buffered pages hold full Markdown, so an abandoned sync must not pin them.
+function storeWorkspaceContentReplacementSession(
+  key: string,
+  session: WorkspaceContentReplacementSession
+) {
+  const previous = workspaceContentReplacementSessions.get(key);
+  if (previous && previous !== session) clearTimeout(previous.expiry);
+  clearTimeout(session.expiry);
+  session.expiry = setTimeout(() => {
+    if (workspaceContentReplacementSessions.get(key) === session) {
+      workspaceContentReplacementSessions.delete(key);
+    }
+  }, WORKSPACE_CONTENT_REPLACEMENT_TTL_MS);
+  session.expiry.unref?.();
+  workspaceContentReplacementSessions.set(key, session);
+}
+
 function pruneWorkspaceContentReplacementSessions(now = Date.now()) {
   for (const [key, session] of workspaceContentReplacementSessions) {
     if (now - session.updatedAt > WORKSPACE_CONTENT_REPLACEMENT_TTL_MS) {
-      workspaceContentReplacementSessions.delete(key);
+      deleteWorkspaceContentReplacementSession(key);
     }
   }
 }
@@ -525,14 +554,19 @@ function cacheEntryKey(entry: Pick<EmbeddingCacheEntry, 'id' | 'docId'>) {
   return `${entry.docId}:${entry.id}`;
 }
 
+// Float32 halves the memory of every cached chunk vector; an empty result
+// means the input was not a usable embedding.
 function validCachedVector(value: unknown) {
-  return Array.isArray(value) &&
-    value.length >= 8 &&
-    value.every(item => typeof item === 'number' && Number.isFinite(item)) &&
-    denseNorm(value) > 0 &&
-    Number.isFinite(denseNorm(value))
-    ? (value as number[])
-    : [];
+  if (
+    !Array.isArray(value) ||
+    value.length < 8 ||
+    !value.every(item => typeof item === 'number' && Number.isFinite(item))
+  ) {
+    return new Float32Array(0);
+  }
+  const vector = Float32Array.from(value);
+  const norm = denseNorm(vector);
+  return norm > 0 && Number.isFinite(norm) ? vector : new Float32Array(0);
 }
 
 async function readEmbeddingCache(config: AiBackendConfig, modelId: string) {
@@ -587,16 +621,15 @@ async function writeEmbeddingCache(
   await mkdir(path.dirname(filePath), { recursive: true });
   await writeFile(
     temporaryPath,
-    JSON.stringify(
-      {
-        entries: ordered,
-        modelId,
-        updatedAt: new Date().toISOString(),
-        version: 1,
-      } satisfies EmbeddingCacheFile,
-      null,
-      2
-    )
+    JSON.stringify({
+      entries: ordered.map(entry => ({
+        ...entry,
+        vector: Array.from(entry.vector),
+      })),
+      modelId,
+      updatedAt: new Date().toISOString(),
+      version: 1,
+    } satisfies EmbeddingCacheFile)
   );
   try {
     await rename(temporaryPath, filePath);
@@ -663,19 +696,34 @@ function readStoredContentDocument(
   };
 }
 
+// Only this process writes the content file, so the parsed documents stay valid
+// until writeWorkspaceContent replaces them. The returned array is shared:
+// callers must copy before mutating.
+const workspaceContentCache = new Map<
+  string,
+  StoredWorkspaceContentDocument[]
+>();
+
 async function readWorkspaceContent(config: AiBackendConfig) {
+  const filePath = workspaceContentPath(config);
+  const cached = workspaceContentCache.get(filePath);
+  if (cached) {
+    return cached;
+  }
   try {
     const parsed = JSON.parse(
-      await readFile(workspaceContentPath(config), 'utf8')
+      await readFile(filePath, 'utf8')
     ) as WorkspaceContentFile;
     if (parsed.version !== 1) {
       return [];
     }
-    return (parsed.documents ?? [])
+    const documents = (parsed.documents ?? [])
       .map(readStoredContentDocument)
       .filter(
         (document): document is StoredWorkspaceContentDocument => !!document
       );
+    workspaceContentCache.set(filePath, documents);
+    return documents;
   } catch {
     return [];
   }
@@ -782,20 +830,18 @@ async function writeWorkspaceContent(
 ) {
   const filePath = workspaceContentPath(config);
   const temporaryPath = `${filePath}.tmp`;
+  workspaceContentCache.delete(filePath);
   await mkdir(path.dirname(filePath), { recursive: true });
   await writeFile(
     temporaryPath,
-    JSON.stringify(
-      {
-        documents,
-        updatedAt: new Date().toISOString(),
-        version: 1,
-      } satisfies WorkspaceContentFile,
-      null,
-      2
-    )
+    JSON.stringify({
+      documents,
+      updatedAt: new Date().toISOString(),
+      version: 1,
+    } satisfies WorkspaceContentFile)
   );
   await rename(temporaryPath, filePath);
+  workspaceContentCache.set(filePath, documents);
 }
 
 function readWorkspaceContentReplacementInput(
@@ -909,9 +955,8 @@ export async function upsertWorkspaceContentDocuments(
 
   return withWorkspaceContentMutation(config, async () => {
     pruneWorkspaceContentReplacementSessions();
-    const existing = await readWorkspaceContent(config);
     const byKey = new Map(
-      existing.map(document => [
+      (await readWorkspaceContent(config)).map(document => [
         `${document.workspaceId}:${document.docId}`,
         document,
       ])
@@ -919,13 +964,13 @@ export async function upsertWorkspaceContentDocuments(
     const replacementKey = workspaceContentReplacementKey(config, workspaceId);
     const activeReplacement =
       workspaceContentReplacementSessions.get(replacementKey);
-    let nextReplacement: WorkspaceContentReplacementSession | null = null;
+    let session: WorkspaceContentReplacementSession | null = null;
 
     if (replacement) {
       if (replacement.page === 0) {
-        nextReplacement = {
-          nextPage: 1,
-          seenDocIds: new Set<string>(),
+        session = {
+          documents: new Map(),
+          nextPage: 0,
           syncId: replacement.syncId,
           updatedAt: Date.now(),
         };
@@ -939,48 +984,20 @@ export async function upsertWorkspaceContentDocuments(
             'Workspace replacement pages must arrive in order for the active sync.'
           );
         }
-        nextReplacement = {
-          ...activeReplacement,
-          nextPage: replacement.page + 1,
-          seenDocIds: new Set(activeReplacement.seenDocIds),
-          updatedAt: Date.now(),
-        };
+        session = activeReplacement;
       }
     }
 
-    for (const document of documents) {
+    const incoming = documents.map(document => {
       const { accessVerified: _accessVerified, ...storedDocument } = document;
-      byKey.set(`${workspaceId}:${document.docId}`, {
+      return {
         ...storedDocument,
         source: document.source ?? 'doc',
         visibility: document.visibility ?? 'workspace',
         workspaceId,
-      });
-      nextReplacement?.seenDocIds.add(document.docId);
-    }
-
-    let removed = 0;
-    if (replacement?.complete && nextReplacement) {
-      for (const [key, existingDocument] of byKey) {
-        if (
-          existingDocument.workspaceId === workspaceId &&
-          !nextReplacement.seenDocIds.has(existingDocument.docId)
-        ) {
-          byKey.delete(key);
-          removed++;
-        }
-      }
-    }
-
-    await writeWorkspaceContent(config, [...byKey.values()]);
-    if (replacement?.complete) {
-      workspaceContentReplacementSessions.delete(replacementKey);
-    } else if (nextReplacement) {
-      workspaceContentReplacementSessions.set(replacementKey, nextReplacement);
-    }
-    indexCache.clear();
-    indexRevision++;
-    return {
+      } satisfies StoredWorkspaceContentDocument;
+    });
+    const result = (removed: number) => ({
       indexed: documents.length,
       removed,
       replacement: replacement
@@ -992,8 +1009,68 @@ export async function upsertWorkspaceContentDocuments(
         : undefined,
       total: byKey.size,
       workspaceId,
-    };
+    });
+
+    if (session && replacement && !replacement.complete) {
+      for (const document of incoming) {
+        session.documents.set(document.docId, document);
+      }
+      for (const document of session.documents.values()) {
+        byKey.set(`${workspaceId}:${document.docId}`, document);
+      }
+      session.nextPage = replacement.page + 1;
+      session.updatedAt = Date.now();
+      storeWorkspaceContentReplacementSession(replacementKey, session);
+      return result(0);
+    }
+
+    const seenDocIds = new Set(session?.documents.keys());
+    for (const document of [
+      ...(session?.documents.values() ?? []),
+      ...incoming,
+    ]) {
+      byKey.set(`${workspaceId}:${document.docId}`, document);
+      seenDocIds.add(document.docId);
+    }
+
+    let removed = 0;
+    if (session) {
+      for (const [key, existingDocument] of byKey) {
+        if (
+          existingDocument.workspaceId === workspaceId &&
+          !seenDocIds.has(existingDocument.docId)
+        ) {
+          byKey.delete(key);
+          removed++;
+        }
+      }
+    }
+
+    await writeWorkspaceContent(config, [...byKey.values()]);
+    if (replacement) deleteWorkspaceContentReplacementSession(replacementKey);
+    indexCache.clear();
+    indexRevision++;
+    return result(removed);
   });
+}
+
+export async function readWorkspaceContentManifest(
+  config: AiBackendConfig,
+  input: { workspaceId: string }
+) {
+  const workspaceId = input.workspaceId.trim();
+  if (!workspaceId) {
+    throw new Error('workspaceId is required.');
+  }
+  return {
+    documents: (await readWorkspaceContent(config))
+      .filter(document => document.workspaceId === workspaceId)
+      .map(document => ({
+        docId: document.docId,
+        updatedAt: document.updatedAt,
+      })),
+    workspaceId,
+  };
 }
 
 export async function deleteWorkspaceContentDocuments(
@@ -1137,7 +1214,7 @@ async function embedTexts(config: AiBackendConfig, texts: string[]) {
     return null;
   }
 
-  const vectors: number[][] = [];
+  const vectors: Float32Array[] = [];
   try {
     const batchSize = neuralEmbeddingBatchSize(config);
     for (let start = 0; start < texts.length; start += batchSize) {

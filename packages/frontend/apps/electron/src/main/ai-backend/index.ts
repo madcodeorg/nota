@@ -66,6 +66,7 @@ let backendAuthToken: string | null = EXTERNAL_AI_BACKEND_URL
   ? EXTERNAL_AI_BACKEND_TOKEN
   : randomBytes(32).toString('base64url');
 let backendStartupError: string | null = null;
+let backendStartup: Promise<unknown> | null = null;
 
 type BackendReadyMessage = {
   host: string;
@@ -109,7 +110,29 @@ export function getAiBackendStatus() {
   return {
     available: backendBaseUrl !== null && backendStartupError === null,
     error: backendStartupError,
+    starting: backendStartup !== null,
   };
+}
+
+/**
+ * Resolves once the backend start attempt settles (success or failure), or
+ * after `timeoutMs`. Callers should then check `getAiBackendStatus()`.
+ */
+export async function whenAiBackendReady(
+  timeoutMs = AI_BACKEND_START_TIMEOUT_MS
+) {
+  const startup = backendStartup;
+  if (!startup) {
+    return;
+  }
+  let timer: NodeJS.Timeout | undefined;
+  await Promise.race([
+    startup,
+    new Promise<void>(resolve => {
+      timer = setTimeout(resolve, timeoutMs);
+    }),
+  ]);
+  clearTimeout(timer);
 }
 
 export function withAiBackendAuth(headers?: RequestInit['headers']): Headers {
@@ -124,7 +147,8 @@ export function withAiBackendAuth(headers?: RequestInit['headers']): Headers {
   return authenticatedHeaders;
 }
 
-export function fetchAiBackend(pathname: string, init?: RequestInit) {
+export async function fetchAiBackend(pathname: string, init?: RequestInit) {
+  await whenAiBackendReady();
   return fetch(new URL(pathname, getAiBackendBaseUrl()), {
     ...init,
     headers: withAiBackendAuth(init?.headers),
@@ -419,9 +443,7 @@ export async function startAiBackend() {
   return child;
 }
 
-export async function startAiBackendSafely(
-  start: typeof startAiBackend = startAiBackend
-) {
+async function runAiBackendStart(start: typeof startAiBackend) {
   try {
     const child = await start();
     backendStartupError = null;
@@ -434,4 +456,20 @@ export async function startAiBackendSafely(
     );
     return null;
   }
+}
+
+/**
+ * Starts the backend without blocking the caller; the returned promise never
+ * rejects. Requests that need the backend wait on `whenAiBackendReady()`.
+ */
+export function startAiBackendSafely(
+  start: typeof startAiBackend = startAiBackend
+) {
+  const startup = runAiBackendStart(start).finally(() => {
+    if (backendStartup === startup) {
+      backendStartup = null;
+    }
+  });
+  backendStartup = startup;
+  return startup;
 }

@@ -29,6 +29,7 @@ import { styleMap } from 'lit/directives/style-map.js';
 import { ChatAbortIcon } from '../../_common/icons';
 import { type AIError, AIProvider, type AISendParams } from '../../provider';
 import { reportResponse } from '../../utils/action-reporter';
+import { createStreamBatcher } from '../../utils/batch-stream';
 import { readBlobAsURL } from '../../utils/image';
 import { appendStreamChunk } from '../../utils/stream-objects';
 import type { SearchMenuConfig } from '../ai-chat-add-context';
@@ -707,6 +708,17 @@ export class AIChatInput extends SignalWatcher(
   };
 
   send = async (text: string) => {
+    const batcher = createStreamBatcher(chunks => {
+      const messages = this.chatContextValue.messages.slice(0);
+      const last = messages.at(-1);
+      if (last && isChatMessage(last)) {
+        messages[messages.length - 1] = chunks.reduce(
+          (acc, chunk) => ({ ...acc, ...appendStreamChunk(acc, chunk) }),
+          last
+        );
+        this.updateContext({ messages, status: 'transmitting' });
+      }
+    });
     try {
       const { status, markdown, snapshot, combinedElementsMarkdown, html } =
         this.chatContextValue;
@@ -783,22 +795,16 @@ export class AIChatInput extends SignalWatcher(
       });
 
       for await (const text of stream) {
-        const messages = this.chatContextValue.messages.slice(0);
-        const last = messages.at(-1);
-        if (last && isChatMessage(last)) {
-          messages[messages.length - 1] = {
-            ...last,
-            ...appendStreamChunk(last, text),
-          };
-          this.updateContext({ messages, status: 'transmitting' });
-        }
+        batcher.push(text);
       }
+      batcher.flush();
 
       this.updateContext({ status: 'success' });
       this.onChatSuccess?.();
       // update message id from server
       await this._postUpdateMessages();
     } catch (error) {
+      batcher.flush();
       this.updateContext({ status: 'error', error: error as AIError });
     } finally {
       this.updateContext({ abortController: null });

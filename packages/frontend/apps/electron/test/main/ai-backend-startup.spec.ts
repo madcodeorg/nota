@@ -121,11 +121,76 @@ describe('optional AI backend startup', () => {
     expect(aiBackend.getAiBackendStatus()).toEqual({
       available: false,
       error: 'seed installation failed',
+      starting: false,
     });
     expect(mocks.error).toHaveBeenCalledWith(
       expect.stringContaining(
         'continuing with the local notes workspace: seed installation failed'
       )
     );
+  });
+
+  it('does not block the caller while the backend is still starting', async () => {
+    let finishStart!: (value: null) => void;
+    const start = vi.fn(
+      () =>
+        new Promise<null>(resolve => {
+          finishStart = resolve;
+        })
+    );
+
+    const startup = aiBackend.startAiBackendSafely(start);
+    expect(aiBackend.getAiBackendStatus()).toMatchObject({
+      available: false,
+      starting: true,
+    });
+
+    let waited = false;
+    const ready = aiBackend.whenAiBackendReady().then(() => {
+      waited = true;
+    });
+    await Promise.resolve();
+    expect(waited).toBe(false);
+
+    finishStart(null);
+    await startup;
+    await ready;
+    expect(waited).toBe(true);
+    expect(aiBackend.getAiBackendStatus().starting).toBe(false);
+  });
+
+  it('stops waiting after the timeout when the backend never settles', async () => {
+    vi.useFakeTimers();
+    try {
+      void aiBackend.startAiBackendSafely(() => new Promise(() => {}));
+      let waited = false;
+      const ready = aiBackend.whenAiBackendReady(1_000).then(() => {
+        waited = true;
+      });
+      await vi.advanceTimersByTimeAsync(999);
+      expect(waited).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      await ready;
+      expect(waited).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('makes backend fetches wait for the start attempt and fail clearly when it failed', async () => {
+    let failStart!: (error: Error) => void;
+    void aiBackend.startAiBackendSafely(
+      () =>
+        new Promise<null>((_resolve, reject) => {
+          failStart = reject;
+        })
+    );
+
+    const request = aiBackend.fetchAiBackend('/v1/ping');
+    const rejection = expect(request).rejects.toThrow(
+      'Nota AI is unavailable: model health check failed'
+    );
+    failStart(new Error('model health check failed'));
+    await rejection;
   });
 });

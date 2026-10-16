@@ -6,8 +6,18 @@ const mocks = vi.hoisted(() => ({
   getSettings: vi.fn(),
   runBackup: vi.fn(),
   waitForUpdated: vi.fn(),
+  copyToDrive: vi.fn(),
   flavour: 'local',
 }));
+vi.mock('@nota/core/modules/google-auth', () => ({
+  GoogleAuthService: class GoogleAuthService {},
+}));
+vi.mock(
+  '@nota/core/modules/workspace-engine/impls/google-drive-maintenance',
+  () => ({
+    copyLatestBackupToDrive: (...args: unknown[]) => mocks.copyToDrive(...args),
+  })
+);
 vi.mock('@nota/core/modules/workspace', () => ({
   WorkspaceService: class WorkspaceService {},
 }));
@@ -66,6 +76,28 @@ describe('automatic backup lifecycle', () => {
     expect(mocks.waitForUpdated.mock.invocationCallOrder[1]).toBeLessThan(
       mocks.runBackup.mock.invocationCallOrder[0]
     );
+  });
+
+  it('copies a new verified backup to Google Drive after it is saved', async () => {
+    render(<LocalBackupSideEffect />);
+    await waitFor(() => expect(mocks.copyToDrive).toHaveBeenCalledOnce());
+    expect(mocks.copyToDrive.mock.calls[0].slice(2)).toEqual([
+      'workspace',
+      'workspace-id',
+    ]);
+    expect(mocks.runBackup.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.copyToDrive.mock.invocationCallOrder[0]
+    );
+  });
+
+  it('does not copy a failed backup', async () => {
+    mocks.runBackup.mockResolvedValue({
+      enabled: true,
+      lastError: 'Disk full',
+    });
+    render(<LocalBackupSideEffect />);
+    await waitFor(() => expect(mocks.runBackup).toHaveBeenCalledOnce());
+    expect(mocks.copyToDrive).not.toHaveBeenCalled();
   });
 
   it('stops its timer and cancels pending persistence waits on unmount', async () => {

@@ -113,6 +113,30 @@ export async function applyScopedMcpActionProposal(
   return proposal;
 }
 
+/** Asks the model to write the chat follow-up for a settled action. */
+export async function requestScopedActionReply(
+  stored: StoredActionProposal,
+  activeScope: ActionProposalScope
+) {
+  const scope = actionProposalScope(stored, activeScope);
+  const response = await fetch(
+    `/v1/agent/actions/proposals/${encodeURIComponent(stored.id)}/reply`,
+    {
+      body: JSON.stringify(scope),
+      headers: { 'Content-Type': 'application/json' },
+      method: 'POST',
+    }
+  );
+  const body = (await response.json().catch(() => null)) as {
+    error?: string;
+    replied?: boolean;
+  } | null;
+  if (!response.ok) {
+    throw new Error(body?.error || `Action reply failed: ${response.status}`);
+  }
+  return body?.replied === true;
+}
+
 export async function claimScopedActionProposal(
   stored: StoredActionProposal,
   activeScope: ActionProposalScope

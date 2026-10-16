@@ -80,6 +80,11 @@ export class GoogleDriveBlobStorage extends BlobStorageBase {
         throw new Error(
           'Drive attachment identity contains conflicting data. Original local media retained.'
         );
+      // Uploading again means a device uses it; stop any pending cleanup.
+      if (existing[0].properties?.['unusedSince'])
+        await this.connection.updateFileProperties(existing[0].id, {
+          unusedSince: null,
+        });
     } else {
       await this.connection.createFile(name, blob.data, blob.mime, {
         mime: blob.mime,

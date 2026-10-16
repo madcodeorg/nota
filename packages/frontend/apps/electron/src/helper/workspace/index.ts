@@ -2,6 +2,7 @@ import type { MainEventRegister } from '../type';
 import {
   getLocalBackupSettings,
   listLocalBackups,
+  readLocalBackup,
   restoreLocalBackup,
   runLocalBackup,
   selectLocalBackupFolder,
@@ -33,5 +34,6 @@ export const workspaceHandlers = {
   setLocalBackupEnabled,
   runLocalBackup,
   listLocalBackups,
+  readLocalBackup,
   restoreLocalBackup,
 };

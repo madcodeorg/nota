@@ -1,5 +1,6 @@
 import { finalizeMeetingsBeforeShutdown } from './meetings';
 import { createServer } from './server';
+import { flushAllCopilotStores } from './store';
 
 type UtilityParentPort = {
   on(event: 'message', listener: (event: unknown) => void): void;
@@ -56,6 +57,7 @@ async function start() {
       server.close();
       getChatGPTAuth(config).cancelSignIn();
       await finalizeMeetingsBeforeShutdown(config);
+      await flushAllCopilotStores();
       server.closeAllConnections?.();
       parentPort.postMessage({ type: 'nota-ai-backend-shutdown-complete' });
       process.exit(0);

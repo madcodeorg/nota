@@ -40,6 +40,25 @@ function toBlobBody(content: Uint8Array, mimeType?: string): Blob {
   });
 }
 
+/** A listed file was removed (for example by compaction on another device). */
+export class DriveNotFoundError extends Error {
+  constructor(fileId: string) {
+    super(`Drive file ${fileId} no longer exists.`);
+    this.name = 'DriveNotFoundError';
+  }
+}
+
+export interface DriveChange {
+  fileId: string;
+  removed?: boolean;
+  file?: DriveFile & { trashed?: boolean };
+}
+
+const FILE_FIELDS = 'id,name,modifiedTime,size,properties';
+// Drive multipart uploads are limited to 5 MB; larger bodies use a resumable session.
+const MULTIPART_LIMIT = 5 * 1024 * 1024;
+const RESUMABLE_CHUNK = 32 * 256 * 1024;
+
 export class GoogleDriveConnection extends AutoReconnectConnection<DriveClient> {
   private activeRequests = 0;
   private readonly waitQueue: Array<() => void> = [];
@@ -314,6 +333,8 @@ export class GoogleDriveConnection extends AutoReconnectConnection<DriveClient> 
     if (properties) {
       metadata['properties'] = properties;
     }
+    if (content.byteLength > MULTIPART_LIMIT)
+      return this.createFileResumable(id, metadata, content, mimeType);
 
     const boundary = `nota_boundary_${Date.now()}`;
     const metadataPart = JSON.stringify(metadata);
@@ -342,14 +363,7 @@ export class GoogleDriveConnection extends AutoReconnectConnection<DriveClient> 
       }
     );
 
-    if (response.status === 409) {
-      const existing = await this.driveFetch(
-        `${DRIVE_API}/files/${encodeURIComponent(id)}?fields=id,name,modifiedTime,size,properties`
-      );
-      if (!existing.ok)
-        throw new Error('Drive upload identity could not be verified.');
-      return existing.json() as Promise<DriveFile>;
-    }
+    if (response.status === 409) return this.getExistingFile(id);
     if (!response.ok) {
       const errorText = await response.text().catch(() => '');
       throw new Error(
@@ -358,6 +372,123 @@ export class GoogleDriveConnection extends AutoReconnectConnection<DriveClient> 
     }
 
     return response.json() as Promise<DriveFile>;
+  }
+
+  private async getExistingFile(id: string): Promise<DriveFile> {
+    const existing = await this.driveFetch(
+      `${DRIVE_API}/files/${encodeURIComponent(id)}?fields=${FILE_FIELDS}`
+    );
+    if (!existing.ok)
+      throw new Error('Drive upload identity could not be verified.');
+    return existing.json() as Promise<DriveFile>;
+  }
+
+  private async createFileResumable(
+    id: string,
+    metadata: Record<string, unknown>,
+    content: Uint8Array,
+    mimeType: string
+  ): Promise<DriveFile> {
+    const session = await this.driveFetch(
+      `${UPLOAD_API}/files?uploadType=resumable&fields=${FILE_FIELDS}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json; charset=UTF-8',
+          'X-Upload-Content-Type': mimeType,
+          'X-Upload-Content-Length': String(content.byteLength),
+        },
+        body: JSON.stringify(metadata),
+      }
+    );
+    if (session.status === 409) return this.getExistingFile(id);
+    const location = session.headers.get('Location');
+    if (!session.ok || !location)
+      throw new Error(`Drive upload session failed (${session.status}).`);
+    let offset = 0;
+    while (true) {
+      const end = Math.min(offset + RESUMABLE_CHUNK, content.byteLength);
+      const response = await this.driveFetch(location, {
+        method: 'PUT',
+        headers: {
+          'Content-Range': `bytes ${offset}-${end - 1}/${content.byteLength}`,
+        },
+        body: toBlobBody(content.subarray(offset, end), mimeType),
+      });
+      if (response.status === 308) {
+        // Range reports the last byte the server stored; resume from there.
+        const range = /bytes=0-(\d+)/.exec(response.headers.get('Range') ?? '');
+        offset = range ? Number(range[1]) + 1 : 0;
+        continue;
+      }
+      if (response.status === 409) return this.getExistingFile(id);
+      if (!response.ok)
+        throw new Error(`Drive upload failed (${response.status}).`);
+      return response.json() as Promise<DriveFile>;
+    }
+  }
+
+  async updateFileProperties(
+    fileId: string,
+    properties: Record<string, string | null>
+  ): Promise<DriveFile> {
+    const response = await this.driveFetch(
+      `${DRIVE_API}/files/${encodeURIComponent(fileId)}?fields=${FILE_FIELDS}`,
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json; charset=UTF-8' },
+        body: JSON.stringify({ properties }),
+      }
+    );
+    if (response.status === 404) throw new DriveNotFoundError(fileId);
+    if (!response.ok)
+      throw new Error(`Drive property update failed (${response.status}).`);
+    return response.json() as Promise<DriveFile>;
+  }
+
+  /** Returns null when the account cannot provide a changes cursor. */
+  async getStartPageToken(): Promise<string | null> {
+    const response = await this.driveFetch(
+      `${DRIVE_API}/changes/startPageToken`
+    );
+    if (!response.ok) return null;
+    const data = (await response.json()) as { startPageToken?: string };
+    return typeof data.startPageToken === 'string' ? data.startPageToken : null;
+  }
+
+  /** Read every appDataFolder change after a cursor and return the next cursor. */
+  async listChanges(
+    pageToken: string
+  ): Promise<{ changes: DriveChange[]; nextToken: string }> {
+    const changes: DriveChange[] = [];
+    let token = pageToken;
+    const seen = new Set<string>();
+    while (true) {
+      const params = new URLSearchParams({
+        pageToken: token,
+        spaces: 'appDataFolder',
+        includeRemoved: 'true',
+        pageSize: '1000',
+        fields: `nextPageToken,newStartPageToken,changes(fileId,removed,file(${FILE_FIELDS},trashed))`,
+      });
+      const response = await this.driveFetch(
+        `${DRIVE_API}/changes?${params.toString()}`
+      );
+      if (!response.ok)
+        throw new Error(`Drive changes failed (${response.status}).`);
+      const data = (await response.json()) as {
+        changes?: DriveChange[];
+        nextPageToken?: string;
+        newStartPageToken?: string;
+      };
+      changes.push(...(data.changes ?? []));
+      if (data.newStartPageToken)
+        return { changes, nextToken: data.newStartPageToken };
+      if (!data.nextPageToken || seen.has(data.nextPageToken))
+        throw new Error('Drive returned an incomplete changes page.');
+      seen.add(data.nextPageToken);
+      token = data.nextPageToken;
+    }
   }
 
   /**
@@ -397,6 +528,7 @@ export class GoogleDriveConnection extends AutoReconnectConnection<DriveClient> 
       `${DRIVE_API}/files/${encodeURIComponent(fileId)}?alt=media`
     );
 
+    if (response.status === 404) throw new DriveNotFoundError(fileId);
     if (!response.ok) {
       const errorText = await response.text().catch(() => '');
       throw new Error(
@@ -417,7 +549,8 @@ export class GoogleDriveConnection extends AutoReconnectConnection<DriveClient> 
       { method: 'DELETE' }
     );
 
-    if (!response.ok && response.status !== 204) {
+    // Another device may already have removed the same covered file.
+    if (!response.ok && response.status !== 204 && response.status !== 404) {
       const errorText = await response.text().catch(() => '');
       throw new Error(
         `Drive deleteFile failed (${response.status}): ${errorText}`

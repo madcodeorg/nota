@@ -15,6 +15,7 @@ import { useLiveData, useService } from '@nota/infra';
 import { BlobManagementPanel } from './blob-management';
 import { DesktopExportPanel } from './export';
 import { GoogleDriveStoragePanel } from './google-drive';
+import { GoogleDriveMaintenancePanel } from './google-drive-maintenance';
 import { LocalHistoryStoragePanel } from './local-history';
 import { WorkspaceQuotaPanel } from './workspace-quota';
 
@@ -42,6 +43,9 @@ export const WorkspaceSettingStorage = () => {
       {isUserOwnedWorkspace ? (
         <SettingWrapper>
           <GoogleDriveStoragePanel />
+          {workspace.flavour === 'google-drive' ? (
+            <GoogleDriveMaintenancePanel />
+          ) : null}
         </SettingWrapper>
       ) : null}
       {isUserOwnedWorkspace ? (

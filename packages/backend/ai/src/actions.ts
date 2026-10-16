@@ -49,6 +49,11 @@ export type AgentActionProposal =
     }
   | {
       docId: string;
+      title?: string;
+      type: 'trash_doc';
+    }
+  | {
+      docId: string;
       type: 'clear_doc';
     }
   | {
@@ -385,6 +390,12 @@ export function readActionProposal(input: unknown): AgentActionProposal {
           (body as { markdown?: unknown }).markdown,
           'markdown'
         ),
+        type,
+      };
+    case 'trash_doc':
+      return {
+        docId: readString((body as { docId?: unknown }).docId, 'docId', 500),
+        title: readOptionalString((body as { title?: unknown }).title, 240),
         type,
       };
     case 'clear_doc':

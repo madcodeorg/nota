@@ -686,7 +686,7 @@ function createBuiltinNotaTools(
 
   tools.propose_nota_action = tool({
     description:
-      'Create a pending Nota workspace action proposal for user approval. Use this when the user asks AI to create notes, insert text, replace selected content, create mindmaps, create task lists, create database/table documents, or append rows to an existing database. Whole-document clearing is unavailable. This tool does not apply changes directly.',
+      'Create a pending Nota workspace action proposal for user approval. Use this when the user asks AI to create notes, insert text, replace selected content, create mindmaps, create task lists, create database/table documents, append rows to an existing database, or move a note to the trash (trash_doc; restorable, never a permanent delete). Whole-document clearing is unavailable. This tool does not apply changes directly.',
     inputSchema: z.object({
       reason: z
         .string()
@@ -752,6 +752,19 @@ function createBuiltinNotaTools(
             .min(1)
             .max(100000)
             .describe('Markdown table or row list to append to the database.'),
+        }),
+        z.object({
+          type: z.literal('trash_doc'),
+          docId: z
+            .string()
+            .min(1)
+            .max(500)
+            .describe('Exact Nota document id from list or search results.'),
+          title: z
+            .string()
+            .max(240)
+            .optional()
+            .describe('Title of the note, shown to the user for approval.'),
         }),
         z.object({
           type: z.literal('run_mcp_tool'),

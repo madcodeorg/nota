@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { mkdir, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import type {
@@ -101,7 +102,19 @@ function readPersistedSession(value: unknown): CopilotSession | null {
   };
 }
 
+const PERSIST_DELAY_MS = 500;
+const liveStores = new Set<CopilotStore>();
+
+export function flushAllCopilotStores(): Promise<void> {
+  return Promise.all([...liveStores].map(store => store.flush())).then(
+    () => undefined
+  );
+}
+
 export class CopilotStore {
+  private dirty = false;
+  private persistTimer: ReturnType<typeof setTimeout> | null = null;
+  private writeChain: Promise<void> = Promise.resolve();
   private readonly sessions = new Map<string, CopilotSession>();
   private readonly contexts = new Map<
     string,
@@ -114,6 +127,7 @@ export class CopilotStore {
     private readonly persistencePath?: string
   ) {
     this.load();
+    if (persistencePath) liveStores.add(this);
   }
 
   setDefaultModel(defaultModel: string, optionalModelIds?: string[]) {
@@ -364,26 +378,42 @@ export class CopilotStore {
 
   private persist() {
     if (!this.persistencePath) return;
+    this.dirty = true;
+    if (this.persistTimer) return;
+    this.persistTimer = setTimeout(() => void this.flush(), PERSIST_DELAY_MS);
+    // Graceful shutdown flushes explicitly via flushAllCopilotStores().
+    this.persistTimer.unref();
+  }
+
+  flush(): Promise<void> {
+    if (this.persistTimer) {
+      clearTimeout(this.persistTimer);
+      this.persistTimer = null;
+    }
+    if (this.dirty) {
+      this.dirty = false;
+      this.writeChain = this.writeChain.then(() => this.write());
+    }
+    return this.writeChain;
+  }
+
+  private async write() {
+    const filePath = this.persistencePath;
+    if (!filePath) return;
     try {
-      mkdirSync(path.dirname(this.persistencePath), { recursive: true });
-      const temporaryPath = `${this.persistencePath}.${process.pid}.tmp`;
-      writeFileSync(
-        temporaryPath,
-        JSON.stringify(
-          {
-            contexts: [...this.contexts].map(([key, context]) => ({
-              ...context,
-              key,
-            })),
-            sessions: [...this.sessions.values()],
-            version: 1,
-          } satisfies PersistedCopilotStore,
-          null,
-          2
-        ),
-        { mode: 0o600 }
-      );
-      renameSync(temporaryPath, this.persistencePath);
+      // Serialized at write time so the file always holds the latest state.
+      const json = JSON.stringify({
+        contexts: [...this.contexts].map(([key, context]) => ({
+          ...context,
+          key,
+        })),
+        sessions: [...this.sessions.values()],
+        version: 1,
+      } satisfies PersistedCopilotStore);
+      await mkdir(path.dirname(filePath), { recursive: true });
+      const temporaryPath = `${filePath}.${process.pid}.tmp`;
+      await writeFile(temporaryPath, json, { mode: 0o600 });
+      await rename(temporaryPath, filePath);
     } catch (error) {
       console.error(
         '[copilot-store] failed to persist local chat history',

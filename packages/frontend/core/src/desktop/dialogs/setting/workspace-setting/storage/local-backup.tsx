@@ -7,12 +7,19 @@ import {
   LOCAL_BACKUP_UPDATED,
 } from '@nota/core/desktop/pages/workspace/local-backup-side-effect';
 import { DesktopApiService } from '@nota/core/modules/desktop-api';
+import { GoogleAuthService } from '@nota/core/modules/google-auth';
 import {
   type Workspace,
   WorkspacesService,
 } from '@nota/core/modules/workspace';
 import { _addLocalWorkspace } from '@nota/core/modules/workspace-engine';
-import { useService } from '@nota/infra';
+import {
+  copyLatestBackupToDrive,
+  type DriveBackupState,
+  getDriveBackupState,
+  setDriveBackupState,
+} from '@nota/core/modules/workspace-engine/impls/google-drive-maintenance';
+import { useLiveData, useService } from '@nota/infra';
 import { universalId } from '@nota/nbstore';
 import { useCallback, useEffect, useState } from 'react';
 
@@ -30,6 +37,11 @@ type BackupList = Awaited<
 export const LocalBackupPanel = ({ workspace }: { workspace: Workspace }) => {
   const desktopApi = useService(DesktopApiService);
   const workspacesService = useService(WorkspacesService);
+  const auth = useService(GoogleAuthService);
+  const googleUser = useLiveData(auth.session.userInfo$);
+  const [driveBackup, setDriveBackup] = useState<DriveBackupState>(() =>
+    getDriveBackupState(workspace.id)
+  );
   const [settings, setSettings] = useState<BackupSettings>();
   const [backups, setBackups] = useState<BackupList>([]);
   const [busy, setBusy] = useState(false);
@@ -47,7 +59,20 @@ export const LocalBackupPanel = ({ workspace }: { workspace: Workspace }) => {
     ]);
     setSettings(settings);
     setBackups(backups);
-  }, [desktopApi, id]);
+    setDriveBackup(getDriveBackupState(workspace.id));
+  }, [desktopApi, id, workspace.id]);
+
+  const copyToDrive = async (force = false) => {
+    const result = await copyLatestBackupToDrive(
+      desktopApi.handler.workspace,
+      auth,
+      workspace.id,
+      id,
+      force
+    );
+    setDriveBackup(result);
+    if (result.lastError) throw new Error(result.lastError);
+  };
 
   useEffect(() => {
     let disposed = false;
@@ -99,6 +124,7 @@ export const LocalBackupPanel = ({ workspace }: { workspace: Workspace }) => {
     const result = await desktopApi.handler.workspace.runLocalBackup(id, true);
     if (result.lastError) throw new Error(result.lastError);
     notify.success({ title: 'Local backup verified and saved' });
+    if (getDriveBackupState(workspace.id).enabled) await copyToDrive(true);
   };
 
   return (
@@ -157,6 +183,39 @@ export const LocalBackupPanel = ({ workspace }: { workspace: Workspace }) => {
           Back up now
         </Button>
       </SettingRow>
+      <SettingRow
+        name="Copy backups to Google Drive"
+        desc={
+          !googleUser
+            ? 'Sign in with Google to keep an off-device copy of each verified backup in your own Drive.'
+            : driveBackup.lastCopy
+              ? `Last copy: ${new Date(driveBackup.lastCopy).toLocaleString()}. Drive keeps the seven newest copies.`
+              : 'Keep an off-device copy of each verified backup in your own Drive. Drive keeps the seven newest copies.'
+        }
+      >
+        <Switch
+          checked={driveBackup.enabled ?? false}
+          disabled={busy || (!googleUser && !driveBackup.enabled)}
+          onChange={enabled =>
+            run(async () => {
+              setDriveBackup(
+                setDriveBackupState(workspace.id, {
+                  enabled,
+                  lastError: undefined,
+                })
+              );
+              if (enabled) await copyToDrive();
+            })
+          }
+        >
+          <span className={styles.switchLabel}>
+            Copy backups to Google Drive
+          </span>
+        </Switch>
+      </SettingRow>
+      {driveBackup.enabled && driveBackup.lastError && !error ? (
+        <p role="alert">{driveBackup.lastError}</p>
+      ) : null}
       {error || settings?.lastError ? (
         <p role="alert">{error || settings?.lastError}</p>
       ) : null}

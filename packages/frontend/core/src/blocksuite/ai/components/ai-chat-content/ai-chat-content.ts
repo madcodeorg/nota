@@ -271,6 +271,36 @@ export class AIChatContent extends SignalWatcher(
     });
   };
 
+  // The backend appends the model's reply to the stored history, so replace
+  // the list with it rather than merging into the streamed local copy.
+  private readonly onActionProposalReplied = async () => {
+    const sessionId = this.session?.sessionId;
+    if (
+      !AIProvider.histories ||
+      !sessionId ||
+      this.chatContextValue.status === 'loading' ||
+      this.chatContextValue.status === 'transmitting'
+    ) {
+      return;
+    }
+    const histories = await AIProvider.histories.chats(
+      this.workspaceId,
+      sessionId
+    );
+    const messages = (histories?.[0]?.messages || []) as ChatMessage[];
+    if (messages.length < this.chatContextValue.messages.length) {
+      return;
+    }
+    this.updateContext({
+      messages: messages
+        .slice()
+        .sort(
+          (a, b) =>
+            new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+        ),
+    });
+  };
+
   private readonly updateActions = async () => {
     if (!this.docId || !AIProvider.histories || !this.showActions) {
       return;
@@ -455,6 +485,7 @@ export class AIChatContent extends SignalWatcher(
         .onApplyActionProposal=${this.onApplyActionProposal}
         .onRejectActionProposal=${this.onRejectActionProposal}
         .onUndoActionProposal=${this.onUndoActionProposal}
+        @action-proposal-replied=${this.onActionProposalReplied}
       ></ai-chat-messages>
       <ai-chat-composer
         style=${styleMap({

@@ -284,4 +284,54 @@ describe('AI settings model selection', () => {
       ])
     );
   });
+
+  it('serves the workspace content manifest scoped to one workspace', async () => {
+    const headers = {
+      'content-type': 'application/json',
+      'x-nota-backend-token': TOKEN,
+    };
+    for (const [workspaceId, docId] of [
+      ['workspace-alpha', 'alpha-doc'],
+      ['workspace-beta', 'beta-doc'],
+    ]) {
+      const upsert = await fetch(`${baseUrl}/v1/workspace/content/upsert`, {
+        body: JSON.stringify({
+          documents: [
+            {
+              accessVerified: true,
+              docId,
+              markdown: `# ${docId}`,
+              title: docId,
+              updatedAt: '2026-01-01T00:00:00.000Z',
+            },
+          ],
+          workspaceId,
+        }),
+        headers,
+        method: 'POST',
+      });
+      expect(upsert.ok).toBe(true);
+    }
+
+    const manifest = await fetch(
+      `${baseUrl}/v1/workspace/content/manifest?workspaceId=workspace-alpha`,
+      { headers }
+    );
+    expect(manifest.status).toBe(200);
+    expect(await manifest.json()).toEqual({
+      documents: [
+        { docId: 'alpha-doc', updatedAt: '2026-01-01T00:00:00.000Z' },
+      ],
+      workspaceId: 'workspace-alpha',
+    });
+
+    const missing = await fetch(`${baseUrl}/v1/workspace/content/manifest`, {
+      headers,
+    });
+    expect(missing.status).toBe(400);
+    const unauthorized = await fetch(
+      `${baseUrl}/v1/workspace/content/manifest?workspaceId=workspace-alpha`
+    );
+    expect(unauthorized.status).not.toBe(200);
+  });
 });

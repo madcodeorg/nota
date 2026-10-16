@@ -8553,7 +8553,7 @@ __metadata:
     express: "npm:^5.2.1"
     jose: "npm:5.10.0"
     multer: "npm:^2.0.2"
-    onnxruntime-node: "npm:1.24.3"
+    onnxruntime-node: "patch:onnxruntime-node@npm%3A1.24.3#~/.yarn/patches/onnxruntime-node-npm-1.24.3-b5bf0b646c.patch"
     sherpa-onnx-node: "npm:1.13.8"
     tsx: "npm:^4.21.0"
     typescript: "npm:^5.9.3"
@@ -27613,6 +27613,18 @@ __metadata:
     global-agent: "npm:^4.1.3"
     onnxruntime-common: "npm:1.30.0"
   checksum: 10/dfa1ad7162fb3cbbf2ccb8a454dfb77b3030b0bc5dcda4ffd787ad85dba0ee084cf8b41b6cce7aee8ad352a6f47f53ec0226a1e61714121dc378e384957241c8
+  conditions: (os=win32 | os=darwin | os=linux)
+  languageName: node
+  linkType: hard
+
+"onnxruntime-node@patch:onnxruntime-node@npm%3A1.24.3#~/.yarn/patches/onnxruntime-node-npm-1.24.3-b5bf0b646c.patch":
+  version: 1.24.3
+  resolution: "onnxruntime-node@patch:onnxruntime-node@npm%3A1.24.3#~/.yarn/patches/onnxruntime-node-npm-1.24.3-b5bf0b646c.patch::version=1.24.3&hash=194206"
+  dependencies:
+    adm-zip: "npm:^0.5.16"
+    global-agent: "npm:^3.0.0"
+    onnxruntime-common: "npm:1.24.3"
+  checksum: 10/2316f5161b7089139d3a790bf1cad74274aae7a9b43cb8b28946fc71f71df2b23db390042f9aee0cfe69c3585713353c2e1c41b974d0f8adc3b5308a9db2c643
   conditions: (os=win32 | os=darwin | os=linux)
   languageName: node
   linkType: hard
