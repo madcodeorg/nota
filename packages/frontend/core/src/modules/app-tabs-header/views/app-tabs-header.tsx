@@ -368,6 +368,7 @@ export const AppTabsHeader = ({
   style,
   mode = 'app',
   ready = true,
+  deferReady = false,
   className,
   left,
   right,
@@ -375,6 +376,8 @@ export const AppTabsHeader = ({
   style?: React.CSSProperties;
   mode?: 'app' | 'shell';
   ready?: boolean;
+  /** The workbench route container sends the ready signal instead. */
+  deferReady?: boolean;
   className?: string;
   left?: ReactNode;
   right?: ReactNode;
@@ -405,10 +408,10 @@ export const AppTabsHeader = ({
   }, [tabsHeaderService]);
 
   useEffect(() => {
-    if (mode === 'app' && ready) {
+    if (mode === 'app' && ready && !deferReady) {
       desktopApi.handler.ui.pingAppLayoutReady().catch(console.error);
     }
-  }, [mode, desktopApi, ready]);
+  }, [mode, desktopApi, ready, deferReady]);
 
   const onDrop = useAsyncCallback(
     async (data: DropTargetDropEvent<AffineDNDData>, targetId?: string) => {

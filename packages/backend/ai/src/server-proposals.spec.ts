@@ -16,6 +16,33 @@ vi.mock('./mcp', async importOriginal => {
   };
 });
 
+const textMocks = vi.hoisted(() => ({
+  generateBackendText: vi.fn(),
+}));
+
+vi.mock('./text-runtime', async importOriginal => {
+  const actual = await importOriginal<typeof import('./text-runtime.js')>();
+  return {
+    ...actual,
+    generateBackendText: textMocks.generateBackendText,
+  };
+});
+
+vi.mock('./providers', async importOriginal => {
+  const actual = await importOriginal<typeof import('./providers.js')>();
+  class TestModelRouter extends actual.AiModelRouter {
+    override select() {
+      return {
+        model: {},
+        modelId: 'test-model',
+        provider: 'local',
+        runtime: 'hosted',
+      } as unknown as ReturnType<typeof actual.AiModelRouter.prototype.select>;
+    }
+  }
+  return { ...actual, AiModelRouter: TestModelRouter };
+});
+
 import { createServer } from './server.js';
 
 const TOKEN = 'test-nota-proposal-token';
@@ -41,6 +68,7 @@ beforeEach(async () => {
     'ai-settings.json'
   );
   mcpMocks.executeApprovedMcpTool.mockReset();
+  textMocks.generateBackendText.mockReset();
 
   const { app } = createServer();
   server = app.listen(0, '127.0.0.1');
@@ -461,13 +489,63 @@ describe('scoped action proposal routes', () => {
       ((await undone.json()) as { proposal: { status: string } }).proposal
         .status
     ).toBe('undone');
-    const messages = await sessionMessageContents(scope);
+    expect(await sessionMessageContents(scope)).toEqual([]);
+  });
+
+  it('lets the model write one reply per settled outcome', async () => {
+    textMocks.generateBackendText.mockResolvedValue({
+      text: 'The note is in the trash.',
+    });
+    const scope = {
+      sessionId: await createSession('workspace-alpha'),
+      workspaceId: 'workspace-alpha',
+    };
+    const proposal = await createMcpProposal(scope);
+    const reply = () =>
+      request(`/v1/agent/actions/proposals/${proposal.id}/reply`, {
+        body: scope,
+        method: 'POST',
+      }).then(response => response.json() as Promise<{ replied: boolean }>);
+
+    expect(await reply()).toEqual({ replied: false });
+    expect(textMocks.generateBackendText).not.toHaveBeenCalled();
+
+    expect((await patchProposal(proposal.id, scope, 'rejected')).status).toBe(
+      200
+    );
+    expect(await reply()).toEqual({ replied: true });
+    expect(await reply()).toEqual({ replied: false });
+    expect(textMocks.generateBackendText).toHaveBeenCalledTimes(1);
+    expect(await sessionMessageContents(scope)).toEqual([
+      'The note is in the trash.',
+    ]);
+  });
+
+  it('accepts a trash_doc proposal and rejects unknown action types', async () => {
+    const scope = {
+      sessionId: await createSession('workspace-alpha'),
+      workspaceId: 'workspace-alpha',
+    };
+    const create = (proposal: unknown) =>
+      request('/v1/agent/actions/proposals', {
+        body: { ...scope, proposal },
+        method: 'POST',
+      });
+
+    const trash = await create({
+      docId: 'doc-1',
+      title: 'Old plan',
+      type: 'trash_doc',
+    });
+    expect(trash.status).toBe(200);
     expect(
-      messages.filter(message => message.startsWith('Applied Nota AI action:'))
-    ).toHaveLength(1);
-    expect(
-      messages.filter(message => message.startsWith('Undid Nota AI action:'))
-    ).toHaveLength(1);
+      ((await trash.json()) as { proposal: { proposal: unknown } }).proposal
+        .proposal
+    ).toEqual({ docId: 'doc-1', title: 'Old plan', type: 'trash_doc' });
+    expect((await create({ type: 'trash_doc' })).status).toBe(400);
+    expect((await create({ docId: 'doc-1', type: 'purge_doc' })).status).toBe(
+      400
+    );
   });
 
   it('persists failed execution and requires reapproval before retry', async () => {

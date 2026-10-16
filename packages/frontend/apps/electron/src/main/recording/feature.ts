@@ -1163,11 +1163,16 @@ export function serializeRecordingStatus(
   };
 }
 
+let cachedMacOSVersion:
+  | { major: number; minor: number; patch: number }
+  | undefined;
+
 export const getMacOSVersion = () => {
+  if (cachedMacOSVersion) return cachedMacOSVersion;
   try {
     const stdout = execSync('sw_vers -productVersion').toString();
     const [major, minor, patch] = stdout.trim().split('.').map(Number);
-    return { major, minor, patch };
+    return (cachedMacOSVersion = { major, minor, patch });
   } catch (error) {
     logger.error('Failed to get MacOS version', error);
     return { major: 0, minor: 0, patch: 0 };

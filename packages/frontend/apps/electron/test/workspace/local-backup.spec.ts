@@ -57,6 +57,7 @@ vi.mock('@nota/electron/helper/dialog/dialog', () => ({
 import {
   getLocalBackupSettings,
   listLocalBackups,
+  readLocalBackup,
   restoreLocalBackup,
   runLocalBackup,
   selectLocalBackupFolder,
@@ -98,6 +99,22 @@ describe('local backup rotation and recovery', () => {
   afterEach(async () => {
     vi.restoreAllMocks();
     await fs.remove(directory);
+  });
+
+  it('reads only verified backups by their managed name for a Drive copy', async () => {
+    await runLocalBackup(id, true);
+    expect(
+      new TextDecoder().decode(
+        await readLocalBackup(id, 'backup-2026-10-05.nota')
+      )
+    ).toBe('verified');
+    await expect(readLocalBackup(id, '../source.db')).rejects.toThrow(
+      'Invalid backup selection'
+    );
+    await fs.writeFile(path.join(managed, 'backup-2026-10-04.nota'), 'broken');
+    await expect(readLocalBackup(id, 'backup-2026-10-04.nota')).rejects.toThrow(
+      'failed verification'
+    );
   });
 
   it('keeps seven daily snapshots and preserves unrelated files', async () => {

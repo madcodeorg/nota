@@ -5,6 +5,7 @@ import { property, state } from 'lit/decorators.js';
 import {
   type ActionProposalScope,
   getScopedActionProposal,
+  requestScopedActionReply,
 } from '../../agent/action-proposal-client';
 import {
   canUndoAppliedProposal,
@@ -298,6 +299,30 @@ export class AgentActionProposalCard extends ShadowlessElement {
       }
     } finally {
       this.localBusy = false;
+    }
+    this.requestOutcomeReply().catch(console.error);
+  }
+
+  private async requestOutcomeReply() {
+    const stored = this.stored;
+    const scope = this.actionProposalScope;
+    if (
+      !stored ||
+      !scope ||
+      (stored.status !== 'applied' &&
+        stored.status !== 'failed' &&
+        stored.status !== 'rejected' &&
+        stored.status !== 'undone')
+    ) {
+      return;
+    }
+    if (await requestScopedActionReply(stored, scope)) {
+      this.dispatchEvent(
+        new CustomEvent('action-proposal-replied', {
+          bubbles: true,
+          composed: true,
+        })
+      );
     }
   }
 

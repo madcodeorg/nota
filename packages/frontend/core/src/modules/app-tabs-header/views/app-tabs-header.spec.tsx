@@ -25,6 +25,7 @@ const mocks = vi.hoisted(() => ({
   sidebar: { width$: 300, open$: false, resizing$: false },
   // eslint-disable-next-line rxjs/finnish -- Mock LiveData values while retaining the service API.
   tabs: { tabsStatus$: [] },
+  inWorkspace: false,
 }));
 
 vi.mock('@nota/core/modules/app-sidebar', () => ({
@@ -54,12 +55,17 @@ vi.mock('@nota/infra', () => ({
         return mocks.tabs;
       case 'DesktopApiService':
         return mocks.desktopApi;
+      case 'CMDKQuickSearchService':
+        return {};
       default:
         throw new Error(`Unexpected service: ${token.name}`);
     }
   },
-  useServiceOptional: (token: { name: string }) =>
-    token.name === 'DesktopApiService' ? mocks.desktopApi : undefined,
+  useServiceOptional: (token: { name: string }) => {
+    if (token.name === 'DesktopApiService') return mocks.desktopApi;
+    if (token.name === 'WorkspaceService' && mocks.inWorkspace) return {};
+    return undefined;
+  },
 }));
 vi.mock('@nota/i18n', () => ({
   useI18n: () => ({ 'com.affine.multi-tab.new-tab': () => 'New tab' }),
@@ -135,6 +141,7 @@ describe('desktop layout readiness', () => {
   });
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.inWorkspace = false;
     mocks.desktopApi.handler.ui.pingAppLayoutReady.mockResolvedValue(undefined);
     mocks.desktopApi.handler.ui.isFullScreen.mockResolvedValue(false);
   });
@@ -161,6 +168,15 @@ describe('desktop layout readiness', () => {
     ).toHaveBeenCalledOnce();
   });
 
+  test('a deferred header leaves the app readiness signal to the workbench', async () => {
+    const view = render(<AppTabsHeader deferReady />);
+    view.rerender(<AppTabsHeader ready deferReady />);
+    expect(screen.getByTestId('add-tab-view-button')).toBeTruthy();
+    expect(
+      mocks.desktopApi.handler.ui.pingAppLayoutReady
+    ).not.toHaveBeenCalled();
+  });
+
   test('a ready shell does not complete the app layout handoff', () => {
     const view = render(<AppTabsHeader mode="shell" ready={false} />);
     view.rerender(<AppTabsHeader mode="shell" ready />);
@@ -176,6 +192,19 @@ describe('desktop layout readiness', () => {
         mocks.desktopApi.handler.ui.pingAppLayoutReady
       ).toHaveBeenCalledOnce()
     );
+  });
+
+  test('workspace pages leave the readiness signal to the workbench', () => {
+    mocks.inWorkspace = true;
+    render(
+      <AppContainer>
+        <main>Workspace content</main>
+      </AppContainer>
+    );
+    expect(screen.getByRole('main')).toBeTruthy();
+    expect(
+      mocks.desktopApi.handler.ui.pingAppLayoutReady
+    ).not.toHaveBeenCalled();
   });
 
   test('the fallback container waits for normal app content before signaling ready', async () => {

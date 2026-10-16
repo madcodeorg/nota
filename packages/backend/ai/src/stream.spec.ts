@@ -45,14 +45,9 @@ import type { AiBackendConfig } from './config';
 import type { AiModelRouter, TextModelRuntime } from './providers';
 import { CopilotStore } from './store';
 import {
-  actionIntent,
-  buildLocalOnnxActionProposal,
   configForRequestWorkspaceAccess,
   createStreamHandler,
-  localInsertPosition,
-  localOnnxMutationMarkdown,
   localWorkspaceDocumentMode,
-  resolveLocalOnnxTargetDocument,
   toModelMessages,
   workspaceContentAccessForRequest,
 } from './stream';
@@ -133,17 +128,6 @@ function sessionWithImage(image: string): CopilotSession {
     createdAt: now,
     updatedAt: now,
   };
-}
-
-function actionSession(content: string, docId: string | null = null) {
-  const session = sessionWithImage('');
-  session.docId = docId;
-  session.messages[0] = {
-    ...session.messages[0],
-    attachments: [],
-    content,
-  };
-  return session;
 }
 
 function streamConfig() {
@@ -782,153 +766,40 @@ describe('local ONNX workspace and edit routing', () => {
     ).toBe('search');
   });
 
-  test('routes selected-content rewrites to a replacement proposal', () => {
-    expect(
-      actionIntent(
-        'Polish this paragraph.\n\nContext:\nSelected Markdown:\nDraft copy'
-      )
-    ).toBe('replace_selection');
-  });
-
-  test('honors selection, start, and end insertion positions', () => {
-    expect(localInsertPosition('Add this after the selected text')).toBe(
-      'selection'
-    );
-    expect(
-      localInsertPosition('Insert this at the beginning of the note')
-    ).toBe('start');
-    expect(localInsertPosition('Append this to the note')).toBe('end');
-  });
-
-  test('resolves only the longest unique exact note-title mention', () => {
-    const candidates = [
-      { docId: 'plan', title: 'Plan' },
-      { docId: 'launch-plan', title: 'Launch Plan' },
-    ];
-
-    expect(
-      resolveLocalOnnxTargetDocument(
-        'Append this update to the Launch Plan note.',
-        candidates
-      )
-    ).toEqual({ docId: 'launch-plan', status: 'resolved' });
-    expect(
-      resolveLocalOnnxTargetDocument('Append this update to another note.', [
-        ...candidates,
-        { docId: 'launch-plan-copy', title: 'Launch Plan' },
-      ])
-    ).toEqual({ docId: null, status: 'missing' });
-    expect(
-      resolveLocalOnnxTargetDocument(
-        'Append this update to the Launch Plan note.',
-        [...candidates, { docId: 'launch-plan-copy', title: 'Launch Plan' }]
-      )
-    ).toEqual({ docId: null, status: 'ambiguous' });
-  });
-
-  test('extracts only one fenced mutation body and excludes preface and sources', () => {
-    const response = [
-      'I prepared the requested update.',
-      '```markdown',
-      '## Launch update',
-      '',
-      'Ship the local build.',
-      '```',
-      '',
-      'Sources:',
-      '- Launch Plan [source: nota://workspace-1/launch-plan]',
-    ].join('\n');
-
-    expect(localOnnxMutationMarkdown(response)).toBe(
-      '## Launch update\n\nShip the local build.'
-    );
-    expect(localOnnxMutationMarkdown('Preface\n\nPlain markdown')).toBeNull();
-    expect(
-      localOnnxMutationMarkdown(
-        '```markdown\nFirst\n```\n\n```markdown\nSecond\n```'
-      )
-    ).toBeNull();
-  });
-
-  test('uses the current session document before a resolved named target', () => {
-    const assistantText = '```markdown\n## Update\n\nDone.\n```';
-
-    expect(
-      buildLocalOnnxActionProposal({
-        assistantText,
-        session: actionSession(
-          'Append this update to the Launch Plan note.',
-          'current-doc'
-        ),
-        targetDocId: 'launch-plan',
-        userContent: 'Append this update to the Launch Plan note.',
-      })
-    ).toEqual({
-      docId: 'current-doc',
-      markdown: '## Update\n\nDone.',
-      position: 'end',
-      type: 'insert_markdown',
-    });
-    expect(
-      buildLocalOnnxActionProposal({
-        assistantText,
-        session: actionSession('Append this update to the Launch Plan note.'),
-        userContent: 'Append this update to the Launch Plan note.',
-      })
-    ).toBeNull();
-  });
-
-  test('targets an exact accessible note and keeps the action approval-gated', async () => {
-    const result = {
-      blockId: 'block-1',
-      docId: 'launch-plan',
-      id: 'launch-plan:block-1',
-      score: 1,
-      snippet: 'Existing launch plan.',
-      source: 'doc' as const,
-      sourceRef: 'nota://workspace-1/launch-plan',
-      title: 'Launch Plan',
-      workspaceId: 'workspace-1',
-    };
-    workspaceMocks.searchWorkspace.mockResolvedValue({
-      query: 'Append this update to the Launch Plan note.',
-      results: [result],
-      searchType: 'lexical-fallback',
-    });
-    workspaceMocks.listWorkspaceDocuments.mockResolvedValue({
+  test.each([
+    {
+      documents: [],
+      label: 'missing',
+    },
+    {
       documents: [
         {
-          docId: 'launch-plan',
+          docId: 'launch-plan-1',
           source: 'doc',
-          sourceRef: 'nota://workspace-1/launch-plan',
+          sourceRef: 'nota://workspace-1/launch-plan-1',
+          title: 'Launch Plan',
+          workspaceId: 'workspace-1',
+        },
+        {
+          docId: 'launch-plan-2',
+          source: 'doc',
+          sourceRef: 'nota://workspace-1/launch-plan-2',
           title: 'Launch Plan',
           workspaceId: 'workspace-1',
         },
       ],
-      total: 1,
+      label: 'ambiguous',
+    },
+  ])('lets the model handle a $label named-note target', async testCase => {
+    workspaceMocks.listWorkspaceDocuments.mockResolvedValue({
+      documents: testCase.documents,
+      total: testCase.documents.length,
       workspaceId: 'workspace-1',
-    });
-    workspaceMocks.readWorkspaceDocument.mockResolvedValue({
-      document: {
-        docId: 'launch-plan',
-        markdown: '# Launch Plan\n\nExisting launch plan.',
-        source: 'doc',
-        sourceRef: 'nota://workspace-1/launch-plan',
-        title: 'Launch Plan',
-        workspaceId: 'workspace-1',
-      },
     });
     aiMocks.streamText.mockReturnValue({
       fullStream: (async function* () {
         yield {
-          text: [
-            'I prepared the update.',
-            '```markdown',
-            '## Update',
-            '',
-            'Ship the local build.',
-            '```',
-          ].join('\n'),
+          text: 'Which Launch Plan note do you mean?',
           type: 'text-delta',
         };
       })(),
@@ -970,103 +841,8 @@ describe('local ONNX workspace and edit routing', () => {
     );
 
     const assistant = store.requireSession(sessionId).messages.at(-1);
-    const proposalObject = assistant?.streamObjects.find(
-      object =>
-        object.type === 'tool-result' &&
-        object.toolName === 'propose_nota_action'
-    );
-    expect(proposalObject).toMatchObject({
-      result: {
-        proposal: {
-          proposal: {
-            docId: 'launch-plan',
-            markdown: '## Update\n\nShip the local build.',
-            position: 'end',
-            type: 'insert_markdown',
-          },
-          status: 'pending_approval',
-        },
-        requiresApproval: true,
-      },
-    });
-    expect(workspaceMocks.listWorkspaceDocuments).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({ query: 'Launch Plan' })
-    );
-    expect(assistant?.content).toContain('Sources:');
-  });
-
-  test.each([
-    {
-      documents: [],
-      expected: 'could not safely identify one accessible target note',
-      label: 'missing',
-    },
-    {
-      documents: [
-        {
-          docId: 'launch-plan-1',
-          source: 'doc',
-          sourceRef: 'nota://workspace-1/launch-plan-1',
-          title: 'Launch Plan',
-          workspaceId: 'workspace-1',
-        },
-        {
-          docId: 'launch-plan-2',
-          source: 'doc',
-          sourceRef: 'nota://workspace-1/launch-plan-2',
-          title: 'Launch Plan',
-          workspaceId: 'workspace-1',
-        },
-      ],
-      expected: 'more than one accessible note matches that title',
-      label: 'ambiguous',
-    },
-  ])('refuses a $label named-note target before inference', async testCase => {
-    workspaceMocks.listWorkspaceDocuments.mockResolvedValue({
-      documents: testCase.documents,
-      total: testCase.documents.length,
-      workspaceId: 'workspace-1',
-    });
-
-    const store = new CopilotStore('test-model');
-    const sessionId = store.createSession({
-      promptName: 'Chat With Nota AI',
-      workspaceId: 'workspace-1',
-    });
-    store.createMessage({
-      content: 'Append this update to the Launch Plan note.',
-      sessionId,
-    });
-    const models = {
-      select: vi.fn(() => ({
-        model: {} as never,
-        modelId: 'gemma-test',
-        provider: 'local',
-        runtime: 'local-onnx',
-      })),
-    } as unknown as AiModelRouter;
-    const request = new StreamRequest();
-    request.params = { sessionId };
-    const response = new StreamResponse();
-    const handler = createStreamHandler({
-      config: {
-        ...streamConfig(),
-        toolsEnabled: true,
-        workspaceSearchToolEnabled: true,
-      },
-      models,
-      store,
-    });
-
-    await handler(
-      request as unknown as Request,
-      response as unknown as Response
-    );
-
-    const assistant = store.requireSession(sessionId).messages.at(-1);
-    expect(aiMocks.streamText).not.toHaveBeenCalled();
-    expect(assistant?.content).toContain(testCase.expected);
+    expect(aiMocks.streamText).toHaveBeenCalledTimes(1);
+    expect(assistant?.content).toBe('Which Launch Plan note do you mean?');
     expect(assistant?.streamObjects).not.toEqual(
       expect.arrayContaining([
         expect.objectContaining({ toolName: 'propose_nota_action' }),

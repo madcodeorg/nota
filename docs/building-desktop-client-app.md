@@ -46,6 +46,21 @@ the system temporary directory to avoid MSBuild's 260-character path limit.
 `NOTA_LOCAL_ASR_BUILD_ROOT` can override that location; choose a short absolute
 path. Other platforms continue to use the helper's `.build` directory.
 
+For a Windows build from the repository root, with dependencies already installed:
+
+```powershell
+.\scripts\build-windows.ps1 -Installer
+```
+
+This builds Windows x64 with Vulkan enabled for both chat and transcription.
+It finds the SDK through `VULKAN_SDK`, `VK_SDK_PATH`, or `C:\VulkanSDK`;
+`-VulkanSdkPath` selects another installation. Missing SDK files stop the build
+before compilation. `-CheckOnly` checks prerequisites without building.
+Use `-CpuOnly` for an intentional CPU-only build. The script uses `%USERPROFILE%\nvk`
+for native builds to keep Vulkan shader compiler paths short; `-NativeBuildRoot`
+overrides it. Use separate build roots for concurrent checkouts. Node.js 22,
+Yarn, Rust, and CMake must be available on `PATH`.
+
 ## Development
 
 After installing dependencies and building `@nota/native`, start the renderer in one terminal:

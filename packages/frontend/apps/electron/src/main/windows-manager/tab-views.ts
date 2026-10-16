@@ -30,6 +30,7 @@ import { beforeAppQuit, onTabClose } from '../cleanup';
 import { mainWindowOrigin, shellViewUrl } from '../constants';
 import { ensureHelperProcess } from '../helper-process';
 import { logger } from '../logger';
+import { recordingStateMachine } from '../recording/state-machine';
 import {
   SpellCheckStateKey,
   SpellCheckStateSchema,
@@ -83,6 +84,17 @@ const TabViewsMetaState = {
 const spellCheckSettings = SpellCheckStateSchema.parse(
   globalStateStorage.get(SpellCheckStateKey) ?? {}
 );
+
+export const TAB_DISCARD_IDLE_MS = 10 * 60 * 1000;
+
+// The renderer of these recording states may still be capturing or finalizing
+// a recording, so no tab is discarded while one of them is active.
+const RECORDING_BUSY_STATUSES = new Set([
+  'recording',
+  'paused',
+  'stopped',
+  'ready',
+]);
 
 type AddTabAction = {
   type: 'add-tab';
@@ -186,6 +198,11 @@ export class WebContentViewsManager {
       views => new Map([...views.entries()].filter(([key]) => key !== 'shell'))
     )
   );
+
+  private readonly discardTimers = new Map<
+    string,
+    ReturnType<typeof setTimeout>
+  >();
 
   // a stack of closed workbenches (for undo close tab)
   readonly closedWorkbenches: WorkbenchMeta[] = [];
@@ -391,6 +408,7 @@ export class WebContentViewsManager {
     });
 
     this.closedWorkbenches.push(targetWorkbench);
+    this.clearDiscardTimer(id);
 
     setTimeout(() => {
       const view = this.tabViewsMap.get(id);
@@ -514,7 +532,90 @@ export class WebContentViewsManager {
       this.resizeView(view);
     }
     this.updateBackgroundThrottling();
+    this.scheduleTabDiscards();
     return view;
+  };
+
+  /**
+   * Whether the renderer of an inactive tab can be destroyed without losing
+   * state that is not recoverable from the saved workbench metadata.
+   */
+  canDiscardTab = (id: string) => {
+    const view = this.tabViewsMap.get(id);
+    const meta = this.tabViewsMeta.workbenches.find(w => w.id === id);
+    // never empty the views map, which would quit the app
+    if (!view || !meta || this.tabViewsMap.size < 2) {
+      return false;
+    }
+    if (id === this.activeWorkbenchId || meta.pinned || meta.views.length > 1) {
+      return false;
+    }
+    const status = recordingStateMachine.status?.status;
+    if (status && RECORDING_BUSY_STATUSES.has(status)) {
+      return false;
+    }
+    const wc = view.webContents;
+    return !wc.isDestroyed() && !wc.isLoading() && !wc.isCurrentlyAudible();
+  };
+
+  private readonly discardTab = (id: string) => {
+    const view = this.tabViewsMap.get(id);
+    if (!view || !this.canDiscardTab(id)) {
+      return;
+    }
+    logger.info(`discarding idle tab ${id}`);
+    const wasReady = this.appTabsUIReady.has(id);
+    this.webViewsMap$.next(
+      new Map([...this.tabViewsMap.entries()].filter(([key]) => key !== id))
+    );
+    this.setTabUIUnready(id);
+    this.mainWindow?.contentView.removeChildView(view);
+
+    // A renderer can veto the unload (e.g. unsaved local changes). In that case
+    // the view stays alive, so it must stay tracked instead of becoming a leak.
+    view.webContents.once('will-prevent-unload', () => {
+      if (this.tabViewsMap.has(id)) {
+        return;
+      }
+      this.webViewsMap$.next(new Map(this.tabViewsMap).set(id, view));
+      if (wasReady) {
+        this.setTabUIReady(id);
+      }
+      this.scheduleTabDiscards();
+    });
+    view.webContents.close({ waitForBeforeUnload: true });
+  };
+
+  private readonly clearDiscardTimer = (id: string) => {
+    const timer = this.discardTimers.get(id);
+    if (timer) {
+      clearTimeout(timer);
+      this.discardTimers.delete(id);
+    }
+  };
+
+  // Arms an idle timer for every loaded inactive tab and disarms the active one.
+  private readonly scheduleTabDiscards = () => {
+    for (const id of this.tabViewsMap.keys()) {
+      if (id === 'shell') {
+        continue;
+      }
+      if (id === this.activeWorkbenchId) {
+        this.clearDiscardTimer(id);
+        continue;
+      }
+      if (this.discardTimers.has(id)) {
+        continue;
+      }
+      const timer = setTimeout(() => {
+        this.discardTimers.delete(id);
+        this.discardTab(id);
+        // tabs that were not eligible get another full idle period
+        this.scheduleTabDiscards();
+      }, TAB_DISCARD_IDLE_MS);
+      timer.unref();
+      this.discardTimers.set(id, timer);
+    }
   };
 
   pinTab = (key: string, shouldPin: boolean) => {
@@ -751,6 +852,10 @@ export class WebContentViewsManager {
         d.unsubscribe();
       });
     });
+    beforeAppQuit(() => {
+      this.discardTimers.forEach(timer => clearTimeout(timer));
+      this.discardTimers.clear();
+    });
 
     const focusActiveView = () => {
       if (
@@ -908,6 +1013,9 @@ export class WebContentViewsManager {
     });
 
     this.webViewsMap$.next(this.tabViewsMap.set(viewId, view));
+    if (type === 'app') {
+      this.scheduleTabDiscards();
+    }
     let disconnectHelperProcess: (() => void) | null = null;
 
     // shell process do not need to connect to helper process
@@ -942,11 +1050,13 @@ export class WebContentViewsManager {
     view.webContents.on('destroyed', () => {
       disconnectHelperProcess?.();
       disconnectHelperProcess = null;
+      // compare views, not ids: a discarded tab may already have a new view
       this.webViewsMap$.next(
-        new Map(
-          [...this.tabViewsMap.entries()].filter(([key]) => key !== viewId)
-        )
+        new Map([...this.tabViewsMap.entries()].filter(([, v]) => v !== view))
       );
+      if (!this.tabViewsMap.has(viewId)) {
+        this.clearDiscardTimer(viewId);
+      }
       // if all views are destroyed, close the app
       // should only happen in tests
       if (this.tabViewsMap.size === 0) {

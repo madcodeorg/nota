@@ -11,8 +11,9 @@ import {
   IndexedDBDocStorage,
   IndexedDBDocSyncStorage,
 } from '../idb';
+import { FakeDrive } from './__tests__/fake-drive';
 import { GoogleDriveBlobStorage } from './blob';
-import { type DriveFile, GoogleDriveConnection } from './connection';
+import { GoogleDriveConnection } from './connection';
 import { GoogleDriveDocStorage } from './doc';
 
 const tokens = {
@@ -26,75 +27,6 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-class FakeDrive {
-  files = new Map<string, { file: DriveFile; content: Uint8Array }>();
-  sequence = 0;
-  loseNextUpload = false;
-  requests: Array<{ url: string; method: string }> = [];
-  fetch = async (urlValue: string | URL | Request, init?: RequestInit) => {
-    const url = new URL(String(urlValue));
-    const method = init?.method ?? 'GET';
-    this.requests.push({ url: url.toString(), method });
-    if (url.pathname.endsWith('/about'))
-      return Response.json({ user: { permissionId: 'owner' } });
-    if (url.pathname.endsWith('/generateIds'))
-      return Response.json({ ids: [`file-${++this.sequence}`] });
-    if (
-      url.hostname === 'www.googleapis.com' &&
-      url.pathname === '/drive/v3/files'
-    ) {
-      const q = url.searchParams.get('q') ?? '';
-      const clauses = [...q.matchAll(/name (contains|=) '((?:\\.|[^'])*)'/g)];
-      const files = [...this.files.values()]
-        .map(record => record.file)
-        .filter(file =>
-          clauses.every(([, op, raw]) => {
-            const name = raw.replace(/\\(.)/g, '$1');
-            return op === '=' ? file.name === name : file.name.includes(name);
-          })
-        );
-      const page = Number(url.searchParams.get('pageToken') ?? 0);
-      return Response.json({
-        files: files.slice(page, page + 2),
-        nextPageToken: page + 2 < files.length ? String(page + 2) : undefined,
-      });
-    }
-    if (method === 'POST' && url.pathname === '/upload/drive/v3/files') {
-      const body = new Uint8Array(await (init!.body as Blob).arrayBuffer());
-      const text = new TextDecoder().decode(body);
-      const headerEnd = text.indexOf('\r\n\r\n') + 4;
-      const jsonEnd = text.indexOf('\r\n--', headerEnd);
-      const metadata = JSON.parse(text.slice(headerEnd, jsonEnd)) as DriveFile;
-      if (this.files.has(metadata.id))
-        return new Response(null, { status: 409 });
-      const dataStart = text.indexOf('\r\n\r\n', jsonEnd) + 4;
-      const boundary = text.slice(0, text.indexOf('\r\n'));
-      const tail = new TextEncoder().encode(`\r\n${boundary}--`);
-      const content = body.slice(
-        new TextEncoder().encode(text.slice(0, dataStart)).length,
-        body.length - tail.length
-      );
-      const file = {
-        ...metadata,
-        modifiedTime: '2026-10-05T12:00:00.000Z',
-        size: String(content.length),
-      };
-      this.files.set(file.id, { file, content });
-      if (this.loseNextUpload) {
-        this.loseNextUpload = false;
-        throw new Error('Response lost after server accepted upload');
-      }
-      return Response.json(file);
-    }
-    const id = url.pathname.split('/').at(-1)!;
-    const record = this.files.get(id);
-    if (!record) return new Response(null, { status: 404 });
-    return url.searchParams.get('alt') === 'media'
-      ? new Response(record.content.slice().buffer)
-      : Response.json(record.file);
-  };
-}
-
 async function remote(workspaceId: string) {
   const connection = new GoogleDriveConnection({ accountId: 'owner', tokens });
   connection.connect();
@@ -105,6 +37,7 @@ async function remote(workspaceId: string) {
     accountId: 'owner',
     tokens,
     pollingIntervalMs: 30,
+    pushIntervalMs: 0,
   });
   const blob = new GoogleDriveBlobStorage({
     id: workspaceId,

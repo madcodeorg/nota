@@ -332,6 +332,12 @@ const WorkspacePage = ({ meta }: { meta: WorkspaceMetadata }) => {
     return;
   }, [globalContextService, workspace]);
 
+  useEffect(() => {
+    if (isRootDocReady) {
+      import('./all-page/all-page').catch(console.error);
+    }
+  }, [isRootDocReady]);
+
   if (!workspace) {
     return null; // skip this, workspace will be set in layout effect
   }

@@ -259,6 +259,7 @@ describe('desktop STT release packaging', () => {
       with: { 'artifact-name': 'packaged-win32-x64' },
     });
     expect(jobs['make-windows-installer'].needs).toEqual([
+      'package-distribution-windows-x64',
       'sign-packaged-artifacts-windows_x64',
     ]);
     expect(Object.keys(jobs['make-windows-installer'].outputs!)).toEqual([
@@ -273,9 +274,16 @@ describe('desktop STT release packaging', () => {
       },
     });
     expect(jobs['finalize-installer-windows'].needs).toEqual([
-      'sign-installer-artifacts-windows-x64',
       'before-make',
+      'make-windows-installer',
+      'sign-installer-artifacts-windows-x64',
     ]);
+    for (const name of [
+      'sign-packaged-artifacts-windows_x64',
+      'sign-installer-artifacts-windows-x64',
+    ]) {
+      expect(jobs[name].if).toContain("vars.WINDOWS_SIGNING == 'true'");
+    }
     for (const name of [
       'make-windows-installer',
       'finalize-installer-windows',

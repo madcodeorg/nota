@@ -226,27 +226,13 @@ describe('workspace AI index pagination', () => {
 });
 
 describe('workspace AI index lifecycle', () => {
-  test('syncs on workspace entry, document updates, and the refresh interval', async () => {
-    vi.useFakeTimers();
-    const requests: Array<Record<string, unknown>> = [];
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async (_url: string, init: RequestInit) => {
-        const body = JSON.parse(String(init.body)) as Record<string, unknown>;
-        requests.push(body);
-        return Response.json({
-          indexed: 0,
-          total: 0,
-          workspaceId: body.workspaceId,
-        });
-      })
-    );
+  function createLifecycleWorkspace() {
     let onDocListUpdated: (() => void) | undefined;
     const unsubscribe = vi.fn();
     const workspace = {
       getDoc: () => null,
       meta: {
-        docMetas: [],
+        docMetas: [] as Array<Record<string, unknown>>,
         initialize: vi.fn(),
       },
       slots: {
@@ -257,29 +243,84 @@ describe('workspace AI index lifecycle', () => {
           },
         },
       },
-    } as unknown as Workspace;
+    };
+    return {
+      docListUpdated: () => onDocListUpdated?.(),
+      unsubscribe,
+      workspace,
+    };
+  }
+
+  test('syncs after the idle delay, on document updates, and on the safety-net interval', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal('requestIdleCallback', undefined);
+    const requests: Array<{ body: Record<string, unknown>; path: string }> = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init?: RequestInit) => {
+        if (url.startsWith('/v1/workspace/content/manifest')) {
+          return new Response('unavailable', { status: 503 });
+        }
+        const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+        requests.push({ body, path: url });
+        return Response.json({
+          indexed: 0,
+          total: 0,
+          workspaceId: body.workspaceId,
+        });
+      })
+    );
+    const { docListUpdated, unsubscribe, workspace } =
+      createLifecycleWorkspace();
 
     const dispose = startWorkspaceContentIndexSync({
       accessForDocument: async () => true,
       debounceMs: 10,
       intervalMs: 100,
-      workspace,
-      workspaceId: 'workspace-alpha',
+      workspace: workspace as unknown as Workspace,
+      workspaceId: 'lifecycle-alpha',
     });
 
-    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(1999);
+    expect(requests).toHaveLength(0);
+    await vi.advanceTimersByTimeAsync(1);
     expect(requests).toHaveLength(1);
+    expect(requests[0]?.body.replacement).toBeDefined();
 
-    onDocListUpdated?.();
+    workspace.meta.docMetas.push({ createDate: 1, id: 'new-doc' });
+    docListUpdated();
     await vi.advanceTimersByTimeAsync(9);
     expect(requests).toHaveLength(1);
     await vi.advanceTimersByTimeAsync(1);
+    // The unreadable new doc is removed from the index; nothing else is sent.
     expect(requests).toHaveLength(2);
+    expect(requests[1]).toMatchObject({
+      body: { docIds: ['new-doc'] },
+      path: '/v1/workspace/content/delete',
+    });
 
     await vi.advanceTimersByTimeAsync(100);
-    expect(requests).toHaveLength(3);
+    expect(requests).toHaveLength(2);
 
     dispose();
     expect(unsubscribe).toHaveBeenCalledOnce();
+  });
+
+  test('uses requestIdleCallback with a 5s timeout for the first sync', () => {
+    const idle = vi.fn(() => 7);
+    const cancel = vi.fn();
+    vi.stubGlobal('requestIdleCallback', idle);
+    vi.stubGlobal('cancelIdleCallback', cancel);
+    const { workspace } = createLifecycleWorkspace();
+
+    const dispose = startWorkspaceContentIndexSync({
+      accessForDocument: async () => true,
+      workspace: workspace as unknown as Workspace,
+      workspaceId: 'lifecycle-idle',
+    });
+
+    expect(idle).toHaveBeenCalledWith(expect.any(Function), { timeout: 5000 });
+    dispose();
+    expect(cancel).toHaveBeenCalledWith(7);
   });
 });

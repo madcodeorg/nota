@@ -75,25 +75,23 @@ export class UnusedBlobs extends Entity {
     );
   }
 
-  async getUnusedBlobs(abortSignal?: AbortSignal) {
+  /** Attachment keys used by current pages, plus the workspace avatar. */
+  async getUsedBlobKeys(abortSignal?: AbortSignal): Promise<Set<string>> {
     // Wait for both sync and indexing to complete
     await this.workspaceService.workspace.engine.doc.waitForSynced();
 
     await this.docsSearchService.indexer.waitForCompleted(abortSignal);
 
-    const [blobs, usedBlobs] = await Promise.all([
-      this.listBlobs(),
-      this.getUsedBlobs(),
-    ]);
-
-    // ignore the workspace avatar
+    const used = new Set(await this.getUsedBlobs());
     const workspaceAvatar = this.workspaceService.workspace.avatar$.value;
+    if (workspaceAvatar) used.add(workspaceAvatar);
+    return used;
+  }
 
-    return (
-      blobs?.filter(
-        blob => !usedBlobs.includes(blob.key) && blob.key !== workspaceAvatar
-      ) ?? []
-    );
+  async getUnusedBlobs(abortSignal?: AbortSignal) {
+    const usedBlobs = await this.getUsedBlobKeys(abortSignal);
+    const blobs = await this.listBlobs();
+    return blobs?.filter(blob => !usedBlobs.has(blob.key)) ?? [];
   }
 
   private async getUsedBlobs(): Promise<string[]> {

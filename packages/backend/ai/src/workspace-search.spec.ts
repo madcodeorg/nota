@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
@@ -7,7 +7,9 @@ import { afterEach, describe, expect, test } from 'vitest';
 import type { AiBackendConfig } from './config.js';
 import { createNotaToolContext } from './tools.js';
 import {
+  deleteWorkspaceContentDocuments,
   listWorkspaceDocuments,
+  readWorkspaceContentManifest,
   readWorkspaceDocument,
   searchWorkspace,
   upsertWorkspaceContentDocuments,
@@ -233,6 +235,199 @@ describe('Nota workspace document access', () => {
         workspaceId: 'workspace-alpha',
       })
     ).rejects.toThrow(/not found or is not accessible/i);
+  });
+
+  test('commits a paged replacement to disk once, on the final page', async () => {
+    const workspaceRoot = await mkdtemp(
+      path.join(os.tmpdir(), 'nota-workspace-content-commit-')
+    );
+    temporaryRoots.push(workspaceRoot);
+    const config = { workspaceRoot } as AiBackendConfig;
+    const contentFile = path.join(
+      workspaceRoot,
+      '.nota',
+      'search',
+      'workspace-content.json'
+    );
+    await upsertWorkspaceContentDocuments(config, {
+      documents: [
+        {
+          docId: 'old',
+          markdown: '# Old\n\nThe old needle document body.',
+          title: 'Old',
+        },
+        {
+          docId: 'kept',
+          markdown: '# Kept\n\nThe kept needle document body.',
+          title: 'Kept',
+        },
+      ],
+      workspaceId: 'workspace-alpha',
+    });
+    const committed = await readFile(contentFile, 'utf8');
+    expect(committed).not.toContain('\n');
+
+    const first = await upsertWorkspaceContentDocuments(config, {
+      documents: [
+        {
+          docId: 'kept',
+          markdown: '# Kept\n\nThe kept haystack document body.',
+          title: 'Kept',
+        },
+      ],
+      replacement: { complete: false, page: 0, syncId: 'sync' },
+      workspaceId: 'workspace-alpha',
+    });
+    expect(first).toMatchObject({
+      indexed: 1,
+      removed: 0,
+      replacement: { complete: false, nextPage: 1, syncId: 'sync' },
+      total: 2,
+    });
+    expect(await readFile(contentFile, 'utf8')).toBe(committed);
+    const during = await readWorkspaceDocument(config, {
+      docId: 'kept',
+      userId: 'alice',
+      workspaceId: 'workspace-alpha',
+    });
+    expect(during.document.markdown).toContain('kept needle');
+    const searchDuring = await searchWorkspace(config, {
+      query: 'needle',
+      userId: 'alice',
+      workspaceId: 'workspace-alpha',
+    });
+    expect(searchDuring.results.map(result => result.docId).sort()).toEqual([
+      'kept',
+      'old',
+    ]);
+
+    const second = await upsertWorkspaceContentDocuments(config, {
+      documents: [
+        {
+          docId: 'new',
+          markdown: '# New\n\nThe new haystack document body.',
+          title: 'New',
+        },
+      ],
+      replacement: { complete: true, page: 1, syncId: 'sync' },
+      workspaceId: 'workspace-alpha',
+    });
+    expect(second).toMatchObject({
+      indexed: 1,
+      removed: 1,
+      replacement: { complete: true, nextPage: null, syncId: 'sync' },
+      total: 2,
+    });
+    const afterFile = JSON.parse(await readFile(contentFile, 'utf8')) as {
+      documents: Array<{ docId: string; markdown: string }>;
+    };
+    expect(afterFile.documents.map(document => document.docId).sort()).toEqual([
+      'kept',
+      'new',
+    ]);
+    const searchAfter = await searchWorkspace(config, {
+      query: 'needle',
+      userId: 'alice',
+      workspaceId: 'workspace-alpha',
+    });
+    expect(searchAfter.results).toEqual([]);
+  });
+
+  test('keeps non-replacement upserts and the content cache consistent with disk', async () => {
+    const workspaceRoot = await mkdtemp(
+      path.join(os.tmpdir(), 'nota-workspace-content-cache-')
+    );
+    temporaryRoots.push(workspaceRoot);
+    const config = { workspaceRoot } as AiBackendConfig;
+    const contentFile = path.join(
+      workspaceRoot,
+      '.nota',
+      'search',
+      'workspace-content.json'
+    );
+    const ids = async () =>
+      (
+        JSON.parse(await readFile(contentFile, 'utf8')) as {
+          documents: Array<{ docId: string }>;
+        }
+      ).documents
+        .map(document => document.docId)
+        .sort();
+
+    await upsertWorkspaceContentDocuments(config, {
+      documents: [
+        { docId: 'a', markdown: '# A', title: 'A' },
+        { docId: 'b', markdown: '# B', title: 'B' },
+      ],
+      workspaceId: 'workspace-alpha',
+    });
+    // An unrelated direct upsert must not disturb an in-flight replacement.
+    await upsertWorkspaceContentDocuments(config, {
+      documents: [{ docId: 'a', markdown: '# A2', title: 'A' }],
+      replacement: { complete: false, page: 0, syncId: 'sync' },
+      workspaceId: 'workspace-alpha',
+    });
+    await upsertWorkspaceContentDocuments(config, {
+      documents: [{ docId: 'c', markdown: '# C', title: 'C' }],
+      workspaceId: 'workspace-alpha',
+    });
+    expect(await ids()).toEqual(['a', 'b', 'c']);
+    await expect(
+      upsertWorkspaceContentDocuments(config, {
+        documents: [],
+        replacement: { complete: true, page: 1, syncId: 'sync' },
+        workspaceId: 'workspace-alpha',
+      })
+    ).resolves.toMatchObject({ removed: 2, total: 1 });
+    expect(await ids()).toEqual(['a']);
+
+    await expect(
+      deleteWorkspaceContentDocuments(config, {
+        docIds: ['a', 'missing'],
+        workspaceId: 'workspace-alpha',
+      })
+    ).resolves.toMatchObject({ removed: 1, total: 0 });
+    expect(await ids()).toEqual([]);
+    const listed = await listWorkspaceDocuments(config, {
+      userId: 'alice',
+      workspaceId: 'workspace-alpha',
+    });
+    expect(listed.total).toBe(0);
+  });
+
+  test('lists the manifest for one workspace and requires a workspace id', async () => {
+    const config = await createWorkspaceFixture();
+
+    await upsertWorkspaceContentDocuments(config, {
+      documents: [
+        {
+          docId: 'dated',
+          markdown: '# Dated',
+          title: 'Dated',
+          updatedAt: '2026-02-03T04:05:06.000Z',
+        },
+      ],
+      workspaceId: 'workspace-beta',
+    });
+
+    const manifest = await readWorkspaceContentManifest(config, {
+      workspaceId: 'workspace-beta',
+    });
+    expect(manifest.workspaceId).toBe('workspace-beta');
+    expect(manifest.documents).toHaveLength(3);
+    expect(manifest.documents).toEqual(
+      expect.arrayContaining([
+        { docId: 'beta-only', updatedAt: undefined },
+        { docId: 'dated', updatedAt: '2026-02-03T04:05:06.000Z' },
+        { docId: 'shared-doc', updatedAt: undefined },
+      ])
+    );
+    await expect(
+      readWorkspaceContentManifest(config, { workspaceId: ' ' })
+    ).rejects.toThrow(/workspaceId is required/);
+    await expect(
+      readWorkspaceContentManifest(config, { workspaceId: 'unknown' })
+    ).resolves.toEqual({ documents: [], workspaceId: 'unknown' });
   });
 
   test('rejects out-of-order replacement pages without deleting existing content', async () => {

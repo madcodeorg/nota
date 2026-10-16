@@ -40,6 +40,16 @@ export const viewBodyContainer = style({
   contain: 'strict',
 });
 
+export const routeFallback = style({
+  position: 'absolute',
+  inset: '52px 0 0 0',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  color: cssVar('iconColor'),
+  pointerEvents: 'none',
+});
+
 export const leftSidebarButton = style({
   margin: '0 16px 0 0',
 });

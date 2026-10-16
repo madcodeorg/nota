@@ -1,5 +1,7 @@
 import { DesktopApiService } from '@nota/core/modules/desktop-api';
+import { GoogleAuthService } from '@nota/core/modules/google-auth';
 import { type Workspace, WorkspaceService } from '@nota/core/modules/workspace';
+import { copyLatestBackupToDrive } from '@nota/core/modules/workspace-engine/impls/google-drive-maintenance';
 import { useService } from '@nota/infra';
 import { universalId } from '@nota/nbstore';
 import { useEffect } from 'react';
@@ -17,6 +19,7 @@ export async function flushWorkspaceForBackup(
 const DesktopLocalBackupSideEffect = () => {
   const workspace = useService(WorkspaceService).workspace;
   const desktopApi = useService(DesktopApiService);
+  const auth = useService(GoogleAuthService);
 
   useEffect(() => {
     if (workspace.flavour !== 'local') return;
@@ -34,6 +37,14 @@ const DesktopLocalBackupSideEffect = () => {
       try {
         const settings =
           await desktopApi.handler.workspace.getLocalBackupSettings(id);
+        // Also retries a Drive copy that failed earlier, e.g. while offline.
+        if (settings.enabled && settings.lastSuccess)
+          await copyLatestBackupToDrive(
+            desktopApi.handler.workspace,
+            auth,
+            workspace.id,
+            id
+          );
         if (
           !settings.enabled ||
           controller.signal.aborted ||
@@ -47,7 +58,14 @@ const DesktopLocalBackupSideEffect = () => {
           return;
         await flushWorkspaceForBackup(workspace, controller.signal);
         if (controller.signal.aborted) return;
-        await desktopApi.handler.workspace.runLocalBackup(id);
+        const result = await desktopApi.handler.workspace.runLocalBackup(id);
+        if (!result.lastError && !controller.signal.aborted)
+          await copyLatestBackupToDrive(
+            desktopApi.handler.workspace,
+            auth,
+            workspace.id,
+            id
+          );
         if (!controller.signal.aborted)
           window.dispatchEvent(new Event(LOCAL_BACKUP_UPDATED));
       } catch {
@@ -68,7 +86,7 @@ const DesktopLocalBackupSideEffect = () => {
       window.clearInterval(interval);
       window.removeEventListener('focus', onFocus);
     };
-  }, [desktopApi, workspace]);
+  }, [auth, desktopApi, workspace]);
 
   return null;
 };

@@ -46,7 +46,10 @@ type WorkspaceContentReplacement = {
 };
 
 const WORKSPACE_CONTENT_SYNC_PAGE_SIZE = 20;
+const WORKSPACE_CONTENT_SAFETY_NET_INTERVAL_MS = 10 * 60_000;
 const workspaceContentSyncQueues = new Map<string, Promise<void>>();
+// docId -> updated-date key last known to be in the AI index, per workspace.
+const workspaceContentSyncStates = new Map<string, Map<string, string>>();
 
 function isoDate(value: unknown) {
   if (typeof value === 'number' && Number.isFinite(value)) {
@@ -67,6 +70,26 @@ function sourceForDocument(
   return value.includes('meeting') || value.includes('transcript')
     ? 'transcript'
     : 'doc';
+}
+
+type DocMetaLike = Workspace['meta']['docMetas'][number];
+
+function docUpdatedKey(meta: DocMetaLike) {
+  return isoDate(meta.updatedDate ?? meta.createDate) ?? '';
+}
+
+function listIndexableDocMetas(workspace: Workspace, docIds?: string[]) {
+  workspace.meta.initialize();
+  const allowed = docIds ? new Set(docIds) : null;
+  return workspace.meta.docMetas.filter(meta => {
+    const record = meta as unknown as Record<string, unknown>;
+    return (
+      typeof meta.id === 'string' &&
+      (!allowed || allowed.has(meta.id)) &&
+      record.trash !== true &&
+      record.isTemplate !== true
+    );
+  });
 }
 
 async function exportDocMarkdown(doc: Store) {
@@ -121,23 +144,14 @@ export async function resolveWorkspaceContentAccess(
 export async function buildWorkspaceDocuments(
   options: WorkspaceContentSyncOptions
 ) {
-  options.workspace.meta.initialize();
-  const docIds = options.documentIds ? new Set(options.documentIds) : null;
-  const metas = options.workspace.meta.docMetas
-    .filter(meta => {
-      const record = meta as unknown as Record<string, unknown>;
-      return (
-        typeof meta.id === 'string' &&
-        (!docIds || docIds.has(meta.id)) &&
-        record.trash !== true &&
-        record.isTemplate !== true
-      );
-    })
-    .sort((left, right) => {
-      const leftUpdated = Number(left.updatedDate ?? left.createDate ?? 0);
-      const rightUpdated = Number(right.updatedDate ?? right.createDate ?? 0);
-      return rightUpdated - leftUpdated;
-    });
+  const metas = listIndexableDocMetas(
+    options.workspace,
+    options.documentIds
+  ).sort((left, right) => {
+    const leftUpdated = Number(left.updatedDate ?? left.createDate ?? 0);
+    const rightUpdated = Number(right.updatedDate ?? right.createDate ?? 0);
+    return rightUpdated - leftUpdated;
+  });
 
   const documents: WorkspaceContentDocument[] = [];
   for (const meta of metas) {
@@ -155,7 +169,8 @@ export async function buildWorkspaceDocuments(
       continue;
     }
 
-    const doc = options.workspace.getDoc(meta.id)?.getStore();
+    // Without an id every call creates and permanently caches a new Store.
+    const doc = options.workspace.getDoc(meta.id)?.getStore({ id: meta.id });
     if (!doc) {
       continue;
     }
@@ -178,7 +193,7 @@ export async function buildWorkspaceDocuments(
       markdown,
       source: sourceForDocument(title, markdown),
       title,
-      updatedAt: isoDate(meta.updatedDate ?? meta.createDate),
+      updatedAt: docUpdatedKey(meta) || undefined,
       visibility: access.visibility,
     });
   }
@@ -333,30 +348,117 @@ async function performWorkspaceContentSync(
   });
 }
 
-export function syncWorkspaceContentIndex(
+async function fetchWorkspaceContentManifest(workspaceId: string) {
+  try {
+    const response = await fetch(
+      `/v1/workspace/content/manifest?workspaceId=${encodeURIComponent(workspaceId)}`
+    );
+    if (!response.ok) {
+      return null;
+    }
+    const body = (await response.json()) as {
+      documents?: Array<{ docId?: unknown; updatedAt?: unknown }>;
+    };
+    if (!Array.isArray(body?.documents)) {
+      return null;
+    }
+    const manifest = new Map<string, string>();
+    for (const document of body.documents) {
+      if (typeof document?.docId === 'string') {
+        manifest.set(document.docId, isoDate(document.updatedAt) ?? '');
+      }
+    }
+    return manifest;
+  } catch {
+    return null;
+  }
+}
+
+async function performIncrementalWorkspaceContentSync(
   options: WorkspaceContentSyncOptions
 ) {
+  const { workspaceId } = options;
+  const current = new Map(
+    listIndexableDocMetas(options.workspace).map(
+      meta => [meta.id, docUpdatedKey(meta)] as const
+    )
+  );
+
+  let seeded = workspaceContentSyncStates.get(workspaceId);
+  if (!seeded) {
+    seeded = (await fetchWorkspaceContentManifest(workspaceId)) ?? undefined;
+    if (!seeded) {
+      const documents = await buildWorkspaceDocuments({
+        ...options,
+        documentIds: undefined,
+      });
+      const result = await syncWorkspaceContentPages({
+        documents,
+        replaceWorkspace: true,
+        workspaceId,
+      });
+      workspaceContentSyncStates.set(workspaceId, current);
+      return result;
+    }
+  }
+  const synced = seeded;
+
+  const changedIds = [...current]
+    .filter(([docId, key]) => synced.get(docId) !== key)
+    .map(([docId]) => docId);
+  const removedIds = [...synced.keys()].filter(docId => !current.has(docId));
+
+  let result = { indexed: 0, total: 0, workspaceId };
+  if (changedIds.length) {
+    const documents = await buildWorkspaceDocuments({
+      ...options,
+      documentIds: changedIds,
+    });
+    result = await syncWorkspaceContentPages({
+      documents,
+      replaceWorkspace: false,
+      requestedDocIds: changedIds,
+      workspaceId,
+    });
+  }
+  if (removedIds.length) {
+    await deleteWorkspaceContentDocuments({ docIds: removedIds, workspaceId });
+  }
+  workspaceContentSyncStates.set(workspaceId, current);
+  return result;
+}
+
+function enqueueWorkspaceContentSync<T>(
+  workspaceId: string,
+  task: () => Promise<T>
+) {
   const previous =
-    workspaceContentSyncQueues.get(options.workspaceId) ?? Promise.resolve();
-  const current = previous
-    .catch(() => {})
-    .then(() => performWorkspaceContentSync(options));
+    workspaceContentSyncQueues.get(workspaceId) ?? Promise.resolve();
+  const current = previous.catch(() => {}).then(task);
   const settled = current.then(
     () => {},
     () => {}
   );
-  workspaceContentSyncQueues.set(options.workspaceId, settled);
+  workspaceContentSyncQueues.set(workspaceId, settled);
   settled
     .finally(() => {
-      if (workspaceContentSyncQueues.get(options.workspaceId) === settled) {
-        workspaceContentSyncQueues.delete(options.workspaceId);
+      if (workspaceContentSyncQueues.get(workspaceId) === settled) {
+        workspaceContentSyncQueues.delete(workspaceId);
       }
     })
     .catch(() => {});
   return current;
 }
 
-export function startWorkspaceContentIndexSync(
+export function syncWorkspaceContentIndex(
+  options: WorkspaceContentSyncOptions
+) {
+  return enqueueWorkspaceContentSync(options.workspaceId, () =>
+    performWorkspaceContentSync(options)
+  );
+}
+
+function runWorkspaceContentIndexSync(
   options: WorkspaceContentSyncOptions & {
     debounceMs?: number;
     intervalMs?: number;
@@ -364,13 +466,19 @@ export function startWorkspaceContentIndexSync(
   }
 ) {
   const debounceMs = options.debounceMs ?? 1200;
-  const intervalMs = options.intervalMs ?? 60_000;
+  const intervalMs =
+    options.intervalMs ?? WORKSPACE_CONTENT_SAFETY_NET_INTERVAL_MS;
   let disposed = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
+  let interval: ReturnType<typeof setInterval> | undefined;
+  let subscription: { unsubscribe: () => void } | undefined;
+  let cancelFirstSync = () => {};
 
   const sync = async () => {
     try {
-      await syncWorkspaceContentIndex(options);
+      await enqueueWorkspaceContentSync(options.workspaceId, () =>
+        performIncrementalWorkspaceContentSync(options)
+      );
     } catch (error) {
       if (!disposed) {
         options.onError?.(error);
@@ -386,18 +494,64 @@ export function startWorkspaceContentIndexSync(
       sync().catch(() => {});
     }, debounceMs);
   };
+  const start = () => {
+    sync().catch(() => {});
+    subscription =
+      options.workspace.slots.docListUpdated.subscribe(scheduleSync);
+    interval = setInterval(scheduleSync, intervalMs);
+  };
 
-  sync().catch(() => {});
-  const subscription =
-    options.workspace.slots.docListUpdated.subscribe(scheduleSync);
-  const interval = setInterval(scheduleSync, intervalMs);
+  // Keep startup work (loading every doc) off the critical path.
+  if (typeof requestIdleCallback === 'function') {
+    const handle = requestIdleCallback(start, { timeout: 5000 });
+    cancelFirstSync = () => cancelIdleCallback(handle);
+  } else {
+    const handle = setTimeout(start, 2000);
+    cancelFirstSync = () => clearTimeout(handle);
+  }
 
   return () => {
     disposed = true;
+    cancelFirstSync();
     if (timer) {
       clearTimeout(timer);
     }
-    clearInterval(interval);
-    subscription.unsubscribe();
+    if (interval) {
+      clearInterval(interval);
+    }
+    subscription?.unsubscribe();
+  };
+}
+
+export function startWorkspaceContentIndexSync(
+  options: Parameters<typeof runWorkspaceContentIndexSync>[0]
+) {
+  const locks = typeof navigator === 'undefined' ? undefined : navigator.locks;
+  if (!locks) {
+    return runWorkspaceContentIndexSync(options);
+  }
+
+  // Only one tab per workspace syncs; the others wait and take over when the
+  // owner closes.
+  const abort = new AbortController();
+  let stop: (() => void) | undefined;
+  let release: (() => void) | undefined;
+  locks
+    .request(
+      `nota-ai-index:${options.workspaceId}`,
+      { signal: abort.signal },
+      () => {
+        stop = runWorkspaceContentIndexSync(options);
+        return new Promise<void>(resolve => {
+          release = resolve;
+        });
+      }
+    )
+    .catch(() => {});
+
+  return () => {
+    abort.abort();
+    stop?.();
+    release?.();
   };
 }

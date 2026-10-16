@@ -1,10 +1,10 @@
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import fsPromises, { mkdtemp, readFile, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { CopilotStore } from './store';
+import { CopilotStore, flushAllCopilotStores } from './store';
 
 const temporaryRoots: string[] = [];
 
@@ -38,6 +38,7 @@ describe('CopilotStore persistence', () => {
       { textDelta: 'We decided to keep it local.', type: 'text-delta' },
     ]);
     const contextId = first.createContext('workspace-a', sessionId);
+    await first.flush();
 
     const second = new CopilotStore('local:another-default', [], filePath);
     const restored = second.requireSession(sessionId);
@@ -56,6 +57,7 @@ describe('CopilotStore persistence', () => {
     expect(saved.version).toBe(1);
 
     second.cleanupSessions({ sessionIds: [sessionId] });
+    await second.flush();
     const third = new CopilotStore('local:default', [], filePath);
     expect(third.getSession(sessionId)).toBeNull();
     expect(third.listContexts('workspace-a', sessionId)).toEqual([]);
@@ -118,10 +120,73 @@ describe('CopilotStore persistence', () => {
       store.requireSession(sessionId).messages.map(message => message.content)
     ).toEqual(['Try this again']);
     expect(store.removeLastAssistantMessage(sessionId)).toBe(false);
+    await store.flush();
 
     const restored = new CopilotStore('local:default', [], filePath);
     expect(
       restored.requireSession(sessionId).messages.map(message => message.role)
     ).toEqual(['user']);
+  });
+
+  it('coalesces rapid mutations into few writes and keeps the latest state', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'nota-copilot-store-'));
+    temporaryRoots.push(root);
+    const filePath = path.join(root, 'copilot-sessions.json');
+    const store = new CopilotStore('local:default', [], filePath);
+    const rename = vi.spyOn(fsPromises, 'rename');
+    try {
+      for (let i = 0; i < 50; i++) {
+        store.createSession({
+          promptName: 'Chat With Nota AI',
+          workspaceId: 'workspace-a',
+        });
+      }
+      await store.flush();
+      expect(rename.mock.calls.length).toBeLessThanOrEqual(2);
+      const saved = JSON.parse(await readFile(filePath, 'utf8')) as {
+        sessions: unknown[];
+      };
+      expect(saved.sessions).toHaveLength(50);
+    } finally {
+      rename.mockRestore();
+    }
+  });
+
+  it('does not lose a mutation made during an in-flight write', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'nota-copilot-store-'));
+    temporaryRoots.push(root);
+    const filePath = path.join(root, 'copilot-sessions.json');
+    const store = new CopilotStore('local:default', [], filePath);
+    store.createSession({
+      promptName: 'Chat With Nota AI',
+      workspaceId: 'workspace-a',
+    });
+    const first = store.flush();
+    store.createSession({
+      promptName: 'Chat With Nota AI',
+      workspaceId: 'workspace-b',
+    });
+    await first;
+    await store.flush();
+    const saved = JSON.parse(await readFile(filePath, 'utf8')) as {
+      sessions: unknown[];
+    };
+    expect(saved.sessions).toHaveLength(2);
+  });
+
+  it('flushAllCopilotStores persists pending state', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'nota-copilot-store-'));
+    temporaryRoots.push(root);
+    const filePath = path.join(root, 'copilot-sessions.json');
+    const store = new CopilotStore('local:default', [], filePath);
+    store.createSession({
+      promptName: 'Chat With Nota AI',
+      workspaceId: 'workspace-a',
+    });
+    await flushAllCopilotStores();
+    const saved = JSON.parse(await readFile(filePath, 'utf8')) as {
+      sessions: unknown[];
+    };
+    expect(saved.sessions).toHaveLength(1);
   });
 });

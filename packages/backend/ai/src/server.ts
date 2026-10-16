@@ -52,9 +52,15 @@ import { isLocalOnnxTextModel } from './model-registry';
 import { AiModelRouter } from './providers';
 import { installSeededLocalModels } from './seeded-models';
 import { CopilotStore } from './store';
-import { createImageHandler, createStreamHandler } from './stream';
+import {
+  createImageHandler,
+  createStreamHandler,
+  toModelMessages,
+} from './stream';
+import { generateBackendText } from './text-runtime';
 import {
   deleteWorkspaceContentDocuments,
+  readWorkspaceContentManifest,
   searchWorkspace,
   upsertWorkspaceContentDocuments,
 } from './workspace-search';
@@ -146,6 +152,31 @@ async function warmSelectedLocalOnnxModel(config: AiBackendConfig) {
     return;
   }
   await assertLocalOnnxTextReady(config, config.localModel);
+}
+
+function isCreateChatSessionRequest(body: unknown) {
+  try {
+    const record = (body ?? {}) as Record<string, unknown>;
+    const operation = (
+      typeof record.operations === 'string'
+        ? JSON.parse(record.operations)
+        : record
+    ) as { name?: unknown; operationName?: unknown; query?: unknown };
+    const name =
+      operation.operationName ??
+      operation.name ??
+      (typeof operation.query === 'string'
+        ? operation.query.match(
+            /\b(?:query|mutation)\s+([_A-Za-z][_0-9A-Za-z]*)/
+          )?.[1]
+        : '');
+    return (
+      name === 'createCopilotSession' ||
+      name === 'createCopilotSessionWithHistory'
+    );
+  } catch {
+    return false;
+  }
 }
 
 export function createServer() {
@@ -276,6 +307,10 @@ export function createServer() {
         return `${proposal.type.replace(/_/g, ' ')} in the note`;
       case 'append_database_rows':
         return 'append database rows in the note';
+      case 'trash_doc':
+        return proposal.title
+          ? `move the note "${proposal.title}" to trash`
+          : 'move the note to trash';
       case 'clear_doc':
         return 'clear the note';
       case 'run_mcp_tool':
@@ -283,35 +318,67 @@ export function createServer() {
     }
   }
 
-  function appendActionStatusMessage(input: {
-    proposal: ReturnType<typeof updateActionProposalStatus>;
-    status: 'applied' | 'approved' | 'failed' | 'rejected' | 'undone';
-  }) {
-    if (!input.proposal?.sessionId) {
-      return;
+  const outcomeVerbs = {
+    applied: 'approved and Nota applied',
+    failed: 'approved, but Nota failed to apply',
+    rejected: 'rejected',
+    undone: 'applied and then undid',
+  } as const;
+  const repliedOutcomes = new Set<string>();
+
+  // The model writes the follow-up so the chat never shows canned status text.
+  // The outcome is passed as a one-off event, not stored as a user message.
+  async function replyToActionOutcome(
+    stored: NonNullable<ReturnType<typeof getActionProposal>>,
+    scope: ActionProposalScope
+  ) {
+    const status = stored.status;
+    if (
+      status !== 'applied' &&
+      status !== 'failed' &&
+      status !== 'rejected' &&
+      status !== 'undone'
+    ) {
+      return false;
     }
-
-    const message =
-      input.status === 'applied'
-        ? `Applied Nota AI action: ${describeActionProposal(
-            input.proposal.proposal
-          )}.`
-        : input.status === 'undone'
-          ? `Undid Nota AI action: ${describeActionProposal(
-              input.proposal.proposal
-            )}.`
-          : input.status === 'failed'
-            ? `Failed Nota AI action: ${describeActionProposal(
-                input.proposal.proposal
-              )}.`
-            : `${input.status === 'approved' ? 'Approved' : 'Rejected'} Nota AI action: ${describeActionProposal(
-                input.proposal.proposal
-              )}.`;
-
+    const key = `${stored.id}:${status}`;
+    if (repliedOutcomes.has(key)) {
+      return false;
+    }
+    repliedOutcomes.add(key);
     try {
-      store.appendAssistantMessage(input.proposal.sessionId, message);
-    } catch {
-      // The originating chat can be gone after a backend restart or cleanup.
+      const session = store.requireSession(scope.sessionId);
+      const selected = models.select(session.model);
+      const error =
+        status === 'failed' && typeof stored.result?.error === 'string'
+          ? ` Error: ${stored.result.error}`
+          : '';
+      const generated = await generateBackendText({
+        config,
+        maxOutputTokens: 400,
+        messages: [
+          ...toModelMessages(session, selected.runtime),
+          {
+            role: 'user',
+            content: `[Nota event, not written by the user] The user ${outcomeVerbs[status]} your proposed action: ${describeActionProposal(stored.proposal)}.${error} Reply in one or two short sentences about what happened and, if useful, what to do next. Do not call tools, mention ids, or use headings.`,
+          },
+        ],
+        selected,
+        system:
+          'You are Nota AI, replying inside an ongoing chat about the user’s notes. Match the language and tone of the conversation.',
+      });
+      const text = generated.text.trim();
+      if (!text) {
+        repliedOutcomes.delete(key);
+        return false;
+      }
+      store.appendAssistantMessage(scope.sessionId, text, [
+        { type: 'text-delta', textDelta: text },
+      ]);
+      return true;
+    } catch (error) {
+      repliedOutcomes.delete(key);
+      throw error;
     }
   }
 
@@ -791,6 +858,26 @@ export function createServer() {
     }
   });
 
+  app.get('/v1/workspace/content/manifest', async (req, res) => {
+    try {
+      res.json(
+        await readWorkspaceContentManifest(config, {
+          workspaceId:
+            typeof req.query?.workspaceId === 'string'
+              ? req.query.workspaceId
+              : '',
+        })
+      );
+    } catch (manifestError) {
+      res.status(400).json({
+        error:
+          manifestError instanceof Error
+            ? manifestError.message
+            : String(manifestError),
+      });
+    }
+  });
+
   app.post('/v1/agent/actions/proposals', (req, res) => {
     try {
       const scope = readProposalScope(req.body);
@@ -909,11 +996,6 @@ export function createServer() {
           .status(404)
           .json({ error: `Action proposal not found: ${req.params.id}` });
         return;
-      }
-      // Returning an unsuccessful local undo claim to `applied` is not a new
-      // apply event and must not duplicate the original chat audit message.
-      if (current.status !== 'undoing' || status !== 'applied') {
-        appendActionStatusMessage({ proposal, status });
       }
       res.json({ proposal });
     } catch (proposalError) {
@@ -1035,7 +1117,6 @@ export function createServer() {
             workspaceId: scope.workspaceId,
           }
         );
-        appendActionStatusMessage({ proposal, status: 'failed' });
         res.status(502).json({ error: errorMessage, proposal });
         return;
       }
@@ -1052,16 +1133,43 @@ export function createServer() {
           .json({ error: `Action proposal not found: ${req.params.id}` });
         return;
       }
-      appendActionStatusMessage({ proposal, status: 'applied' });
       res.json({ proposal });
     } catch (proposalError) {
       sendProposalError(res, proposalError, 409);
     }
   });
 
+  app.post('/v1/agent/actions/proposals/:id/reply', async (req, res) => {
+    try {
+      const scope = readProposalScope(req.body);
+      const stored = getActionProposal(req.params.id, scope);
+      if (!stored) {
+        res
+          .status(404)
+          .json({ error: `Action proposal not found: ${req.params.id}` });
+        return;
+      }
+      res.json({ replied: await replyToActionOutcome(stored, scope) });
+    } catch (proposalError) {
+      sendProposalError(res, proposalError, 502);
+    }
+  });
+
   app.post(
     '/graphql',
     upload.any(),
+    (req, _res, next) => {
+      // The first chat send waits on the local model load, so start it as soon
+      // as a chat session exists. The load is cached and shared with the send.
+      if (isCreateChatSessionRequest(req.body)) {
+        void ready
+          .then(() => warmSelectedLocalOnnxModel(config))
+          .catch(error => {
+            console.warn('[local-onnx] background warmup skipped', error);
+          });
+      }
+      next();
+    },
     createGraphQLHandler({ config, models, store })
   );
 
@@ -1082,20 +1190,6 @@ export function createServer() {
         '[meetings] failed to resume retained meeting transcription',
         error
       );
-    });
-  void ready
-    .then(() => {
-      // Start the selected local pipeline shortly after the backend is ready.
-      // Chat requests share the same cached promise, so an early Send coalesces
-      // with this warmup instead of loading the model twice.
-      setTimeout(() => {
-        warmSelectedLocalOnnxModel(config).catch(error => {
-          console.warn('[local-onnx] background warmup skipped', error);
-        });
-      }, 1500);
-    })
-    .catch(error => {
-      console.warn('[local-onnx] background warmup was not scheduled', error);
     });
   registerGoogleCalendarRoutes(app);
 

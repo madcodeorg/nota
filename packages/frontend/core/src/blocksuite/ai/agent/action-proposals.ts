@@ -39,6 +39,11 @@ export type AgentActionProposal =
     }
   | {
       docId: string;
+      title?: string;
+      type: 'trash_doc';
+    }
+  | {
+      docId: string;
       type: 'clear_doc';
     }
   | {
@@ -79,6 +84,10 @@ export type AgentActionUndo =
       docId: string;
       fingerprint: string;
       type: 'trash_doc';
+    }
+  | {
+      docId: string;
+      type: 'restore_doc';
     }
   | {
       docId: string;
@@ -214,6 +223,8 @@ export function proposalTitle(proposal: AgentActionProposal) {
       return 'Create mindmap';
     case 'append_database_rows':
       return `Append database rows in ${proposal.docId}`;
+    case 'trash_doc':
+      return `Move to trash: ${proposal.title || proposal.docId}`;
     case 'clear_doc':
       return `Clear ${proposal.docId}`;
     case 'insert_markdown':
@@ -228,6 +239,9 @@ export function proposalTitle(proposal: AgentActionProposal) {
 export function proposalPreview(proposal: AgentActionProposal) {
   if (proposal.type === 'run_mcp_tool') {
     return JSON.stringify(proposal.args ?? {}, null, 2);
+  }
+  if (proposal.type === 'trash_doc') {
+    return 'Move this note to the trash. You can restore it from the trash or undo this action.';
   }
   if (proposal.type === 'clear_doc') {
     return 'Remove all body blocks from the target document.';
@@ -248,6 +262,9 @@ export function canUndoAppliedProposal(stored: StoredActionProposal) {
       !!record.docId &&
       typeof record.fingerprint === 'string' &&
       !!record.fingerprint) ||
+      (record.type === 'restore_doc' &&
+        typeof record.docId === 'string' &&
+        !!record.docId) ||
       (record.type === 'editor_history' &&
         typeof record.docId === 'string' &&
         !!record.docId &&
@@ -309,6 +326,9 @@ export function undoInfo(stored: StoredActionProposal) {
     fingerprint
   ) {
     return { type: 'trash_doc' as const, docId, fingerprint };
+  }
+  if (record.type === 'restore_doc' && typeof docId === 'string' && docId) {
+    return { type: 'restore_doc' as const, docId };
   }
   if (
     record.type === 'editor_history' &&
@@ -443,6 +463,8 @@ export function applyPermissionForActionProposal(
     case 'create_database':
     case 'create_note':
       return { action: 'Workspace_CreateDoc' };
+    case 'trash_doc':
+      return { action: 'Doc_Trash', docId: proposal.docId };
     case 'run_mcp_tool':
       return null;
   }
@@ -452,7 +474,10 @@ export function undoPermissionForActionProposal(
   undo: AgentActionUndo
 ): ActionProposalDocPermission {
   return {
-    action: undo.type === 'trash_doc' ? 'Doc_Trash' : 'Doc_Update',
+    action:
+      undo.type === 'trash_doc' || undo.type === 'restore_doc'
+        ? 'Doc_Trash'
+        : 'Doc_Update',
     docId: undo.docId,
   };
 }
@@ -591,71 +616,74 @@ export function buildAppliedActionProposalResult(options: {
     insertedSurfaceDocumentFingerprint,
   } = options.mutation;
   const undo =
-    options.proposal.type === 'create_note' ||
-    options.proposal.type === 'create_database' ||
-    (options.proposal.type === 'create_task_list' && !options.proposal.docId)
-      ? createdDocFingerprint
-        ? {
-            type: 'trash_doc' as const,
-            docId,
-            fingerprint: createdDocFingerprint,
-          }
-        : undefined
-      : options.proposal.type === 'replace_selection' &&
-          Number.isSafeInteger(editorHistoryDepth) &&
-          Number(editorHistoryDepth) > 0 &&
-          typeof editorHistoryToken === 'string' &&
-          editorHistoryToken &&
-          typeof editorDocumentFingerprint === 'string' &&
-          editorDocumentFingerprint
-        ? {
-            type: 'editor_history' as const,
-            docId,
-            fingerprint: editorDocumentFingerprint,
-            undoStackDepth: Number(editorHistoryDepth),
-            undoStackToken: editorHistoryToken,
-          }
-        : options.proposal.type === 'append_database_rows'
-          ? databaseRowTargets?.length &&
-            typeof databaseBlockId === 'string' &&
-            databaseBlockId &&
-            Array.isArray(databaseColumnTargets)
-            ? {
-                type: 'delete_database_rows' as const,
-                columnTargets: databaseColumnTargets,
-                databaseBlockId,
-                docId,
-                rowTargets: databaseRowTargets,
-              }
-            : undefined
-          : insertedBlockTargets?.length
-            ? insertedBlockDocumentFingerprint
+    options.proposal.type === 'trash_doc'
+      ? { type: 'restore_doc' as const, docId }
+      : options.proposal.type === 'create_note' ||
+          options.proposal.type === 'create_database' ||
+          (options.proposal.type === 'create_task_list' &&
+            !options.proposal.docId)
+        ? createdDocFingerprint
+          ? {
+              type: 'trash_doc' as const,
+              docId,
+              fingerprint: createdDocFingerprint,
+            }
+          : undefined
+        : options.proposal.type === 'replace_selection' &&
+            Number.isSafeInteger(editorHistoryDepth) &&
+            Number(editorHistoryDepth) > 0 &&
+            typeof editorHistoryToken === 'string' &&
+            editorHistoryToken &&
+            typeof editorDocumentFingerprint === 'string' &&
+            editorDocumentFingerprint
+          ? {
+              type: 'editor_history' as const,
+              docId,
+              fingerprint: editorDocumentFingerprint,
+              undoStackDepth: Number(editorHistoryDepth),
+              undoStackToken: editorHistoryToken,
+            }
+          : options.proposal.type === 'append_database_rows'
+            ? databaseRowTargets?.length &&
+              typeof databaseBlockId === 'string' &&
+              databaseBlockId &&
+              Array.isArray(databaseColumnTargets)
               ? {
-                  type: 'delete_blocks' as const,
-                  documentFingerprint: insertedBlockDocumentFingerprint,
+                  type: 'delete_database_rows' as const,
+                  columnTargets: databaseColumnTargets,
+                  databaseBlockId,
                   docId,
-                  targets: insertedBlockTargets,
+                  rowTargets: databaseRowTargets,
                 }
               : undefined
-            : insertedBlockTarget
+            : insertedBlockTargets?.length
               ? insertedBlockDocumentFingerprint
                 ? {
-                    type: 'delete_block' as const,
+                    type: 'delete_blocks' as const,
                     documentFingerprint: insertedBlockDocumentFingerprint,
                     docId,
-                    target: insertedBlockTarget,
+                    targets: insertedBlockTargets,
                   }
                 : undefined
-              : insertedSurfaceElementTarget
-                ? insertedSurfaceDocumentFingerprint
+              : insertedBlockTarget
+                ? insertedBlockDocumentFingerprint
                   ? {
-                      type: 'delete_surface_element' as const,
-                      documentFingerprint: insertedSurfaceDocumentFingerprint,
+                      type: 'delete_block' as const,
+                      documentFingerprint: insertedBlockDocumentFingerprint,
                       docId,
-                      target: insertedSurfaceElementTarget,
+                      target: insertedBlockTarget,
                     }
                   : undefined
-                : undefined;
+                : insertedSurfaceElementTarget
+                  ? insertedSurfaceDocumentFingerprint
+                    ? {
+                        type: 'delete_surface_element' as const,
+                        documentFingerprint: insertedSurfaceDocumentFingerprint,
+                        docId,
+                        target: insertedSurfaceElementTarget,
+                      }
+                    : undefined
+                  : undefined;
 
   return {
     appliedAt: options.appliedAt ?? new Date().toISOString(),

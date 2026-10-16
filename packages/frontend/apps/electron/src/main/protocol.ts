@@ -8,6 +8,7 @@ import { isWindows, resourcesPath } from '../shared/utils';
 import {
   getAiBackendBaseUrl,
   getAiBackendStatus,
+  whenAiBackendReady,
   withAiBackendAuth,
 } from './ai-backend';
 import { isDev } from './config';
@@ -84,13 +85,17 @@ async function handleFileRequest(request: Request) {
       urlObject.pathname === '/graphql');
 
   if (isApiRequest) {
+    // The window opens before the backend finishes starting.
+    await whenAiBackendReady();
     const backendStatus = getAiBackendStatus();
     if (!backendStatus.available) {
       return Response.json(
         {
           error: backendStatus.error
             ? `Nota AI is unavailable: ${backendStatus.error}`
-            : 'Nota AI is unavailable.',
+            : backendStatus.starting
+              ? 'Nota AI is still starting.'
+              : 'Nota AI is unavailable.',
         },
         { status: 503 }
       );

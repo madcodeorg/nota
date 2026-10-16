@@ -219,6 +219,30 @@ export async function listLocalBackups(universalId: string) {
   );
 }
 
+/** Bytes of one verified backup, for copying it to the user's Google Drive. */
+export async function readLocalBackup(
+  universalId: string,
+  filename: string
+): Promise<Uint8Array> {
+  const id = localWorkspaceId(universalId);
+  if (!BACKUP_FILENAME.test(filename))
+    throw new Error('Invalid backup selection.');
+  const directory = await backupDirectory(
+    id,
+    await getLocalBackupSettings(universalId)
+  );
+  const filePath = path.join(directory, filename);
+  const stat = await fs.lstat(filePath);
+  if (
+    !stat.isFile() ||
+    stat.isSymbolicLink() ||
+    !(await new DocStorage(filePath).validate())
+  ) {
+    throw new Error('This backup failed verification and cannot be copied.');
+  }
+  return new Uint8Array(await fs.readFile(filePath));
+}
+
 export async function restoreLocalBackup(
   universalId: string,
   filename: string
