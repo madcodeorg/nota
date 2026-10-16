@@ -113,6 +113,13 @@ jobs:
           install_runtime: false
           cache: true
 
+      # The Vulkan shader-generator sub-build nests deep enough under %TEMP% to
+      # pass MAX_PATH, which MSBuild still enforces. Same root as build-windows.ps1.
+      - name: Use short native build root
+        if: ${{ inputs.platform == 'win32' }}
+        shell: pwsh
+        run: Add-Content -Path $env:GITHUB_ENV -Value 'NOTA_LOCAL_ASR_BUILD_ROOT=C:\nvk'
+
       - name: Build Desktop Layers
         run: yarn nota @nota/electron build
         env:
