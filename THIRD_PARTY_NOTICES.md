@@ -4,7 +4,7 @@ Nota's project license is [MIT](LICENSE). It does not relicense third-party mode
 
 ## Source foundations
 
-- Nota derives from MIT-covered portions of [AFFiNE](https://github.com/toeverything/AFFiNE), copyright (c) 2022-present TOEVERYTHING PTE. LTD. and its affiliates. The upstream notice remains in [LICENSE](LICENSE), [LICENSE-MIT](LICENSE-MIT), and [NOTICE](NOTICE).
+- Nota derives from MIT-covered portions of [AFFiNE](https://github.com/toeverything/AFFiNE), copyright (c) 2022-present TOEVERYTHING PTE. LTD. and its affiliates. The upstream notice remains in [LICENSE](LICENSE) and [NOTICE](NOTICE).
 - [BlockSuite](https://github.com/toeverything/BlockSuite) and y-octo retain upstream attribution. See [y-octo's license](packages/common/y-octo/core/LICENSE).
 - Vendored drawing utilities retain license files beside [perfect-freehand](blocksuite/framework/global/src/gfx/perfect-freehand/LICENSE), [rough](blocksuite/affine/blocks/surface/src/utils/rough/LICENSE), [points-on-path](blocksuite/affine/blocks/surface/src/utils/points-on-path/LICENSE), [points-on-curve](blocksuite/affine/blocks/surface/src/utils/points-on-curve/LICENSE), and [path-data-parser](blocksuite/affine/blocks/surface/src/utils/path-data-parser/LICENSE).
 - `blocksuite/docs/package.json` declares MPL-2.0 for the BlockSuite documentation package. Do not describe every repository file as MIT.

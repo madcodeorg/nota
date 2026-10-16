@@ -16,10 +16,20 @@
 ## Beta
 
 Push a tag like `v0.1.4-beta.1`. It is published as a pre-release and feeds
-`updates/beta/latest-mac.yml` only.
+`updates/beta/latest-mac.yml`. Beta tags also build Windows x64 (NSIS and
+Squirrel installers plus a zip), which feeds `updates/beta/latest.yml` with the
+NSIS installer only.
+
+Windows builds are unsigned until a certificate is set up. Signing runs only
+when the `WINDOWS_SIGNING` repo variable is `true` and a `win-signer`
+self-hosted runner exists. Without it, installers trigger a SmartScreen
+warning. Before telling anyone Windows works, install the beta on a real PC and
+check the app launches, Google sign-in returns to the app, and an update from
+one beta to the next installs.
 
 ## Rules
 
 - Never publish a draft you have not installed.
 - `v*` tags are locked. Fix a bad release with a new version, never a moved tag.
-- Only macOS is built today. See docs/PLATFORMS.md for Windows and Linux.
+- Stable tags build macOS only. Windows is built for beta tags. See
+  docs/PLATFORMS.md for Windows and Linux status.

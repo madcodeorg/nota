@@ -408,11 +408,12 @@ describe('desktop STT release packaging', () => {
           },
         }
       );
-      expect([...output.keys()].sort()).toEqual([
-        'latest-linux.yml',
-        'latest-mac.yml',
-        'latest.yml',
-      ]);
+      // A platform that was not built gets no manifest.
+      expect([...output.keys()].sort()).toEqual(
+        windowsOnly
+          ? ['latest.yml']
+          : ['latest-linux.yml', 'latest-mac.yml', 'latest.yml']
+      );
       for (const [name, text] of output) {
         const manifest = yaml.load(text) as {
           version: string;
@@ -420,10 +421,11 @@ describe('desktop STT release packaging', () => {
         };
         expect(manifest.version).toBe('0.26.3');
         const files = manifest.files ?? [];
-        const expected = publishedFiles.filter(
-          file =>
-            name === 'latest.yml' ||
-            file.includes(name === 'latest-mac.yml' ? '-macos-' : '-linux-')
+        // The Windows updater takes the first .exe, so latest.yml lists only the NSIS installer.
+        const expected = publishedFiles.filter(file =>
+          name === 'latest.yml'
+            ? file.endsWith('.nsis.exe')
+            : file.includes(name === 'latest-mac.yml' ? '-macos-' : '-linux-')
         );
         expect(files.map(file => file.url).sort()).toEqual(expected.sort());
         for (const file of files) {

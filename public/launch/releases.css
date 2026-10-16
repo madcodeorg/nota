@@ -1,0 +1,243 @@
+/* Download and beta pages. Layers on top of site.css; the beta page adds
+   class="theme-dark" to <html> to flip the palette. */
+:root.theme-dark {
+  color-scheme: dark;
+  --paper: #14160f;
+  --ink: #ece8dc;
+  --muted: #a9ad9b;
+  --olive: #a7b88a;
+  --olive-hover: #bccb9f;
+  --sage: #1e2218;
+  --line: #33372b;
+}
+.theme-dark .brand img {
+  mix-blend-mode: normal;
+  filter: invert(1);
+}
+.theme-dark .button {
+  color: #14160f;
+}
+.theme-dark .skip-link {
+  color: var(--ink);
+}
+
+.rel-nav {
+  margin-left: auto;
+}
+.rel-nav [aria-current='page'] {
+  color: var(--olive);
+  text-decoration: underline;
+}
+
+.rel-hero {
+  padding-block: clamp(40px, 8vw, 96px) clamp(32px, 5vw, 56px);
+}
+.rel-hero h1 {
+  font-size: clamp(40px, 6vw, 72px);
+}
+.rel-lead {
+  max-width: 52ch;
+  margin-top: 20px;
+  color: var(--muted);
+}
+.rel-pill {
+  display: inline-block;
+  margin-bottom: 20px;
+  padding: 4px 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--sage);
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.rel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  margin-top: 32px;
+}
+.rel-meta {
+  margin-top: 16px;
+  color: var(--muted);
+  font-size: 15px;
+}
+.rel-others {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 20px;
+  font-size: 15px;
+}
+.rel-others a {
+  padding: 8px 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  text-decoration: none;
+}
+.rel-others a:hover {
+  border-color: var(--olive);
+  color: var(--olive);
+}
+.rel-notice {
+  max-width: 62ch;
+  margin-top: 24px;
+  padding: 16px 20px;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--olive);
+  border-radius: 12px;
+  background: var(--sage);
+  font-size: 15px;
+  line-height: 1.55;
+}
+.rel-notice + .rel-notice {
+  margin-top: 12px;
+}
+
+.rel-list {
+  padding-block: 8px 72px;
+}
+.rel-list > h2 {
+  margin-bottom: 24px;
+  font-size: clamp(28px, 3.4vw, 40px);
+}
+.rel-release {
+  border-top: 1px solid var(--line);
+}
+.rel-release:last-of-type {
+  border-bottom: 1px solid var(--line);
+}
+.rel-release > summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px 16px;
+  padding-block: 20px;
+  cursor: pointer;
+  list-style: none;
+}
+.rel-release > summary::-webkit-details-marker {
+  display: none;
+}
+.rel-release > summary::before {
+  content: '+';
+  width: 1ch;
+  color: var(--muted);
+}
+.rel-release[open] > summary::before {
+  content: '\2212';
+}
+.rel-version {
+  font-family: var(--serif);
+  font-size: 24px;
+  letter-spacing: -0.03em;
+}
+.rel-date {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 14px;
+}
+.rel-badge {
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--olive);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+}
+.theme-dark .rel-badge {
+  color: #14160f;
+}
+.rel-body {
+  padding: 0 0 28px 2ch;
+}
+.rel-notes {
+  max-width: 68ch;
+  margin: 0 0 24px;
+  padding-left: 1.2em;
+  font-size: 16px;
+}
+.rel-notes li + li {
+  margin-top: 6px;
+}
+.rel-notes-empty {
+  margin-bottom: 24px;
+  color: var(--muted);
+  font-size: 16px;
+}
+.rel-files {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.rel-file {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 16px;
+  padding: 12px 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  font-size: 15px;
+}
+.rel-file a {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.rel-file-os {
+  min-width: 11ch;
+  color: var(--muted);
+}
+.rel-file-size {
+  color: var(--muted);
+}
+.rel-hash {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  color: var(--muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+}
+.rel-copy {
+  padding: 2px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font-family: var(--sans);
+  font-size: 12px;
+  cursor: pointer;
+}
+.rel-copy:hover {
+  border-color: var(--olive);
+  color: var(--olive);
+}
+.rel-status {
+  padding-block: 24px;
+  color: var(--muted);
+}
+.rel-more {
+  margin-top: 24px;
+  font-size: 15px;
+  color: var(--muted);
+}
+
+@media (max-width: 640px) {
+  .rel-date {
+    margin-left: 0;
+    width: 100%;
+  }
+  .rel-hash {
+    margin-left: 0;
+  }
+  .rel-body {
+    padding-left: 0;
+  }
+}

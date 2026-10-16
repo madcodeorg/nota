@@ -102,6 +102,7 @@ test-results
 playwright-report
 playwright/.cache
 download
+!/public/download
 
 # Cache
 .eslintcache
