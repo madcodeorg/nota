@@ -1,6 +1,6 @@
 # Nota
 
-[![CI](https://github.com/madcodeorg/nota/actions/workflows/build-test.yml/badge.svg?branch=main)](https://github.com/madcodeorg/nota/actions/workflows/build-test.yml)
+[![CI](https://github.com/madcodeorg/nota/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/madcodeorg/nota/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/github/license/madcodeorg/nota)](LICENSE)
 [![Latest release](https://img.shields.io/github/v/release/madcodeorg/nota?include_prereleases)](https://github.com/madcodeorg/nota/releases)
 
@@ -12,7 +12,7 @@ Your workspace lives on your device. Local text AI requires compatible hardware 
 
 ## Downloads
 
-Nota 0.1.0 is available for macOS (Apple silicon), signed and notarized. Download it from [thenota.app](https://thenota.app/download) or [GitHub Releases](https://github.com/madcodeorg/nota/releases). The app updates itself from thenota.app. Windows and Linux builds are not available yet.
+Nota is available for macOS (Apple silicon), signed and notarized. Download it from [thenota.app](https://thenota.app/download) or [GitHub Releases](https://github.com/madcodeorg/nota/releases). The app updates itself from thenota.app. Windows builds are in testing and not released yet; early Windows betas will be unsigned, so Windows will show a SmartScreen warning. Linux builds are not available yet.
 
 See [GitHub Releases](https://github.com/madcodeorg/nota/releases) for published installers, checksums, release notes, and known limitations. Install only an asset listed for your operating system and architecture. The source tree contains additional platform targets; that does not establish that an installer is available or tested.
 

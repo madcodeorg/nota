@@ -18,7 +18,7 @@ Recording uses operating-system permissions for microphone and system audio. Sav
 
 ## Optional Google connection
 
-You can use Nota locally without a Google account. Connecting Google uses Google sign-in and the configured hosted OAuth broker. The current connection requests these permissions; review Google's consent screen for the permissions requested by your build:
+You can use Nota locally without a Google account. Connecting Google uses Google sign-in directly from your device; Nota does not run a server that receives your Google sign-in tokens or data. The current connection requests these permissions; review Google's consent screen for the permissions requested by your build:
 
 - `openid`, `email`, and `profile` identify the connected account and display its basic profile, including account identifier, email address, name, and profile picture when supplied by Google.
 - `https://www.googleapis.com/auth/drive.appdata` reads and writes Nota workspace documents, attachments, and other synced workspace data in Google Drive's app-specific `appDataFolder`. It does not grant access to your ordinary Drive files. Workspace content sent to Drive remains in your Google account.
@@ -28,11 +28,13 @@ Nota does not request Gmail mailbox access. Signing in with a Gmail address does
 
 ### Google data handling and security
 
-The OAuth broker processes authorization codes, access and refresh tokens, and basic account-profile information to complete and refresh a connection. Its Calendar routes process calendar and event responses. The current broker has no durable account or token database: it returns encrypted token envelopes to the app and decrypts them when needed for authorized requests. It uses AES-256-GCM for those envelopes. Authorization-code handoff envelopes expire after five minutes; refresh-token envelopes expire after 180 days. Those expiry periods are not a retention promise for Google or the hosting service's operational logs.
+The desktop app exchanges the sign-in authorization code and refreshes access tokens directly with Google. Access and refresh tokens, basic account-profile information, and Calendar and Drive responses go between your device and Google's APIs. Nota has no account or token database.
+
+Release builds do not use a Nota-operated sign-in server. The source supports an optional OAuth broker that a build can enable with the `GOOGLE_AUTH_BROKER_URL` setting; if you run a build configured that way, that broker handles the tokens, so review who operates it.
 
 Supported desktop builds persist the Google session using Electron's operating-system-backed encryption. The app refuses to persist the session if encryption is unavailable or uses the unprotected `basic_text` fallback. This protection applies to the Google session; it is not a claim that every local setting or hosted-provider key uses a keychain.
 
-Google and the broker's hosting service can receive operational metadata, such as IP addresses, request times, and error information, and maintain their own logs. Their applicable policies and infrastructure configuration govern that processing. This policy does not promise that infrastructure records no requests.
+Google can receive operational metadata, such as IP addresses, request times, and error information, and maintains its own logs. Google's policies govern that processing.
 
 ### Google API Limited Use
 
@@ -48,7 +50,7 @@ Human access to Google user data is limited to cases permitted by the Limited Us
 
 Disconnecting Google in Nota clears the local Google session. It does not revoke Google's authorization grant or delete synced workspace data and backups. To stop future Google access, also remove Nota's access from [your Google account's third-party connections](https://myaccount.google.com/connections).
 
-You control retained local workspace content, exports, backups, and the app data in your Google account. Delete copies you no longer want from the relevant device or service. Revoking authorization prevents further authorized access; it does not automatically erase content already saved locally, exported, or retained by another service. Broker envelope expiry does not delete those copies.
+You control retained local workspace content, exports, backups, and the app data in your Google account. Delete copies you no longer want from the relevant device or service. Revoking authorization prevents further authorized access; it does not automatically erase content already saved locally, exported, or retained by another service.
 
 ## Update checks
 

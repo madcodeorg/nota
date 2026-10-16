@@ -75,8 +75,9 @@
 
         <p>
           You can use Nota locally without a Google account. Connecting Google
-          uses Google sign-in and the configured hosted OAuth broker. The
-          current connection requests these permissions; review Google&#x27;s
+          uses Google sign-in directly from your device; Nota does not run a
+          server that receives your Google sign-in tokens or data. The current
+          connection requests these permissions; review Google&#x27;s
           consent screen for the permissions requested by your build:
         </p>
 
@@ -114,16 +115,19 @@
         <h3>Google data handling and security</h3>
 
         <p>
-          The OAuth broker processes authorization codes, access and refresh
-          tokens, and basic account-profile information to complete and refresh
-          a connection. Its Calendar routes process calendar and event
-          responses. The current broker has no durable account or token
-          database: it returns encrypted token envelopes to the app and decrypts
-          them when needed for authorized requests. It uses AES-256-GCM for
-          those envelopes. Authorization-code handoff envelopes expire after
-          five minutes; refresh-token envelopes expire after 180 days. Those
-          expiry periods are not a retention promise for Google or the hosting
-          service&#x27;s operational logs.
+          The desktop app exchanges the sign-in authorization code and refreshes
+          access tokens directly with Google. Access and refresh tokens, basic
+          account-profile information, and Calendar and Drive responses go
+          between your device and Google&#x27;s APIs. Nota has no account or
+          token database.
+        </p>
+
+        <p>
+          Release builds do not use a Nota-operated sign-in server. The source
+          supports an optional OAuth broker that a build can enable with the
+          <code>GOOGLE_AUTH_BROKER_URL</code> setting; if you run a build
+          configured that way, that broker handles the tokens, so review who
+          operates it.
         </p>
 
         <p>
@@ -136,11 +140,9 @@
         </p>
 
         <p>
-          Google and the broker&#x27;s hosting service can receive operational
-          metadata, such as IP addresses, request times, and error information,
-          and maintain their own logs. Their applicable policies and
-          infrastructure configuration govern that processing. This policy does
-          not promise that infrastructure records no requests.
+          Google can receive operational metadata, such as IP addresses,
+          request times, and error information, and maintains its own logs.
+          Google&#x27;s policies govern that processing.
         </p>
 
         <h3>Google API Limited Use</h3>
@@ -207,7 +209,6 @@
           from the relevant device or service. Revoking authorization prevents
           further authorized access; it does not automatically erase content
           already saved locally, exported, or retained by another service.
-          Broker envelope expiry does not delete those copies.
         </p>
 
         <h2>Update checks</h2>

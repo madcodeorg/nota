@@ -4,8 +4,10 @@ import path from 'node:path';
 
 const releaseDir = path.join(process.cwd(), './release');
 
+// electron-updater reads latest.yml on Windows, latest-mac.yml on macOS and
+// latest-linux.yml on Linux.
 const filenamesMapping = {
-  all: 'latest.yml',
+  windows: 'latest.yml',
   macos: 'latest-mac.yml',
   linux: 'latest-linux.yml',
 };
@@ -19,9 +21,10 @@ const generateYml = platform => {
   };
 
   const regex =
-    // we involves all distribution files in one release file to enforce we handle auto updater correctly
-    platform === 'all'
-      ? new RegExp(`.(${releaseFiles.join('|')})$`)
+    // The Windows updater is NsisUpdater and takes the first .exe in the feed,
+    // so list only the NSIS installer, not the Squirrel one or the zip.
+    platform === 'windows'
+      ? /.+-windows-.+\.nsis\.exe$/
       : new RegExp(`.+-${platform}-.+.(${releaseFiles.join('|')})$`);
 
   const files = fs.readdirSync(releaseDir).filter(file => regex.test(file));
@@ -29,6 +32,10 @@ const generateYml = platform => {
 
   console.info(`Release content for ${platform}:`);
   console.info(JSON.stringify(files, null, 2), '\n');
+
+  // A feed with no files would make that platform's updater fail on a release
+  // that did not build it.
+  if (files.length === 0) return;
 
   files.forEach(fileName => {
     const filePath = path.join(releaseDir, fileName);
@@ -74,4 +81,4 @@ const generateYml = platform => {
 
 generateYml('macos');
 generateYml('linux');
-generateYml('all');
+generateYml('windows');

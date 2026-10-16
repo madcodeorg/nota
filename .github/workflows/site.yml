@@ -45,17 +45,45 @@ jobs:
           if [ -n "${TAG}" ] && gh release view "${TAG}" --json assets --jq '.assets[].name' | grep -qx 'latest-mac.yml'; then
             VERSION="${TAG#v}"
             BASE="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}"
-            mkdir -p _site/updates/stable _site/download
+            mkdir -p _site/updates/stable
             gh release download "${TAG}" --pattern latest-mac.yml --dir /tmp/feed
             # Point every file at its GitHub release asset so clients download from GitHub.
             sed -E "s#^([[:space:]]*(- )?(url|path): )(nota-[^ ]*)\$#\1$BASE/\4#" /tmp/feed/latest-mac.yml > _site/updates/stable/latest-mac.yml
-            DMG="$(grep -oE 'url: \S+\.dmg' _site/updates/stable/latest-mac.yml | head -1 | cut -d' ' -f2)"
-            printf '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex, follow"><title>Download Nota</title><link rel="stylesheet" href="/legal.css"></head><body><div class="page"><header class="header"><a class="brand" href="/">Nota</a></header><main><h1>Download Nota</h1><p>The current desktop installer is for macOS.</p><p><a href="%s">Download Nota for Mac</a></p><p>For Windows and Linux availability, check the <a href="https://github.com/madcodeorg/nota/releases">release notes and available installers</a>.</p></main></div></body></html>\n' "${DMG}" > _site/download/index.html
             sed -i "s#\(data-nota-version[^>]*>\)[0-9][0-9.]*#\1${VERSION}#" _site/index.html
             echo "Site will ship ${TAG}"
           else
             echo "No published release with latest-mac.yml yet; deploying page only"
           fi
+
+          # Windows installers are built for beta tags only so far. Releases made
+          # before that have a latest.yml with no .exe in it, which would break
+          # the Windows updater, so only publish a feed that lists an installer.
+          if [ -n "${TAG}" ] && gh release view "${TAG}" --json assets --jq '.assets[].name' | grep -qx 'latest.yml'; then
+            BASE="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}"
+            gh release download "${TAG}" --pattern latest.yml --dir /tmp/feed-win
+            if grep -q '\.exe' /tmp/feed-win/latest.yml; then
+              mkdir -p _site/updates/stable
+              sed -E "s#^([[:space:]]*(- )?(url|path): )(nota-[^ ]*)\$#\1$BASE/\4#" /tmp/feed-win/latest.yml > _site/updates/stable/latest.yml
+              echo "Windows stable feed ships ${TAG}"
+            fi
+          fi
+
+          # Every published release, for the download and beta pages.
+          gh api "repos/${GITHUB_REPOSITORY}/releases" --paginate --jq '.[] | select(.draft | not) | {
+              tag: .tag_name,
+              version: (.tag_name | ltrimstr("v")),
+              prerelease: .prerelease,
+              date: .published_at,
+              notes: (.body // ""),
+              url: .html_url,
+              assets: [.assets[] | select(.name | test("^nota-.+-(macos|windows|linux)-(arm64|x64)\\.")) | {
+                name: .name,
+                size: .size,
+                sha256: ((.digest // "") | ltrimstr("sha256:")),
+                url: .browser_download_url
+              }]
+            }' | jq -s '.' > _site/releases.json
+          echo "releases.json lists $(jq length _site/releases.json) releases"
 
       - name: Add beta update channel
         env:
@@ -72,6 +100,16 @@ jobs:
             echo "Beta channel ships ${TAG}"
           else
             echo "No published beta release yet"
+          fi
+
+          if [ -n "${TAG}" ] && gh release view "${TAG}" --json assets --jq '.assets[].name' | grep -qx 'latest.yml'; then
+            BASE="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}"
+            gh release download "${TAG}" --pattern latest.yml --dir /tmp/feed-beta-win
+            if grep -q '\.exe' /tmp/feed-beta-win/latest.yml; then
+              mkdir -p _site/updates/beta
+              sed -E "s#^([[:space:]]*(- )?(url|path): )(nota-[^ ]*)\$#\1$BASE/\4#" /tmp/feed-beta-win/latest.yml > _site/updates/beta/latest.yml
+              echo "Windows beta feed ships ${TAG}"
+            fi
           fi
 
       - uses: actions/configure-pages@v6
