@@ -1,147 +1,138 @@
-/* eslint-disable rxjs/finnish */
 import type { CopilotChatHistoryFragment } from '@nota/graphql';
 import { describe, expect, test, vi } from 'vitest';
 
 import {
+  buildChatUrl,
+  getContextDocIdFromPathname,
+  parseChatUrl,
+  resolveChatScope,
   resolveInitialSession,
   type SessionService,
-  type WorkbenchLike,
 } from './chat-panel-session';
 
-const createWorkbench = (search: string) => {
-  const updateQueryString = vi.fn();
-  const workbench = {
-    location$: { value: { search } },
-    activeView$: { value: { updateQueryString } },
-  } satisfies WorkbenchLike;
+describe('universal chat context', () => {
+  test('parses optional document context and ignores session ids', () => {
+    expect(parseChatUrl('?contextDocId=doc-2&sessionId=session-3')).toEqual({
+      contextDocId: 'doc-2',
+    });
+    expect(parseChatUrl('?contextDocId=   ')).toEqual({
+      contextDocId: undefined,
+    });
+  });
 
-  return { workbench, updateQueryString };
-};
+  test('builds a chat URL with the note context only', () => {
+    expect(buildChatUrl('/chat', { contextDocId: 'doc-2' })).toBe(
+      '/chat?contextDocId=doc-2'
+    );
+    expect(buildChatUrl('/chat', {})).toBe('/chat');
+  });
 
-const doc = { id: 'doc-1', workspace: { id: 'ws-1' } };
+  test('uses document scope only when a document id exists', () => {
+    expect(resolveChatScope('doc-2')).toEqual({
+      kind: 'document',
+      docId: 'doc-2',
+    });
+    expect(resolveChatScope('  ')).toEqual({ kind: 'workspace' });
+    expect(resolveChatScope()).toEqual({ kind: 'workspace' });
+  });
 
-test('returns undefined without session service or doc', async () => {
-  await expect(
-    resolveInitialSession({ sessionService: null, doc, workbench: null })
-  ).resolves.toBeUndefined();
-  await expect(
-    resolveInitialSession({
-      sessionService: {
-        getSessions: vi.fn(),
-        getSession: vi.fn(),
-      },
-      doc: null,
-      workbench: null,
-    })
-  ).resolves.toBeUndefined();
+  test('detects document context only on a direct document route', () => {
+    expect(getContextDocIdFromPathname('/doc-2')).toBe('doc-2');
+    expect(getContextDocIdFromPathname('/all')).toBeUndefined();
+    expect(getContextDocIdFromPathname('/chat')).toBeUndefined();
+    expect(getContextDocIdFromPathname('/doc%2F2')).toBe('doc/2');
+    expect(getContextDocIdFromPathname('/doc-2/blocks')).toBeUndefined();
+  });
 });
 
-describe('resolveInitialSession', () => {
-  test('prefers pinned session and clears sessionId from url', async () => {
-    const pinnedSession = {
-      sessionId: 'pinned-session',
-      pinned: true,
-    } as CopilotChatHistoryFragment;
+const workspaceId = 'ws-1';
+const session = (sessionId: string, pinned = false) =>
+  ({ sessionId, pinned }) as CopilotChatHistoryFragment;
 
+describe('resolveInitialSession', () => {
+  test('returns undefined without a session service', async () => {
+    await expect(
+      resolveInitialSession({ sessionService: null, workspaceId })
+    ).resolves.toBeUndefined();
+  });
+
+  test('prefers the requested session over a pinned one', async () => {
+    const requested = session('requested');
     const sessionService: SessionService = {
-      getSessions: vi.fn().mockResolvedValueOnce([pinnedSession]),
+      getSessions: vi.fn().mockResolvedValue([session('pinned', true)]),
+      getSession: vi.fn().mockResolvedValueOnce(requested),
+    };
+
+    const result = await resolveInitialSession({
+      sessionService,
+      workspaceId,
+      docId: 'doc-1',
+      sessionId: 'requested',
+    });
+
+    expect(result).toBe(requested);
+    expect(sessionService.getSession).toHaveBeenCalledWith(
+      workspaceId,
+      'requested'
+    );
+    expect(sessionService.getSessions).not.toHaveBeenCalled();
+  });
+
+  test('uses the pinned chat when nothing was requested', async () => {
+    const pinned = session('pinned', true);
+    const sessionService: SessionService = {
+      getSessions: vi.fn().mockResolvedValueOnce([pinned]),
       getSession: vi.fn(),
     };
 
-    const { workbench, updateQueryString } = createWorkbench(
-      '?sessionId=from-url'
-    );
-
     const result = await resolveInitialSession({
       sessionService,
-      doc,
-      workbench,
+      workspaceId,
+      docId: 'doc-1',
     });
 
-    expect(result).toBe(pinnedSession);
-    expect(updateQueryString).toHaveBeenCalledWith(
-      { sessionId: undefined },
-      { replace: true }
-    );
-    expect(sessionService.getSession).not.toHaveBeenCalled();
-  });
-
-  test('loads session from url when no pinned session', async () => {
-    const sessionFromUrl = {
-      sessionId: 'url-session',
-      pinned: false,
-    } as CopilotChatHistoryFragment;
-
-    const sessionService: SessionService = {
-      getSessions: vi.fn().mockResolvedValueOnce([]),
-      getSession: vi.fn().mockResolvedValueOnce(sessionFromUrl),
-    };
-
-    const { workbench, updateQueryString } = createWorkbench(
-      '?sessionId=url-session'
-    );
-
-    const result = await resolveInitialSession({
-      sessionService,
-      doc,
-      workbench,
-    });
-
-    expect(result).toBe(sessionFromUrl);
-    expect(sessionService.getSession).toHaveBeenCalledWith(
-      doc.workspace.id,
-      'url-session'
-    );
-    expect(updateQueryString).toHaveBeenCalledWith(
-      { sessionId: undefined },
-      { replace: true }
+    expect(result).toBe(pinned);
+    expect(sessionService.getSessions).toHaveBeenCalledWith(
+      workspaceId,
+      undefined,
+      { pinned: true, limit: 1 }
     );
   });
 
-  test('falls back to latest doc session', async () => {
-    const docSession = {
-      sessionId: 'doc-session',
-      pinned: false,
-    } as CopilotChatHistoryFragment;
-
+  test('falls back to the note latest chat', async () => {
+    const docSession = session('doc-session');
     const sessionService: SessionService = {
       getSessions: vi
         .fn()
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([docSession]),
-      getSession: vi.fn(),
+      getSession: vi.fn().mockResolvedValueOnce(null),
     };
-
-    const { workbench } = createWorkbench('');
 
     const result = await resolveInitialSession({
       sessionService,
-      doc,
-      workbench,
+      workspaceId,
+      docId: 'doc-1',
+      sessionId: 'deleted',
     });
 
     expect(result).toBe(docSession);
-    expect(sessionService.getSessions).toHaveBeenCalledWith(
-      doc.workspace.id,
-      doc.id,
+    expect(sessionService.getSessions).toHaveBeenLastCalledWith(
+      workspaceId,
+      'doc-1',
       { action: false, fork: false, limit: 1 }
     );
   });
 
-  test('returns null when url session is missing', async () => {
+  test('starts fresh without a note or pinned chat', async () => {
     const sessionService: SessionService = {
       getSessions: vi.fn().mockResolvedValueOnce([]),
-      getSession: vi.fn().mockResolvedValueOnce(null),
+      getSession: vi.fn(),
     };
 
-    const { workbench } = createWorkbench('?sessionId=missing');
-
-    const result = await resolveInitialSession({
-      sessionService,
-      doc,
-      workbench,
-    });
-
-    expect(result).toBeNull();
+    await expect(
+      resolveInitialSession({ sessionService, workspaceId })
+    ).resolves.toBeNull();
+    expect(sessionService.getSessions).toHaveBeenCalledTimes(1);
   });
 });

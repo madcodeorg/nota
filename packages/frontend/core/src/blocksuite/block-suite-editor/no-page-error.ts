@@ -8,7 +8,6 @@ export class NoPageRootError extends Error {
   constructor(public page: Store) {
     super('Page root not found when render editor!');
 
-    // Log info to let sentry collect more message
     const hasExpectSpace = Array.from(
       page.rootDoc.getMap<YDoc>('spaces').values()
     ).some(doc => page.spaceDoc.guid === doc.guid);

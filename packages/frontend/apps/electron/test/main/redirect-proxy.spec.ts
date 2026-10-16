@@ -52,7 +52,7 @@ describe('redirect proxy allowlist', () => {
     });
   });
 
-  it('allows current hostname (canary)', async () => {
+  it('allows the Nota website', async () => {
     vi.resetModules();
     process.env.BUILD_TYPE = 'canary';
     process.env.NODE_ENV = 'production';
@@ -62,11 +62,11 @@ describe('redirect proxy allowlist', () => {
       await import('../../src/main/security/redirect-proxy');
     expect(
       validateRedirectProxyUrl(
-        'assets://./redirect-proxy?redirect_uri=https%3A%2F%2Fnota.fail%2Fpricing'
+        'assets://./redirect-proxy?redirect_uri=https%3A%2F%2Fthenota.app%2Fprivacy'
       )
     ).toEqual({
       allow: true,
-      redirectTarget: 'https://nota.fail/pricing',
+      redirectTarget: 'https://thenota.app/privacy',
     });
   });
 

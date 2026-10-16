@@ -1,11 +1,11 @@
 import { cssVarV2 } from '@toeverything/theme/v2';
-import { style } from '@vanilla-extract/css';
+import { globalStyle, style } from '@vanilla-extract/css';
 
 export const root = style({
   width: '100%',
   height: '100%',
   display: 'block',
-  borderRadius: 22,
+  borderRadius: 10,
   outlineOffset: 3,
   selectors: {
     '&:focus-visible': {
@@ -30,32 +30,25 @@ export const dragPreviewIcon = style({
 });
 
 export const listViewRoot = style({
-  padding: '0px 12px',
+  padding: '0px 10px',
   width: '100%',
   height: '100%',
   display: 'flex',
   flexDirection: 'row',
   alignItems: 'center',
-  gap: 10,
-  borderRadius: 18,
+  gap: 12,
+  borderRadius: 10,
   overflow: 'hidden',
-  background: 'rgba(111, 127, 84, 0.06)',
-  border: '1px solid transparent',
-  boxShadow: '0 1px 0 rgba(255, 255, 255, 0.04)',
-  transition:
-    'background-color .16s ease, border-color .16s ease, box-shadow .16s ease, transform .16s ease',
+  background: 'transparent',
+  transition: 'background-color .12s ease',
   containerName: 'list-view-root',
   containerType: 'size',
   selectors: {
     '&:hover': {
-      backgroundColor: 'rgba(111, 127, 84, 0.14)',
-      borderColor: 'rgba(111, 127, 84, 0.22)',
-      boxShadow: '0 10px 24px rgba(16, 24, 12, 0.12)',
-      transform: 'translateY(-1px)',
+      backgroundColor: cssVarV2.layer.background.hoverOverlay,
     },
     [`${root}[data-selected="true"] &`]: {
-      backgroundColor: 'rgba(111, 127, 84, 0.18)',
-      borderColor: 'rgba(111, 127, 84, 0.36)',
+      backgroundColor: 'rgba(111, 127, 84, 0.16)',
     },
   },
 });
@@ -105,18 +98,25 @@ export const listSelect = style({
   },
 });
 
-export const listIcon = style({
-  width: 34,
-  height: 34,
-  fontSize: 20,
-  color: '#b9c78c',
+export const listThumb = style({
+  width: 44,
+  height: 32,
+  fontSize: 18,
+  color: cssVarV2.icon.secondary,
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
   flexShrink: 0,
-  borderRadius: 14,
-  background: 'rgba(111, 127, 84, 0.14)',
-  boxShadow: 'inset 0 0 0 1px rgba(111, 127, 84, 0.18)',
+  borderRadius: 7,
+  overflow: 'hidden',
+  background: cssVarV2.layer.background.secondary,
+  boxShadow: `inset 0 0 0 1px ${cssVarV2.layer.insideBorder.border}`,
+});
+export const listThumbImage = style({
+  display: 'block',
+  width: '100%',
+  height: '100%',
+  objectFit: 'cover',
 });
 export const listContent = style({
   width: 0,
@@ -158,7 +158,7 @@ export const listTitle = style([
   {
     fontSize: 14,
     lineHeight: '22px',
-    fontWeight: 650,
+    fontWeight: 600,
     color: cssVarV2.text.primary,
   },
 ]);
@@ -174,19 +174,36 @@ export const listPreview = style([
 
 export const listQuickActions = style({
   display: 'flex',
-  gap: 4,
-  padding: 3,
-  borderRadius: 999,
-  background: 'rgba(255, 255, 255, 0.035)',
-  boxShadow: 'inset 0 0 0 1px rgba(111, 127, 84, 0.1)',
+  gap: 2,
   flexShrink: 0,
-  selectors: {
-    [`${listViewRoot}:hover &`]: {
-      background: 'rgba(111, 127, 84, 0.1)',
-      boxShadow: 'inset 0 0 0 1px rgba(111, 127, 84, 0.18)',
+});
+
+// Actions stay in the layout so columns don't shift; they only fade in on
+// hover. Touch devices always show them, and a favorited star or an open
+// menu stays visible.
+globalStyle(`${listQuickActions} button`, {
+  '@media': {
+    '(hover: hover)': {
+      opacity: 0,
+      transition: 'opacity .12s ease',
     },
   },
 });
+globalStyle(
+  [
+    `${listViewRoot}:hover ${listQuickActions} button`,
+    `${root}:focus-visible ${listQuickActions} button`,
+    `${listQuickActions} button[data-favorite="true"]`,
+    `${listQuickActions} button[data-state="open"]`,
+  ].join(', '),
+  {
+    '@media': {
+      '(hover: hover)': {
+        opacity: 1,
+      },
+    },
+  }
+);
 
 export const listHide750 = style({
   '@container': {

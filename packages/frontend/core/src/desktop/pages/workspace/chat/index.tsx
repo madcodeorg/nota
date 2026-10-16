@@ -1,6 +1,4 @@
 import { RefNodeSlotsProvider } from '@blocksuite/affine/inlines/reference';
-import { BlockStdScope } from '@blocksuite/affine/std';
-import type { Workspace } from '@blocksuite/affine/store';
 import { observeResize, useConfirmModal } from '@nota/component';
 import { CopilotClient } from '@nota/core/blocksuite/ai';
 import { type AgentActionProposal } from '@nota/core/blocksuite/ai/agent';
@@ -15,10 +13,16 @@ import {
   getOrCreateAIChatToolbar,
 } from '@nota/core/blocksuite/ai/components/ai-chat-toolbar';
 import type { PromptKey } from '@nota/core/blocksuite/ai/provider/prompt';
-import { getViewManager } from '@nota/core/blocksuite/manager/view';
 import { NotificationServiceImpl } from '@nota/core/blocksuite/view-extensions/editor-view/notification-service';
 import { useAIChatConfig } from '@nota/core/components/hooks/nota/use-ai-chat-config';
 import { useAISpecs } from '@nota/core/components/hooks/nota/use-ai-specs';
+import {
+  fullChatSessionId$,
+  linkSidebarChat,
+  notifyChatHistoryChanged,
+  pendingFullChatSessionId$,
+  pendingNewFullChat$,
+} from '@nota/core/components/root-app-sidebar/ai-panel-slot';
 import {
   AIDraftService,
   AIToolsConfigService,
@@ -36,7 +40,6 @@ import {
   ViewBody,
   ViewHeader,
   ViewIcon,
-  ViewService,
   ViewTitle,
   WorkbenchService,
 } from '@nota/core/modules/workbench';
@@ -45,14 +48,19 @@ import {
   WorkspaceService,
 } from '@nota/core/modules/workspace';
 import { useI18n } from '@nota/i18n';
-import { useFramework, useService } from '@nota/infra';
+import { useFramework, useLiveData, useService } from '@nota/infra';
 import { type Signal, signal } from '@preact/signals-core';
 import { nanoid } from 'nanoid';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 
 import type { WorkspaceContentAccessForDocument } from '../ai-workspace-index';
+import { useMockStd } from '../chat-mock-std';
 import { createSessionDeleteHandler } from '../chat-panel-utils';
+import {
+  parseChatUrl,
+  resolveInitialSession,
+} from '../detail-page/tabs/chat-panel-session';
 import { useActionProposalHandlers } from '../use-action-proposal-handlers';
 import * as styles from './index.css';
 
@@ -65,28 +73,6 @@ function useCopilotClient() {
     () => new CopilotClient(graphqlService.gql, eventSourceService.eventSource),
     [graphqlService, eventSourceService]
   );
-}
-
-function createMockStd(workspace: Workspace) {
-  workspace.meta.initialize();
-  // just pick a random doc for now
-  const store = workspace.docs.values().next().value?.getStore();
-  if (!store) return null;
-  const std = new BlockStdScope({
-    store,
-    extensions: [...getViewManager().config.init().value.get('page')],
-  });
-  std.render();
-  return std;
-}
-
-function useMockStd() {
-  const workspace = useService(WorkspaceService).workspace;
-  const std = useMemo(() => {
-    if (!workspace) return null;
-    return createMockStd(workspace.docCollection);
-  }, [workspace]);
-  return std;
 }
 
 function activeEditorContainerForSelection(
@@ -128,10 +114,17 @@ export const Component = () => {
   const workspaceId = useService(WorkspaceService).workspace.id;
   const workspaceService = useService(WorkspaceService);
   const docsService = useService(DocsService);
-  const requestedSessionId = useMemo(
-    () => new URLSearchParams(location.search).get('sessionId'),
+  const { contextDocId } = useMemo(
+    () => parseChatUrl(location.search),
     [location.search]
   );
+  const requestedSessionId = useLiveData(pendingFullChatSessionId$);
+  const newChatRequested = useLiveData(pendingNewFullChat$);
+  // A loaded session is authoritative when a deep link carries stale context.
+  // Before a session exists, the URL context scopes the new conversation.
+  const effectiveDocId = currentSession
+    ? (currentSession.docId ?? undefined)
+    : contextDocId;
   const accessForWorkspaceDocument =
     useCallback<WorkspaceContentAccessForDocument>(
       async ({ docId }) => {
@@ -160,10 +153,13 @@ export const Component = () => {
 
   useEffect(() => {
     hasRestoredPinnedSessionRef.current = false;
-  }, [workspaceId]);
+  }, [contextDocId, workspaceId]);
 
   const { docDisplayConfig, searchMenuConfig, reasoningConfig } =
     useAIChatConfig();
+  const contextLabel = effectiveDocId
+    ? docDisplayConfig.getTitle(effectiveDocId) || 'Current note'
+    : 'Workspace';
 
   const createSession = useCallback(
     async (options: Partial<BlockSuitePresets.AICreateSessionOptions> = {}) => {
@@ -172,14 +168,15 @@ export const Component = () => {
       }
       const session = await client.createSessionWithHistory({
         workspaceId,
+        docId: effectiveDocId,
         promptName: 'Chat With Nota AI' satisfies PromptKey,
-        reuseLatestChat: true,
+        reuseLatestChat: false,
         ...options,
       });
       setCurrentSession(session);
       return session;
     },
-    [client, currentSession, workspaceId]
+    [client, currentSession, effectiveDocId, workspaceId]
   );
 
   const togglePin = useCallback(async () => {
@@ -215,6 +212,11 @@ export const Component = () => {
     });
   }, []);
 
+  useEffect(() => {
+    setCurrentSession(null);
+    reMountChatContent();
+  }, [contextDocId, reMountChatContent]);
+
   const createFreshSession = useCallback(async () => {
     if (isOpeningSession) {
       return;
@@ -225,6 +227,7 @@ export const Component = () => {
       reMountChatContent();
       const session = await client.createSessionWithHistory({
         workspaceId,
+        docId: effectiveDocId,
         promptName: 'Chat With Nota AI' satisfies PromptKey,
         reuseLatestChat: false,
       });
@@ -234,7 +237,13 @@ export const Component = () => {
     } finally {
       setIsOpeningSession(false);
     }
-  }, [client, isOpeningSession, reMountChatContent, workspaceId]);
+  }, [
+    client,
+    effectiveDocId,
+    isOpeningSession,
+    reMountChatContent,
+    workspaceId,
+  ]);
 
   const onOpenSession = useCallback(
     async (sessionId: string) => {
@@ -261,49 +270,53 @@ export const Component = () => {
     ]
   );
 
+  const currentSessionIdRef = useRef<string | null>(null);
+  currentSessionIdRef.current = currentSession?.sessionId ?? null;
+
+  // Keyed only on the requested id: depending on loading state here would
+  // re-run the effect mid-request and drop the loaded session.
   useEffect(() => {
-    if (
-      !requestedSessionId ||
-      isOpeningSession ||
-      currentSession?.sessionId === requestedSessionId
-    ) {
+    if (!requestedSessionId) return;
+    hasRestoredPinnedSessionRef.current = true;
+    if (currentSessionIdRef.current === requestedSessionId) {
+      pendingFullChatSessionId$.next(null);
       return;
     }
 
     let disposed = false;
-    setIsOpeningSession(true);
     client
       .getSession(workspaceId, requestedSessionId)
       .then(session => {
-        if (disposed || !session) {
-          return;
-        }
-        hasRestoredPinnedSessionRef.current = true;
+        if (disposed || !session) return;
         setCurrentSession(session);
         reMountChatContent();
       })
       .catch(console.error)
       .finally(() => {
-        if (!disposed) {
-          setIsOpeningSession(false);
-        }
+        if (!disposed) pendingFullChatSessionId$.next(null);
       });
 
     return () => {
       disposed = true;
     };
-  }, [
-    client,
-    currentSession?.sessionId,
-    isOpeningSession,
-    reMountChatContent,
-    requestedSessionId,
-    workspaceId,
-  ]);
+  }, [client, reMountChatContent, requestedSessionId, workspaceId]);
 
+  const lastStatusRef = useRef<ChatStatus>('idle');
   const onContextChange = useCallback((context: Partial<ChatContextValue>) => {
-    setStatus(context.status ?? 'idle');
+    const next = context.status ?? 'idle';
+    if (next === 'success' && lastStatusRef.current !== 'success') {
+      notifyChatHistoryChanged();
+    }
+    lastStatusRef.current = next;
+    setStatus(next);
   }, []);
+
+  const currentSessionId = currentSession?.sessionId ?? null;
+  useEffect(() => {
+    fullChatSessionId$.next(currentSessionId);
+    if (currentSessionId) notifyChatHistoryChanged();
+  }, [currentSessionId]);
+  useEffect(() => () => fullChatSessionId$.next(null), []);
 
   const onOpenDoc = useCallback(
     (docId: string) => {
@@ -311,7 +324,7 @@ export const Component = () => {
     },
     [workbench]
   );
-  const mockStd = useMockStd();
+  const mockStd = useMockStd(effectiveDocId);
   const getSelectionEditorContainer = useCallback(
     (
       proposal: Extract<
@@ -341,15 +354,17 @@ export const Component = () => {
     workspaceId,
   });
   const onOpenSessionDoc = useCallback(
-    (docId: string, sessionId: string) => {
-      const { workbench } = framework.get(WorkbenchService);
-      const viewService = framework.get(ViewService);
-      workbench.open(`/${docId}?sessionId=${sessionId}`, { at: 'active' });
-      workbench.openSidebar();
-      viewService.view.activeSidebarTab('chat');
+    (docId: string, sessionId?: string) => {
+      linkSidebarChat({ docId, sessionId });
+      workbench.openDoc(docId, { at: 'active' });
+      workbench.openSidebar('chat');
     },
-    [framework]
+    [workbench]
   );
+  const onOpenCompact = useCallback(() => {
+    if (!effectiveDocId) return;
+    onOpenSessionDoc(effectiveDocId, currentSession?.sessionId);
+  }, [currentSession?.sessionId, effectiveDocId, onOpenSessionDoc]);
 
   const confirmModal = useConfirmModal();
   const notificationService = useMemo(
@@ -372,6 +387,7 @@ export const Component = () => {
             docId: sessionToDelete.docId || undefined,
             sessionIds: [sessionToDelete.sessionId],
           });
+          notifyChatHistoryChanged();
         },
         isActiveSession: sessionToDelete =>
           sessionToDelete.sessionId === currentSession?.sessionId,
@@ -403,6 +419,8 @@ export const Component = () => {
 
     content.session = currentSession;
     content.workspaceId = workspaceId;
+    content.docId = effectiveDocId;
+    content.independentMode = !effectiveDocId;
     content.extensions = specs;
     content.host = mockStd?.host;
     content.docDisplayConfig = docDisplayConfig;
@@ -429,13 +447,13 @@ export const Component = () => {
 
     if (!chatContent) {
       // initial values that won't change
-      content.independentMode = true;
       content.onboardingOffsetY = -100;
       chatContainerRef.current?.append(content);
       setChatContent(content);
     }
   }, [
     chatContent,
+    effectiveDocId,
     createSession,
     currentSession,
     docDisplayConfig,
@@ -464,6 +482,7 @@ export const Component = () => {
     configureAIChatToolbar(tool, {
       session: currentSession,
       workspaceId,
+      docId: effectiveDocId,
       status,
       docDisplayConfig,
       notificationService,
@@ -480,6 +499,7 @@ export const Component = () => {
       onSessionDelete: (sessionToDelete: BlockSuitePresets.AIRecentSession) => {
         deleteSession(sessionToDelete).catch(console.error);
       },
+      onOpenCompact: effectiveDocId ? onOpenCompact : undefined,
     });
 
     // initial props
@@ -491,6 +511,7 @@ export const Component = () => {
   }, [
     chatTool,
     currentSession,
+    effectiveDocId,
     docDisplayConfig,
     isHeaderProvided,
     onOpenSession,
@@ -501,6 +522,7 @@ export const Component = () => {
     status,
     notificationService,
     createFreshSession,
+    onOpenCompact,
   ]);
 
   useEffect(() => {
@@ -519,7 +541,18 @@ export const Component = () => {
     return () => sub.unsubscribe();
   }, [framework, mockStd]);
 
-  // restore pinned session
+  // Declared before the restore effect below so a requested empty chat wins
+  // over restoring the pinned one on mount.
+  useEffect(() => {
+    if (!newChatRequested) return;
+    pendingNewFullChat$.next(false);
+    hasRestoredPinnedSessionRef.current = true;
+    setCurrentSession(null);
+    reMountChatContent();
+  }, [newChatRequested, reMountChatContent]);
+
+  // Open with the same conversation the sidebar would: pinned chat, else the
+  // note's latest chat. Sessions handed over in memory load separately above.
   useEffect(() => {
     if (requestedSessionId) return;
     if (hasRestoredPinnedSessionRef.current || currentSession) return;
@@ -528,18 +561,23 @@ export const Component = () => {
     const controller = new AbortController();
     const loadPinnedSession = async () => {
       try {
-        const sessions = await client.getSessions(
+        const pinnedSession = await resolveInitialSession({
+          sessionService: {
+            getSessions: (workspaceId, docId, options) =>
+              client.getSessions(
+                workspaceId,
+                {},
+                docId,
+                options,
+                controller.signal
+              ),
+            getSession: (workspaceId, sessionId) =>
+              client.getSession(workspaceId, sessionId),
+          },
           workspaceId,
-          {},
-          undefined,
-          { pinned: true, limit: 1 },
-          controller.signal
-        );
-        if (controller.signal.aborted || !Array.isArray(sessions)) {
-          return;
-        }
-        const pinnedSession = sessions[0];
-        if (!pinnedSession) {
+          docId: contextDocId,
+        });
+        if (controller.signal.aborted || !pinnedSession) {
           return;
         }
 
@@ -568,6 +606,7 @@ export const Component = () => {
     };
   }, [
     client,
+    contextDocId,
     currentSession,
     reMountChatContent,
     requestedSessionId,
@@ -603,7 +642,7 @@ export const Component = () => {
       <ViewIcon icon="ai" />
       <ViewHeader>
         <div className={styles.chatHeader}>
-          <div />
+          <div className={styles.contextLabel}>{contextLabel}</div>
           <div ref={onChatToolContainerRef} />
         </div>
       </ViewHeader>

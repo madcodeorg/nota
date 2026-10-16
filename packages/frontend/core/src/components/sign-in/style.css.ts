@@ -17,12 +17,6 @@ globalStyle(`${authMessage} .link`, {
   color: cssVar('linkColor'),
 });
 
-export const captchaWrapper = style({
-  margin: 'auto',
-  marginBottom: '4px',
-  textAlign: 'center',
-});
-
 export const passwordButtonRow = style({
   display: 'flex',
   justifyContent: 'space-between',

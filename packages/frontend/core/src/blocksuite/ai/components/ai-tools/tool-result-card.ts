@@ -1,8 +1,7 @@
 import { SignalWatcher, WithDisposable } from '@blocksuite/affine/global/lit';
 import { unsafeCSSVarV2 } from '@blocksuite/affine/shared/theme';
 import { ShadowlessElement } from '@blocksuite/affine/std';
-import { isImageProxyURL } from '@blocksuite/affine-shared/adapters';
-import { ToggleDownIcon, ToolIcon } from '@blocksuite/icons/lit';
+import { DoneIcon, ToggleDownIcon, ToolIcon } from '@blocksuite/icons/lit';
 import { type Signal } from '@preact/signals-core';
 import { css, html, nothing, type TemplateResult } from 'lit';
 import { property, state } from 'lit/decorators.js';
@@ -22,36 +21,38 @@ export class ToolResultCard extends SignalWatcher(
   static override styles = css`
     .ai-tool-result-wrapper {
       display: block;
-      padding: 12px;
-      margin: 8px 0;
-      border-radius: 8px;
-      border: 0.5px solid ${unsafeCSSVarV2('layer/insideBorder/border')};
-      color: ${unsafeCSSVarV2('icon/secondary')};
+      margin: 2px 0;
+      color: ${unsafeCSSVarV2('text/tertiary')};
       transition: color 0.23s ease;
 
       .ai-tool-header {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        gap: 8px;
-        margin-right: 3px;
+        gap: 6px;
         cursor: pointer;
       }
 
       .ai-icon {
-        width: 24px;
-        height: 24px;
+        display: flex;
+        flex-shrink: 0;
+        width: 14px;
+        height: 14px;
 
         svg {
-          width: 24px;
-          height: 24px;
+          width: 14px;
+          height: 14px;
         }
       }
 
+      .ai-icon.done svg {
+        color: ${unsafeCSSVarV2('status/success')};
+      }
+
       .ai-tool-name {
-        font-size: 14px;
-        font-weight: 500;
-        line-height: 24px;
+        font-size: 12px;
+        font-weight: 400;
+        line-height: 20px;
         margin-left: 0px;
         margin-right: auto;
         overflow: hidden;
@@ -67,7 +68,7 @@ export class ToolResultCard extends SignalWatcher(
           opacity 0.4s ease,
           margin-top 0.23s ease,
           transform 0.43s ease;
-        padding-left: 11px;
+        padding-left: 6px;
         margin-top: 4px;
         transform-origin: bottom;
       }
@@ -212,7 +213,7 @@ export class ToolResultCard extends SignalWatcher(
       .footer-icons {
         display: flex;
         position: relative;
-        height: 24px;
+        height: 20px;
         align-items: center;
         opacity: 0.5;
         transition: opacity 0.23s ease;
@@ -224,7 +225,7 @@ export class ToolResultCard extends SignalWatcher(
       }
     }
     .ai-tool-result-wrapper:hover {
-      color: ${unsafeCSSVarV2('icon/primary')};
+      color: ${unsafeCSSVarV2('text/secondary')};
 
       .footer-icons {
         opacity: 1;
@@ -250,13 +251,11 @@ export class ToolResultCard extends SignalWatcher(
   @state()
   private accessor isCollapsed = true;
 
-  private readonly imageProxyURL = BUILD_CONFIG.imageProxyUrl;
-
   protected override render() {
     return html`
       <div class="ai-tool-result-wrapper">
         <div class="ai-tool-header" @click=${this.toggleCard}>
-          <div class="ai-icon">${this.icon}</div>
+          <div class="ai-icon done">${DoneIcon()}</div>
           <div class="ai-tool-name">${this.name}</div>
           ${this.isCollapsed
             ? this.renderFooterIcons()
@@ -322,13 +321,6 @@ export class ToolResultCard extends SignalWatcher(
     `;
   }
 
-  buildUrl(imageUrl: string) {
-    if (imageUrl.startsWith(this.imageProxyURL) || isImageProxyURL(imageUrl)) {
-      return imageUrl;
-    }
-    return `${this.imageProxyURL}?url=${encodeURIComponent(imageUrl)}`;
-  }
-
   private renderIcon(icon: string | TemplateResult<1> | undefined) {
     if (!icon) {
       return nothing;
@@ -337,7 +329,7 @@ export class ToolResultCard extends SignalWatcher(
     if (typeof icon === 'string') {
       return html`<div class="image-icon">
         <img
-          src=${this.buildUrl(icon)}
+          src=${icon}
           @error=${(e: Event) => {
             const img = e.target as HTMLImageElement;
             img.style.display = 'none';

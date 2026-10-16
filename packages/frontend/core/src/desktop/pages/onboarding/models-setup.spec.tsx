@@ -7,8 +7,60 @@ import {
   screen,
   waitFor,
 } from '@testing-library/react';
-import { StrictMode } from 'react';
+import { type PropsWithChildren, type ReactNode, StrictMode } from 'react';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
+
+import type { ChatGPTStatus } from '../../dialogs/setting/general-setting/ai/chatgpt-connection';
+
+const browser = vi.hoisted(() => ({ openExternal: vi.fn() }));
+vi.mock('@nota/core/modules/url', () => ({ UrlService: Symbol('UrlService') }));
+vi.mock('@nota/infra', () => ({ useServiceOptional: () => browser }));
+vi.mock('@nota/component', () => ({
+  Button: ({
+    children,
+    ...props
+  }: PropsWithChildren<Record<string, unknown>>) => (
+    <button {...props}>{children}</button>
+  ),
+  Input: ({ onChange, ...props }: { onChange: (value: string) => void }) => (
+    <input {...props} onChange={event => onChange(event.target.value)} />
+  ),
+  Menu: ({ items, children }: PropsWithChildren<{ items: ReactNode }>) => (
+    <div>
+      {children}
+      {items}
+    </div>
+  ),
+  MenuItem: ({
+    onSelect,
+    selected: _selected,
+    children,
+    ...props
+  }: PropsWithChildren<{ onSelect: () => void; selected?: boolean }>) => (
+    <button {...props} onClick={onSelect}>
+      {children}
+    </button>
+  ),
+  MenuTrigger: ({
+    children,
+    ...props
+  }: PropsWithChildren<Record<string, unknown>>) => (
+    <button {...props}>{children}</button>
+  ),
+}));
+vi.mock('@nota/component/setting-components', () => ({
+  SettingRow: ({
+    name,
+    desc,
+    children,
+  }: PropsWithChildren<{ name: string; desc?: string }>) => (
+    <div>
+      <label>{name}</label>
+      <span>{desc}</span>
+      {children}
+    </div>
+  ),
+}));
 
 import { NotaModelsSetup } from './models-setup';
 
@@ -48,6 +100,7 @@ function deferred<T>() {
 
 let settings: {
   provider: string;
+  chatgptModel?: string;
   localModel: string;
   meetings: {
     sttProviderId: string;
@@ -55,10 +108,17 @@ let settings: {
     sttLanguage: string;
   };
 };
+let chatgptStatus: ChatGPTStatus;
+let accountCatalog: Array<{ id: string; name: string }>;
+let accountStatusHTTP: number;
+let accountCatalogHTTP: number;
 let models: Record<string, unknown>[];
 let providers: Record<string, unknown>[];
 let runtime: Record<string, unknown>;
-let post: (url: string, init?: RequestInit) => ReturnType<typeof response>;
+let post: (
+  url: string,
+  init?: RequestInit
+) => ReturnType<typeof response> | Promise<ReturnType<typeof response>>;
 let fetchMock: ReturnType<typeof vi.fn>;
 
 function requests(method = 'GET', endpoint?: string) {
@@ -83,6 +143,16 @@ async function ready(onContinue = vi.fn(), onSkip = vi.fn()) {
 
 describe('onboarding local chat and transcription model setup', () => {
   beforeEach(() => {
+    browser.openExternal.mockClear();
+    chatgptStatus = {
+      connected: false,
+      planEnabled: false,
+      pending: false,
+      profiles: [],
+    };
+    accountCatalog = [{ id: 'gpt-account-model', name: 'Account GPT' }];
+    accountStatusHTTP = 200;
+    accountCatalogHTTP = 200;
     settings = {
       provider: 'local',
       localModel: chatId,
@@ -133,6 +203,25 @@ describe('onboarding local chat and transcription model setup', () => {
     };
     post = () => response({ ok: true });
     fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      if (url === '/api/ai/chatgpt/status')
+        return response(chatgptStatus, accountStatusHTTP);
+      if (url === '/api/ai/chatgpt/models')
+        return response({ models: accountCatalog }, accountCatalogHTTP);
+      if (url === '/api/ai/chatgpt/sign-in') {
+        chatgptStatus = { ...chatgptStatus, pending: true };
+        return response({
+          url: 'https://auth.openai.com/oauth/authorize?state=test',
+        });
+      }
+      if (url === '/api/ai/chatgpt/disconnect') {
+        chatgptStatus = {
+          connected: false,
+          planEnabled: false,
+          pending: false,
+          profiles: [],
+        };
+        return response({ ok: true });
+      }
       if (init?.method === 'POST') return post(url, init);
       if (url === '/api/ai/settings') return response(settings);
       if (url === '/v1/local/models')
@@ -165,6 +254,270 @@ describe('onboarding local chat and transcription model setup', () => {
       'value',
       'auto'
     );
+  });
+
+  async function chooseChatGPT(
+    onContinue = vi.fn(),
+    onSkip = vi.fn(),
+    onChatSelected = vi.fn()
+  ) {
+    const view = render(
+      <NotaModelsSetup
+        mode="chat"
+        onContinue={onContinue}
+        onSkip={onSkip}
+        onChatSelected={onChatSelected}
+      />
+    );
+    await waitFor(() =>
+      expect(screen.getByLabelText('Chat provider')).toHaveProperty(
+        'disabled',
+        false
+      )
+    );
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Chat provider'), {
+        target: { value: 'chatgpt' },
+      });
+    });
+    return { view, onContinue, onSkip, onChatSelected };
+  }
+
+  test('sign-in never selects a model or saves until the user chooses ChatGPT and continues', async () => {
+    const { onContinue, onChatSelected } = await chooseChatGPT();
+    vi.useFakeTimers();
+    await act(async () => {
+      fireEvent.click(screen.getByText('Continue with ChatGPT'));
+    });
+    expect(browser.openExternal).toHaveBeenCalledWith(
+      'https://auth.openai.com/oauth/authorize?state=test'
+    );
+    expect(requests('POST', '/api/ai/settings')).toHaveLength(0);
+    expect(
+      screen.getByRole('button', { name: 'Save and continue' })
+    ).toHaveProperty('disabled', true);
+    chatgptStatus = {
+      connected: true,
+      planEnabled: true,
+      pending: false,
+      activeProfileId: 'one',
+      profiles: [],
+    };
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1000);
+    });
+    expect(screen.getByLabelText('ChatGPT models').textContent).toBe(
+      'Choose model'
+    );
+    expect(screen.queryByLabelText('Model ID')).toBeNull();
+    expect(requests('POST', '/api/ai/settings')).toHaveLength(0);
+    await act(async () => {
+      fireEvent.click(screen.getByText('Account GPT'));
+    });
+    expect(
+      screen.getByRole('button', { name: 'Save and continue' })
+    ).toHaveProperty('disabled', false);
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Save and continue' })
+      );
+    });
+    const payload = JSON.parse(requests('POST', '/api/ai/settings')[0][1].body);
+    expect(payload).toEqual({
+      defaultProvider: 'chatgpt',
+      defaultModel: 'gpt-account-model',
+      chatgptModel: 'gpt-account-model',
+    });
+    expect(onChatSelected).toHaveBeenCalledWith('gpt-account-model', 'chatgpt');
+    expect(onContinue).toHaveBeenCalledOnce();
+  });
+
+  test.each(['ineligible', 'pending', 'unlisted'] as const)(
+    'blocks ChatGPT saves with %s account/model state',
+    async state => {
+      chatgptStatus = {
+        connected: true,
+        planEnabled: state !== 'ineligible',
+        pending: state === 'pending',
+        activeProfileId: 'one',
+        profiles: [],
+      };
+      settings.chatgptModel =
+        state === 'unlisted' ? 'not-in-account' : 'gpt-account-model';
+      const { onContinue } = await chooseChatGPT();
+      expect(screen.getByLabelText('ChatGPT models').textContent).toBe(
+        'Choose model'
+      );
+      expect(screen.queryByLabelText('Model ID')).toBeNull();
+      expect(
+        screen.getByRole('button', { name: 'Save and continue' })
+      ).toHaveProperty('disabled', true);
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Save and continue' })
+      );
+      expect(requests('POST', '/api/ai/settings')).toHaveLength(0);
+      expect(onContinue).not.toHaveBeenCalled();
+    }
+  );
+
+  test('failed ChatGPT save retains the draft and only advances after retry', async () => {
+    chatgptStatus = {
+      connected: true,
+      planEnabled: true,
+      pending: false,
+      activeProfileId: 'one',
+      profiles: [],
+    };
+    const { onContinue, onChatSelected } = await chooseChatGPT();
+    await act(async () => {
+      fireEvent.click(screen.getByText('Account GPT'));
+    });
+    post = () => response({ error: 'Account changed; retry.' }, 409);
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Save and continue' })
+      );
+    });
+    expect(screen.getByRole('alert').textContent).toContain('Account changed');
+    expect(screen.getByLabelText('ChatGPT models').textContent).toBe(
+      'Account GPT'
+    );
+    expect(onContinue).not.toHaveBeenCalled();
+    expect(onChatSelected).not.toHaveBeenCalled();
+    post = () => response({ ok: true });
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Save and continue' })
+      );
+    });
+    expect(onContinue).toHaveBeenCalledOnce();
+  });
+
+  test('disconnect clears selectable account models and Skip remains available during a backend outage', async () => {
+    chatgptStatus = {
+      connected: true,
+      planEnabled: true,
+      pending: false,
+      activeProfileId: 'one',
+      profiles: [],
+    };
+    const { onSkip } = await chooseChatGPT();
+    await act(async () => {
+      fireEvent.click(screen.getByText('Account GPT'));
+    });
+    expect(
+      screen.getByRole('button', { name: 'Save and continue' })
+    ).toHaveProperty('disabled', false);
+    await act(async () => {
+      fireEvent.click(screen.getByText('Disconnect'));
+    });
+    expect(
+      screen.getByRole('button', { name: 'Save and continue' })
+    ).toHaveProperty('disabled', true);
+    expect(requests('POST', '/api/ai/settings')).toHaveLength(0);
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Chat provider'), {
+        target: { value: 'local' },
+      });
+    });
+    accountStatusHTTP = 503;
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Chat provider'), {
+        target: { value: 'chatgpt' },
+      });
+    });
+    expect(screen.getByRole('alert').textContent).toContain('unavailable');
+    fireEvent.click(screen.getByText('Skip for now'));
+    expect(onSkip).toHaveBeenCalledOnce();
+    expect(requests('POST', '/api/ai/settings')).toHaveLength(0);
+  });
+
+  test('catalog refresh that expires authentication disables Save without changing the model draft', async () => {
+    chatgptStatus = {
+      connected: true,
+      planEnabled: true,
+      pending: false,
+      activeProfileId: 'one',
+      profiles: [],
+    };
+    await chooseChatGPT();
+    await act(async () => {
+      fireEvent.click(screen.getByText('Account GPT'));
+    });
+    expect(
+      screen.getByRole('button', { name: 'Save and continue' })
+    ).toHaveProperty('disabled', false);
+    chatgptStatus = {
+      connected: false,
+      planEnabled: false,
+      pending: false,
+      profiles: [],
+    };
+    accountCatalogHTTP = 401;
+    await act(async () => {
+      fireEvent.click(screen.getByText('Refresh models'));
+    });
+    expect(
+      screen.getByRole('button', { name: 'Save and continue' })
+    ).toHaveProperty('disabled', true);
+    expect(screen.getByLabelText('ChatGPT models')).toHaveProperty(
+      'disabled',
+      true
+    );
+    expect(screen.getByLabelText('ChatGPT models').textContent).toBe(
+      'Choose model'
+    );
+    expect(requests('POST', '/api/ai/settings')).toHaveLength(0);
+    chatgptStatus = {
+      connected: true,
+      planEnabled: true,
+      pending: false,
+      activeProfileId: 'one',
+      profiles: [],
+    };
+    accountCatalogHTTP = 200;
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Chat provider'), {
+        target: { value: 'local' },
+      });
+    });
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Chat provider'), {
+        target: { value: 'chatgpt' },
+      });
+    });
+    expect(screen.getByLabelText('ChatGPT models').textContent).toBe(
+      'Account GPT'
+    );
+    expect(
+      screen.getByRole('button', { name: 'Save and continue' })
+    ).toHaveProperty('disabled', false);
+    expect(requests('POST', '/api/ai/settings')).toHaveLength(0);
+  });
+
+  test('committed ChatGPT selection synchronizes the renderer even after Skip unmounts setup', async () => {
+    chatgptStatus = {
+      connected: true,
+      planEnabled: true,
+      pending: false,
+      activeProfileId: 'one',
+      profiles: [],
+    };
+    const { view, onContinue, onSkip, onChatSelected } = await chooseChatGPT();
+    await act(async () => {
+      fireEvent.click(screen.getByText('Account GPT'));
+    });
+    const saved = deferred<ReturnType<typeof response>>();
+    post = () => saved.promise;
+    fireEvent.click(screen.getByRole('button', { name: 'Save and continue' }));
+    fireEvent.click(screen.getByText('Skip for now'));
+    expect(onSkip).toHaveBeenCalledOnce();
+    view.unmount();
+    await act(async () => {
+      saved.resolve(response({ ok: true }));
+    });
+    expect(onChatSelected).toHaveBeenCalledWith('gpt-account-model', 'chatgpt');
+    expect(onContinue).not.toHaveBeenCalled();
   });
 
   test('preserves a hosted provider when no local chat was explicitly chosen', async () => {

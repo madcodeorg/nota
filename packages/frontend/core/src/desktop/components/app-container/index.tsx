@@ -21,6 +21,7 @@ import {
   useCallback,
 } from 'react';
 
+import { HeaderUpdateButton } from './header-update-button';
 import * as styles from './styles.css';
 
 export const AppContainer = ({
@@ -77,6 +78,7 @@ const DesktopLayout = ({
               {isInWorkspace && <NavigationButtons />}
             </>
           }
+          right={fallback ? null : <HeaderUpdateButton />}
         />
       </div>
       <div className={styles.desktopAppViewMain}>

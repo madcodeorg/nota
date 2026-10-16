@@ -74,6 +74,25 @@ function normalizeSessionId(value: unknown) {
   return sessionId;
 }
 
+/** Keeps saved stream objects in the same order the client rendered them. */
+export function appendTextStreamObject(
+  streamObjects: StreamObject[],
+  text: string,
+  type: 'text-delta' | 'reasoning' = 'text-delta'
+) {
+  if (!text) return;
+  const last = streamObjects.at(-1);
+  if (
+    last &&
+    last.type === type &&
+    (last.type === 'text-delta' || last.type === 'reasoning')
+  ) {
+    last.textDelta += text;
+    return;
+  }
+  streamObjects.push({ type, textDelta: text });
+}
+
 function writeSseError(res: Response, status: number, message: string) {
   writeSse(
     res,
@@ -206,6 +225,7 @@ function systemPromptWithTools(promptName: string, toolsEnabled: boolean) {
     'Whole-document clearing is disabled until Nota can restore it safely. Do not propose or claim to perform a clear, wipe, or delete-all action.',
     'When MCP tools are configured, use list_mcp_tools to inspect direct read tools and approval-gated write tools. For gated MCP writes, call propose_nota_action with type run_mcp_tool and the exact gated tool name.',
     'Do not use shell commands for destructive changes. Treat shell output as local Nota context, then answer in normal Markdown.',
+    'Document ids, session ids and tool names are internal. Refer to notes by their title and never write raw ids in prose; ids may appear only inside [source: ...] citations and tool arguments.',
   ].join(' ');
 }
 
@@ -609,8 +629,17 @@ function workspaceSearchStreamObject(input: {
   };
 }
 
+// "How do I remove it?" or "What should I add?" asks for an answer, not an
+// edit. Requests phrased as "Can you add..." still count as edit requests.
+function isInformationQuestion(lower: string) {
+  return /^\s*(?:how|what|why|when|where|which|who|whose)\b/.test(lower);
+}
+
 export function isWholeDocumentClearRequest(content: string) {
   const lower = content.toLowerCase();
+  if (isInformationQuestion(lower)) {
+    return false;
+  }
   const destructiveAdviceOnly =
     /\b(?:should|can|could)\s+(?:i|we)\b|\bshould\s+you\b|\bwould\s+it\b|\b(?:whether|if)\s+(?:i|we)\s+should\b|\bdo you think\b/.test(
       lower
@@ -634,6 +663,9 @@ export function actionIntent(content: string) {
     return null;
   }
   const lower = content.toLowerCase();
+  if (isInformationQuestion(lower)) {
+    return null;
+  }
   const selectionMentioned =
     /\b(selected markdown|selected text|selection|highlighted(?: text)?)\b/.test(
       lower
@@ -1160,6 +1192,7 @@ export function createStreamHandler({
         if (signal.aborted) return;
         if (part.type === 'text-delta') {
           assistantText += part.text;
+          appendTextStreamObject(streamObjects, part.text);
           writeSse(res, 'message', part.text);
         }
         if (part.type === 'reasoning-delta') {
@@ -1167,7 +1200,7 @@ export function createStreamHandler({
             type: 'reasoning',
             textDelta: part.text,
           };
-          streamObjects.push(reasoningObject);
+          appendTextStreamObject(streamObjects, part.text, 'reasoning');
           writeSse(res, 'message', JSON.stringify(reasoningObject));
         }
         if (part.type === 'tool-call') {
@@ -1197,10 +1230,11 @@ export function createStreamHandler({
         if (part.type === 'error') {
           if (signal.aborted) return;
           if (assistantText.trim() || streamObjects.length) {
-            store.appendAssistantMessage(sessionId, assistantText, [
-              { type: 'text-delta', textDelta: assistantText },
-              ...streamObjects,
-            ]);
+            store.appendAssistantMessage(
+              sessionId,
+              assistantText,
+              streamObjects
+            );
           }
           writeSse(
             res,
@@ -1238,6 +1272,7 @@ export function createStreamHandler({
           const notice =
             '\n\nNo edit proposal was created because the model did not call the proposal tool or return exactly one safe Markdown content block. Nothing was changed.';
           assistantText += notice;
+          appendTextStreamObject(streamObjects, notice);
           writeSse(res, 'message', notice);
         }
       }
@@ -1245,14 +1280,12 @@ export function createStreamHandler({
       if (shouldAppendSourceSection(assistantText, preflightContext.results)) {
         const sourceSection = formatSourceSection(preflightContext.results);
         assistantText += sourceSection;
+        appendTextStreamObject(streamObjects, sourceSection);
         writeSse(res, 'message', sourceSection);
       }
 
       if (signal.aborted) return;
-      store.appendAssistantMessage(sessionId, assistantText, [
-        { type: 'text-delta', textDelta: assistantText },
-        ...streamObjects,
-      ]);
+      store.appendAssistantMessage(sessionId, assistantText, streamObjects);
       res.end();
     } catch (error) {
       if (signal.aborted) return;

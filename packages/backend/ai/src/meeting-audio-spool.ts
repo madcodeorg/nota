@@ -378,7 +378,10 @@ export class MeetingFallbackAudioSpool {
       for (const record of records) await handle.writeFile(record);
       await handle.sync();
       await this.syncDirectory(directory);
-      if (created) {
+      // Directory syncing is unsupported on Windows. mkdir also returns a
+      // namespaced (\\?\) path there, unlike `directory`; comparing their
+      // ancestors would never terminate and would block the first audio ACK.
+      if (created && process.platform !== 'win32') {
         let parent = directory;
         while (parent !== path.dirname(created)) {
           parent = path.dirname(parent);
@@ -388,8 +391,16 @@ export class MeetingFallbackAudioSpool {
     } catch (error) {
       this.initialized = false;
       // A rejected append must not poison the next retry with a torn record.
-      await handle.truncate(initialSize);
-      await handle.sync();
+      // Windows append handles cannot truncate. Reopen with write access to
+      // roll back the rejected bytes before the next attempt initializes.
+      await handle.close();
+      const repair = await open(this.sourceFilePath(source), 'r+');
+      try {
+        await repair.truncate(initialSize);
+        await repair.sync();
+      } finally {
+        await repair.close();
+      }
       throw error;
     } finally {
       await handle.close();

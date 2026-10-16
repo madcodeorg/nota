@@ -15,8 +15,8 @@ export const tooltip = style({
 });
 
 export const dateDocListInlineProperty = style({
-  width: 60,
-  textAlign: 'center',
+  minWidth: 60,
+  textAlign: 'right',
   fontSize: 12,
   lineHeight: '20px',
   color: cssVarV2.text.secondary,

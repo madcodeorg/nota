@@ -1,5 +1,3 @@
-import '@sentry/electron/preload';
-
 import { contextBridge } from 'electron';
 
 import { apis, appInfo, events } from './electron-api';

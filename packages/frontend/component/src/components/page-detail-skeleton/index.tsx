@@ -40,7 +40,7 @@ export const EditorLoading = ({
                   1: (
                     <a
                       style={{ color: 'var(--affine-primary-color)' }}
-                      href="https://nota.pro/redirect/discord"
+                      href="https://github.com/madcodeorg/nota/issues"
                       target="__blank"
                     />
                   ),

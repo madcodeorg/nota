@@ -34,6 +34,7 @@ const mocks = vi.hoisted(() => ({
     },
   },
   notify: { success: vi.fn(), error: vi.fn() },
+  url: { openExternal: vi.fn() },
 }));
 
 vi.mock('@nota/core/modules/ai-button/services/models', () => ({
@@ -45,12 +46,14 @@ vi.mock('@nota/core/modules/cloud', () => ({
 vi.mock('@nota/core/modules/feature-flag', () => ({
   FeatureFlagService: Symbol('FeatureFlagService'),
 }));
+vi.mock('@nota/core/modules/url', () => ({ UrlService: Symbol('UrlService') }));
 vi.mock('@nota/infra', () => ({
   useLiveData: (source: { value: unknown }) => source.value,
   useServices: () => ({
     aIModelService: mocks.models,
     featureFlagService: mocks.featureFlag,
     serverService: mocks.server,
+    urlService: mocks.url,
   }),
 }));
 vi.mock('@blocksuite/icons/rc', () => ({
@@ -210,7 +213,8 @@ function backendSettings() {
     openaiModel: 'saved-openai-model',
     anthropicModel: 'saved-anthropic-model',
     googleModel: 'saved-google-model',
-    providers: ['local', 'openai', 'anthropic', 'google', 'custom'],
+    chatgptModel: '',
+    providers: ['local', 'openai', 'anthropic', 'google', 'chatgpt', 'custom'],
     models: {
       defaultModel: `local:${gemmaId}`,
       optionalModels: [
@@ -294,6 +298,19 @@ let downloadStatus: number;
 let download: { status: string; message: string };
 let probe: NonNullable<LocalModelInfo['runtimeProbe']>;
 let unexpectedRequests: string[];
+let chatGPTCatalogStatus: number;
+let chatGPTStatus: {
+  connected: boolean;
+  planEnabled: boolean;
+  pending: boolean;
+  activeProfileId: string | null;
+  profiles: Array<{
+    id: string;
+    email: string;
+    connected: boolean;
+    planEnabled: boolean;
+  }>;
+};
 
 function requests(path: string, method = 'GET') {
   return fetchMock.mock.calls.filter(
@@ -330,11 +347,28 @@ async function selectTab(name: string) {
   });
 }
 
-async function mountSettings(scope: 'all' | 'embeddings' = 'all') {
+async function setLocalLibraryOpen(open: boolean) {
+  const details = screen.getByText('Manage local models').closest('details')!;
+  await act(async () => {
+    details.open = open;
+    fireEvent(details, new Event('toggle'));
+  });
+}
+
+async function mountSettings(
+  scope: 'all' | 'embeddings' = 'all',
+  expandLocalLibrary = true
+) {
   let view!: ReturnType<typeof render>;
   await act(async () => {
     view = render(<AISettingsPanel scope={scope} />);
   });
+  if (
+    scope === 'all' &&
+    expandLocalLibrary &&
+    screen.queryByText('Manage local models')
+  )
+    await setLocalLibraryOpen(true);
   return view;
 }
 
@@ -358,8 +392,54 @@ beforeEach(() => {
   download = { status: 'error', message: 'The model download failed.' };
   probe = healthyProbe();
   unexpectedRequests = [];
+  chatGPTCatalogStatus = 200;
+  chatGPTStatus = {
+    connected: false,
+    planEnabled: false,
+    pending: false,
+    activeProfileId: null,
+    profiles: [],
+  };
   fetchMock.mockImplementation(async (url, init) => {
     const method = init?.method ?? 'GET';
+    if (method === 'GET' && url === '/api/ai/chatgpt/status') {
+      return Response.json(chatGPTStatus);
+    }
+    if (method === 'GET' && url === '/api/ai/chatgpt/models') {
+      if (chatGPTCatalogStatus !== 200) {
+        return Response.json(
+          {
+            error:
+              chatGPTCatalogStatus === 401
+                ? 'ChatGPT session expired.'
+                : 'ChatGPT model catalog is unavailable.',
+          },
+          { status: chatGPTCatalogStatus }
+        );
+      }
+      return Response.json({
+        models: [{ id: 'account-chat-model', name: 'Account chat model' }],
+      });
+    }
+    if (method === 'POST' && url === '/api/ai/chatgpt/sign-in') {
+      chatGPTStatus = {
+        connected: true,
+        planEnabled: true,
+        pending: false,
+        activeProfileId: 'test-profile',
+        profiles: [
+          {
+            id: 'test-profile',
+            email: 'fixture@example.test',
+            connected: true,
+            planEnabled: true,
+          },
+        ],
+      };
+      return Response.json({
+        url: 'https://auth.openai.com/api/accounts/authorize?state=fixture',
+      });
+    }
     if (method === 'GET' && url === '/api/ai/settings') {
       return Response.json(settings);
     }
@@ -398,6 +478,355 @@ afterEach(() => {
 });
 
 describe('AI settings panel', () => {
+  test('shows only local model controls while local management starts collapsed', async () => {
+    await mountSettings('all', false);
+    expect(screen.getByRole('button', { name: 'Provider' }).textContent).toBe(
+      'Local'
+    );
+    expect(
+      screen.getByRole('button', { name: 'Chat model' }).textContent
+    ).toContain('Gemma 4 E2B');
+    expect(screen.getByText('Download required')).toBeTruthy();
+    expect(
+      screen.getByText('Download this model before selecting it for Nota AI.')
+    ).toBeTruthy();
+    expect(
+      screen.queryByRole('button', { name: 'Continue with ChatGPT' })
+    ).toBeNull();
+    expect(screen.getByRole('button', { name: 'Save changes' })).toBeTruthy();
+    expect(screen.queryByRole('listitem', { name: 'Qwen3.5 0.8B' })).toBeNull();
+    expect(
+      screen.queryByRole('button', { name: 'Refresh model status' })
+    ).toBeNull();
+    const summary = screen.getByText('Manage local models').closest('summary')!;
+    expect(summary.parentElement?.tagName).toBe('DETAILS');
+    expect(summary.closest('details')?.open).toBe(false);
+    await setLocalLibraryOpen(true);
+    expect(screen.getByRole('listitem', { name: 'Qwen3.5 0.8B' })).toBeTruthy();
+    expect(
+      screen.getByRole('button', { name: 'Refresh model status' })
+    ).toBeTruthy();
+    await setLocalLibraryOpen(false);
+    expect(screen.queryByRole('listitem', { name: 'Qwen3.5 0.8B' })).toBeNull();
+  });
+
+  test('summarizes active and failed local work while the library is collapsed', async () => {
+    models[0].downloadStatus = 'downloading';
+    models[1].downloadStatus = 'queued';
+    models.push(localModel(qwen2Id, { downloadStatus: 'error' }));
+    await mountSettings('all', false);
+    const summary = screen.getByText('Manage local models').closest('summary')!;
+    expect(summary.textContent).toContain('1 downloading, 1 queued, 1 failed');
+    expect(summary.getAttribute('aria-disabled')).toBeNull();
+    await setLocalLibraryOpen(true);
+    expect(
+      screen.getByRole('button', { name: 'Refresh model status' })
+    ).toBeTruthy();
+  });
+
+  test('shows ChatGPT controls only after provider selection and preserves sign-in when switching away', async () => {
+    await mountSettings();
+    expect(
+      screen.queryByRole('button', { name: 'Continue with ChatGPT' })
+    ).toBeNull();
+    await click(screen.getByRole('menuitem', { name: 'ChatGPT plan' }));
+    expect(screen.queryByText('Manage local models')).toBeNull();
+    expect(
+      screen.getByRole('button', { name: 'Continue with ChatGPT' })
+    ).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Provider' }).textContent).toBe(
+      'ChatGPT plan'
+    );
+    expect(
+      screen.queryByRole('button', { name: 'Use ChatGPT for AI' })
+    ).toBeNull();
+    await click(screen.getByRole('button', { name: 'Continue with ChatGPT' }));
+    expect(mocks.url.openExternal).toHaveBeenCalledWith(
+      'https://auth.openai.com/api/accounts/authorize?state=fixture'
+    );
+    await click(screen.getByRole('menuitem', { name: 'Local' }));
+    expect(screen.queryByRole('button', { name: 'Cancel sign-in' })).toBeNull();
+    expect(screen.getByText('Manage local models')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Chat model' }).textContent).toBe(
+      'Gemma 4 E2B'
+    );
+    expect(screen.getByRole('button', { name: 'Save changes' })).toHaveProperty(
+      'disabled',
+      false
+    );
+    await click(screen.getByRole('menuitem', { name: 'ChatGPT plan' }));
+    expect(screen.getByRole('button', { name: 'Cancel sign-in' })).toBeTruthy();
+    await click(screen.getByRole('menuitem', { name: 'Local' }));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1000);
+    });
+    expect(screen.getByRole('button', { name: 'Provider' }).textContent).toBe(
+      'Local'
+    );
+    expect(requests('/api/ai/settings', 'POST')).toHaveLength(0);
+    await click(screen.getByRole('menuitem', { name: 'ChatGPT plan' }));
+    await click(screen.getByRole('menuitem', { name: 'Account chat model' }));
+    await click(screen.getByRole('button', { name: 'Save changes' }));
+    const body = JSON.parse(
+      String(requests('/api/ai/settings', 'POST')[0][1]?.body)
+    );
+    expect(body).toMatchObject({
+      defaultProvider: 'chatgpt',
+      defaultModel: 'account-chat-model',
+      chatgptModel: 'account-chat-model',
+    });
+  });
+
+  test('refuses to save a ChatGPT selection without eligible account access', async () => {
+    settings.provider = 'chatgpt';
+    settings.model = 'account-chat-model';
+    settings.chatgptModel = 'account-chat-model';
+    await mountSettings();
+    await click(screen.getByRole('button', { name: 'Save changes' }));
+    expect(requests('/api/ai/settings', 'POST')).toHaveLength(0);
+    expect(screen.getByRole('button', { name: 'Save changes' })).toHaveProperty(
+      'disabled',
+      true
+    );
+    expect(screen.getByRole('button', { name: 'Chat model' })).toHaveProperty(
+      'disabled',
+      true
+    );
+  });
+
+  test('blocks saving a previously selectable model after ChatGPT authentication expires', async () => {
+    settings.provider = 'chatgpt';
+    settings.model = 'account-chat-model';
+    settings.chatgptModel = 'account-chat-model';
+    chatGPTStatus.connected = true;
+    chatGPTStatus.planEnabled = true;
+    await mountSettings();
+    expect(
+      screen.getByRole('menuitem', { name: 'Account chat model' })
+    ).toBeTruthy();
+    chatGPTStatus.connected = false;
+    chatGPTStatus.planEnabled = false;
+    chatGPTCatalogStatus = 401;
+    await click(screen.getByRole('button', { name: 'Refresh models' }));
+    expect(
+      screen.queryByRole('menuitem', { name: 'Account chat model' })
+    ).toBeNull();
+    expect(screen.queryByLabelText('Model ID')).toBeNull();
+    expect(
+      screen.getByRole('button', { name: 'Chat model' }).textContent
+    ).toContain('account-chat-model (unavailable)');
+    await click(screen.getByRole('button', { name: 'Save changes' }));
+    expect(requests('/api/ai/settings', 'POST')).toHaveLength(0);
+    expect(screen.getByRole('button', { name: 'Save changes' })).toHaveProperty(
+      'disabled',
+      true
+    );
+    expect(screen.getByRole('button', { name: 'Chat model' })).toHaveProperty(
+      'disabled',
+      true
+    );
+  });
+
+  test('uses one primary ChatGPT catalog picker and recovers a failed catalog before saving', async () => {
+    settings.provider = 'chatgpt';
+    settings.model = 'account-chat-model';
+    settings.chatgptModel = 'account-chat-model';
+    settings.models.optionalModels.push({
+      id: 'chatgpt:account-chat-model',
+      name: 'Stale configured ChatGPT model',
+      selectable: true,
+    });
+    chatGPTStatus.connected = true;
+    chatGPTStatus.planEnabled = true;
+    chatGPTCatalogStatus = 500;
+    await mountSettings('all', false);
+    expect(screen.queryByLabelText('Model ID')).toBeNull();
+    expect(
+      screen.queryByRole('button', { name: 'Configured models' })
+    ).toBeNull();
+    expect(screen.queryByRole('button', { name: 'ChatGPT models' })).toBeNull();
+    expect(
+      screen.queryByRole('heading', { name: 'ChatGPT connection' })
+    ).toBeNull();
+    expect(screen.getByRole('button', { name: 'Chat model' })).toHaveProperty(
+      'disabled',
+      true
+    );
+    expect(screen.getByRole('button', { name: 'Save changes' })).toHaveProperty(
+      'disabled',
+      true
+    );
+    expect(screen.getByRole('alert').textContent).toContain(
+      'ChatGPT model catalog is unavailable.'
+    );
+    expect(
+      screen.getByRole('button', { name: 'Refresh models' })
+    ).toHaveProperty('disabled', false);
+    chatGPTCatalogStatus = 200;
+    await click(screen.getByRole('button', { name: 'Refresh models' }));
+    expect(screen.getByRole('button', { name: 'Chat model' }).textContent).toBe(
+      'Account chat model'
+    );
+    expect(screen.getByRole('button', { name: 'Chat model' })).toHaveProperty(
+      'disabled',
+      false
+    );
+    expect(
+      screen.getAllByRole('menuitem', { name: 'Account chat model' })
+    ).toHaveLength(1);
+    expect(screen.getByRole('button', { name: 'Save changes' })).toHaveProperty(
+      'disabled',
+      false
+    );
+    expect(requests('/api/ai/settings', 'POST')).toHaveLength(0);
+    await click(screen.getByRole('button', { name: 'Save changes' }));
+    expect(requests('/api/ai/settings', 'POST')).toHaveLength(1);
+  });
+
+  test('hides ChatGPT catalog errors when choosing Local or an API provider', async () => {
+    chatGPTStatus.connected = true;
+    chatGPTStatus.planEnabled = true;
+    chatGPTCatalogStatus = 500;
+    await mountSettings('all', false);
+    expect(screen.queryByRole('alert')).toBeNull();
+    await click(screen.getByRole('menuitem', { name: 'ChatGPT plan' }));
+    expect(screen.getByRole('alert').textContent).toContain(
+      'ChatGPT model catalog is unavailable.'
+    );
+    expect(screen.queryByText('Manage local models')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Save changes' })).toHaveProperty(
+      'disabled',
+      true
+    );
+    await click(screen.getByRole('menuitem', { name: 'Local' }));
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Refresh models' })).toBeNull();
+    expect(screen.getByText('Manage local models')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Save changes' })).toHaveProperty(
+      'disabled',
+      false
+    );
+    await click(screen.getByRole('menuitem', { name: 'OpenAI' }));
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.queryByText('Manage local models')).toBeNull();
+    expect(
+      screen.queryByRole('heading', { name: 'ChatGPT account' })
+    ).toBeNull();
+    expect(screen.getByLabelText('OpenAI API key')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Save changes' })).toHaveProperty(
+      'disabled',
+      false
+    );
+    expect(requests('/api/ai/settings', 'POST')).toHaveLength(0);
+    expect(settings.provider).toBe('local');
+  });
+
+  test('keeps local health errors out of ChatGPT controls while preserving Search recovery', async () => {
+    await mountSettings();
+    fetchMock.mockResolvedValueOnce(
+      Response.json({ error: 'Unavailable' }, { status: 503 })
+    );
+    await refreshHealth('refresh');
+    expect(screen.getByRole('alert').textContent).toBe(
+      'Model status returned HTTP 503'
+    );
+    await click(screen.getByRole('menuitem', { name: 'ChatGPT plan' }));
+    expect(screen.queryByRole('alert')).toBeNull();
+    await selectTab('Search');
+    expect(screen.getByRole('alert').textContent).toBe(
+      'Model status returned HTTP 503'
+    );
+    await refreshHealth('refresh');
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(requests('/api/ai/settings', 'POST')).toHaveLength(0);
+  });
+
+  test('clears a local download error when choosing another provider', async () => {
+    await mountSettings();
+    await click(modelAction('Gemma 4 E2B', 'Download'));
+    expect(screen.getByRole('alert').textContent).toBe(
+      'The model download failed.'
+    );
+    await click(screen.getByRole('menuitem', { name: 'OpenAI' }));
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.queryByText('Manage local models')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Save changes' })).toHaveProperty(
+      'disabled',
+      false
+    );
+    expect(requests('/api/ai/settings', 'POST')).toHaveLength(0);
+  });
+
+  test('loads and saves Azure API format independently of the deployment ID', async () => {
+    settings.providers.push('azure');
+    Object.assign(settings.compatibleProviders, {
+      azure: {
+        baseUrl: '',
+        model: 'my-deployment',
+        apiMode: 'chat',
+        resourceName: 'my-resource',
+      },
+    });
+    await mountSettings();
+    await click(screen.getByRole('menuitem', { name: 'Azure OpenAI' }));
+    expect(screen.getByRole('button', { name: 'API format' }).textContent).toBe(
+      'Chat Completions'
+    );
+    expect(fieldValue('Model ID')).toBe('my-deployment');
+    await click(screen.getByRole('menuitem', { name: 'DeepSeek' }));
+    await click(screen.getByRole('button', { name: 'Save changes' }));
+    const payload = JSON.parse(
+      requests('/api/ai/settings', 'POST')[0][1]?.body as string
+    );
+    expect(payload.compatibleProviders.azure).toMatchObject({
+      model: 'my-deployment',
+      apiMode: 'deepseek',
+      resourceName: 'my-resource',
+    });
+  });
+
+  test.each([
+    'google-vertex-anthropic',
+    'google-vertex-maas',
+    'google-vertex-xai',
+  ])(
+    'saves ADC configuration for %s without an API key field',
+    async provider => {
+      settings.providers.push(provider);
+      Object.assign(settings.compatibleProviders, {
+        [provider]: {
+          baseUrl: '',
+          model: 'my-vertex-model',
+          project: 'my-project',
+          location: 'us-east5',
+          hasKey: true,
+        },
+      });
+      await mountSettings();
+      const label = {
+        'google-vertex-anthropic': 'Vertex Claude',
+        'google-vertex-maas': 'Vertex Model Garden',
+        'google-vertex-xai': 'Vertex xAI',
+      }[provider];
+      await click(screen.getByRole('menuitem', { name: label }));
+      expect(screen.queryByLabelText(`${label} API key`)).toBeNull();
+      expect(fieldValue('project')).toBe('my-project');
+      expect(fieldValue('location')).toBe('us-east5');
+      await click(screen.getByRole('button', { name: 'Save changes' }));
+      const payload = JSON.parse(
+        requests('/api/ai/settings', 'POST')[0][1]?.body as string
+      );
+      expect(payload.compatibleProviders[provider]).toMatchObject({
+        model: 'my-vertex-model',
+        project: 'my-project',
+        location: 'us-east5',
+      });
+      expect(payload.compatibleProviders[provider]).not.toHaveProperty(
+        'apiKey'
+      );
+    }
+  );
+
   test('shows context and use guidance without blocking an installed smaller model', async () => {
     const model = models.find(model => model.id === qwenId)!;
     model.contextWindowTokens = 262144;
@@ -650,6 +1079,7 @@ describe('AI settings panel', () => {
     settings.model = settings.openaiModel;
     await mountSettings();
     await click(screen.getByRole('menuitem', { name: 'Local' }));
+    await setLocalLibraryOpen(true);
     await click(modelAction('Qwen3.5 0.8B', 'Select'));
     const unavailable = screen.getByRole('menuitem', { name: /Gemma 4 E2B/ });
     expect(unavailable.getAttribute('aria-disabled')).toBe('true');
@@ -733,6 +1163,8 @@ describe('AI settings panel', () => {
         if (provider === 'Custom compatible') {
           expect(fieldValue('Base URL')).toBe('https://draft.example.test/v1');
         }
+        expect(screen.queryByText('Manage local models')).toBeNull();
+        await click(screen.getByRole('menuitem', { name: 'Local' }));
         expect(
           within(
             screen.getByRole('listitem', { name: 'Gemma 4 E2B' })
@@ -1156,13 +1588,15 @@ describe('AI settings panel', () => {
 
       expect(requests('/v1/local/models')).toHaveLength(3);
       expect(screen.queryByRole('progressbar')).toBeNull();
+      expect(screen.queryByText('Manage local models')).toBeNull();
+      expect(fieldValue('OpenAI API key')).toBe('test-only-unsaved-key');
+      await click(screen.getByRole('menuitem', { name: 'Local' }));
       expect(
         within(screen.getByRole('listitem', { name: 'Qwen3.5 2B' })).getByText(
           'Downloaded - Not checked'
         )
       ).toBeTruthy();
       expect(modelAction('Qwen3.5 2B', 'Check model')).toBeTruthy();
-      expect(fieldValue('OpenAI API key')).toBe('test-only-unsaved-key');
       expect(mocks.models.refreshModels).toHaveBeenCalledTimes(2);
       await refreshHealth('poll');
       await act(async () => {

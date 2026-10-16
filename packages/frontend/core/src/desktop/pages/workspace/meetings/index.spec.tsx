@@ -70,6 +70,7 @@ const mocks = vi.hoisted(() => {
       setWorkspaceSelectorOpen: vi.fn(),
       openSidebar: vi.fn(),
       closeSidebar: vi.fn(),
+      setSidebarOpen: vi.fn(),
       open: vi.fn(),
       openDoc: vi.fn(),
     },
@@ -202,6 +203,12 @@ vi.mock('@nota/core/components/root-app-sidebar/ai-panel-slot', () => ({
   // Meeting history lives in the rail's Meetings section.
   sidebarSection$: { value: 'meetings', subscribe: () => () => {} },
   setSidebarSection: () => {},
+  sidebarChat$: { value: null, next: () => {}, subscribe: () => () => {} },
+  activeDocEditor$: { value: null, next: () => {}, subscribe: () => () => {} },
+  linkSidebarChat: () => {},
+}));
+vi.mock('../detail-page/tabs/chat', () => ({
+  EditorChatPanel: () => null,
 }));
 vi.mock('@nota/core/modules/app-sidebar/services/app-sidebar', () => ({
   AppSidebarService: Symbol('AppSidebarService'),

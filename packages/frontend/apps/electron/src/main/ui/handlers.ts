@@ -32,7 +32,6 @@ import {
 } from '../windows-manager';
 import { showTabContextMenu } from '../windows-manager/context-menu';
 import { getOrCreateCustomThemeWindow } from '../windows-manager/custom-theme-window';
-import { getChallengeResponse } from './challenge';
 import { uiSubjects } from './subject';
 
 const EMPTY_OBJECT = Object.freeze({
@@ -110,9 +109,6 @@ export const uiHandlers = {
   handleHideApp: async () => {
     const window = await getMainWindow();
     window?.hide();
-  },
-  getChallengeResponse: async (_, challenge: string) => {
-    return getChallengeResponse(challenge);
   },
   handleOpenMainApp: async () => {
     await openMainAppFromOnboarding();

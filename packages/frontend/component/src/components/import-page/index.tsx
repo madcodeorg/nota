@@ -46,9 +46,9 @@ export const ImportPage = ({
     <div className={importPageBodyStyle}>
       <div className="title">Import</div>
       <span>
-        AFFiNE will gradually support more and more file types for import.&nbsp;
+        Nota will gradually support more file types for import.&nbsp;
         <a
-          href="https://nota.pro/redirect/discord"
+          href="https://github.com/madcodeorg/nota/issues"
           target="_blank"
           rel="noreferrer"
         >

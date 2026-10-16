@@ -61,6 +61,46 @@ describe('CopilotStore persistence', () => {
     expect(third.listContexts('workspace-a', sessionId)).toEqual([]);
   });
 
+  it('filters session lists by pinned, action, fork and limit', () => {
+    const store = new CopilotStore('local:default');
+    const older = store.createSession({
+      promptName: 'Chat With Nota AI',
+      workspaceId: 'workspace-a',
+      docId: 'doc-1',
+    });
+    const pinned = store.createSession({
+      promptName: 'Chat With Nota AI',
+      workspaceId: 'workspace-a',
+      docId: 'doc-2',
+      pinned: true,
+    });
+    const forked = store.forkSession({ sessionId: older });
+    const latest = store.createSession({
+      promptName: 'Chat With Nota AI',
+      workspaceId: 'workspace-a',
+      docId: 'doc-1',
+    });
+    const ids = (options: Parameters<CopilotStore['listSessions']>[3]) =>
+      store
+        .listSessions('workspace-a', undefined, undefined, options)
+        .edges.map(edge => edge.node.sessionId)
+        .sort();
+
+    expect(ids({ pinned: true })).toEqual([pinned]);
+    expect(ids({ pinned: true, limit: 1 })).toEqual([pinned]);
+    expect(ids({ fork: true })).toEqual([forked]);
+    expect(ids({ fork: false, pinned: false })).toEqual([older, latest].sort());
+    expect(
+      store
+        .listSessions('workspace-a', 'doc-1', undefined, {
+          action: false,
+          fork: false,
+          limit: 1,
+        })
+        .edges.map(edge => edge.node.sessionId)
+    ).toHaveLength(1);
+  });
+
   it('removes only the final assistant answer before regeneration', async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), 'nota-copilot-store-'));
     temporaryRoots.push(root);

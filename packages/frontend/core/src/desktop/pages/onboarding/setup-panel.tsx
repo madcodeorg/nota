@@ -60,7 +60,10 @@ export interface SetupPanelProps {
   imported?: boolean;
   focusHeading?: boolean;
   onBackToWelcome?: () => void;
-  onChatSelected?: (id: string) => void | Promise<void>;
+  onChatSelected?: (
+    id: string,
+    provider?: 'local' | 'chatgpt'
+  ) => void | Promise<void>;
   onChatAction?: (
     id: string,
     action: 'download' | 'probe'
@@ -69,12 +72,12 @@ export interface SetupPanelProps {
 
 const descriptions: Record<SetupStep, string> = {
   models:
-    'Choose the local model for chat and the model for transcription. You can set up either one now or come back later.',
+    'Choose local AI or connect your ChatGPT plan for chat, and choose a transcription model. You can set up either one now or come back later.',
   drive:
     'Sign in to Google to keep a synced copy in your own Drive. You can also keep using Nota entirely on this device.',
   transcription:
     'Choose the local model that turns meeting recordings into text. You can change this any time in Settings.',
-  chat: 'Choose the local model for Nota AI, note actions, and meeting summaries.',
+  chat: 'Choose local AI or connect your ChatGPT plan for Nota AI, note actions, and meeting summaries.',
   permissions:
     'Allow meeting recording and calendar access only when you are ready. Writing stays available without either permission.',
   import:

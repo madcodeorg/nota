@@ -1,9 +1,5 @@
 import { DisposableGroup } from '@blocksuite/affine/global/disposable';
 import { RefNodeSlotsProvider } from '@blocksuite/affine/inlines/reference';
-import {
-  customImageProxyMiddleware,
-  ImageProxyService,
-} from '@blocksuite/affine/shared/adapters';
 import { PageDetailLoading } from '@nota/component/page-detail-skeleton';
 import type { AffineEditorContainer } from '@nota/core/blocksuite/block-suite-editor';
 import { AffineErrorBoundary } from '@nota/core/components/affine/affine-error-boundary';
@@ -15,7 +11,6 @@ import { DetailPageWrapper } from '@nota/core/desktop/pages/workspace/detail-pag
 import { PageHeader } from '@nota/core/mobile/components';
 import { useGlobalEvent } from '@nota/core/mobile/hooks/use-global-events';
 import { AIButtonService } from '@nota/core/modules/ai-button';
-import { ServerService } from '@nota/core/modules/cloud';
 import { DocService } from '@nota/core/modules/doc';
 import { DocDisplayMetaService } from '@nota/core/modules/doc-display-meta';
 import { EditorService } from '@nota/core/modules/editor';
@@ -126,23 +121,8 @@ const DetailPageImpl = () => {
     };
   }, [globalContext, isInTrash]);
 
-  const server = useService(ServerService).server;
-
   const onLoad = useCallback(
     (editorContainer: AffineEditorContainer) => {
-      // provide image proxy endpoint to blocksuite
-      const imageProxyUrl = new URL(
-        BUILD_CONFIG.imageProxyUrl,
-        server.baseUrl
-      ).toString();
-
-      editorContainer.std.clipboard.use(
-        customImageProxyMiddleware(imageProxyUrl)
-      );
-      editorContainer.doc
-        .get(ImageProxyService)
-        .setImageProxyURL(imageProxyUrl);
-
       // provide page mode and updated date to blocksuite
       const refNodeService =
         editorContainer.std.getOptional(RefNodeSlotsProvider);
@@ -176,7 +156,7 @@ const DetailPageImpl = () => {
         disposable.dispose();
       };
     },
-    [docCollection.id, editor, jumpToPageBlock, openPage, server]
+    [docCollection.id, editor, jumpToPageBlock, openPage]
   );
 
   const canEdit = useGuard('Doc_Update', doc.id);

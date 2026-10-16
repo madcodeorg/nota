@@ -74,12 +74,7 @@ const DefaultDisplayPreference: {
   },
   list: {
     view: 'list',
-    displayProperties: [
-      'system:createdAt',
-      'system:updatedAt',
-      'system:createdBy',
-      'system:tags',
-    ],
+    displayProperties: ['system:updatedAt', 'system:createdBy', 'system:tags'],
     orderBy: {
       type: 'system',
       key: 'updatedAt',

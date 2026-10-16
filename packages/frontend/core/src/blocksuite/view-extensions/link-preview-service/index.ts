@@ -26,7 +26,6 @@ export class AffineLinkPreviewExtension extends ViewExtensionProvider<AffineLink
     if (!options?.framework) {
       return;
     }
-    const { framework } = options;
-    context.register(patchLinkPreviewService(framework));
+    context.register(patchLinkPreviewService());
   }
 }

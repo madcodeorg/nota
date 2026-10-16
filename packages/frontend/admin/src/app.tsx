@@ -1,13 +1,12 @@
 import { Toaster } from '@nota/admin/components/ui/sonner';
 import { lazy, ROUTES } from '@nota/routes';
-import { withSentryReactRouterV7Routing } from '@sentry/react';
 import { useEffect } from 'react';
 import {
   BrowserRouter,
   Navigate,
   Outlet,
   Route,
-  Routes as ReactRouterRoutes,
+  Routes,
   useLocation,
 } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -45,10 +44,6 @@ export const Settings = lazy(
 export const Auth = lazy(
   () => import(/* webpackChunkName: "auth" */ './modules/auth')
 );
-
-const Routes = window.SENTRY_RELEASE
-  ? withSentryReactRouterV7Routing(ReactRouterRoutes)
-  : ReactRouterRoutes;
 
 function AuthenticatedRoutes() {
   const user = useCurrentUser();

@@ -2,7 +2,6 @@ import { configureElectronStateStorageImpls } from '@nota/core/desktop/storage';
 import { configureCommonModules } from '@nota/core/modules';
 import { configureAppTabsHeaderModule } from '@nota/core/modules/app-tabs-header';
 import { configureDesktopBackupModule } from '@nota/core/modules/backup';
-import { ValidatorProvider } from '@nota/core/modules/cloud';
 import {
   configureDesktopApiModule,
   DesktopApiService,
@@ -48,18 +47,6 @@ export function setupModules() {
     return {
       getClientScheme() {
         return appInfo?.scheme;
-      },
-    };
-  });
-  framework.impl(ValidatorProvider, p => {
-    const apis = p.get(DesktopApiService).api;
-    return {
-      async validate(_challenge, resource) {
-        const token = await apis.handler.ui.getChallengeResponse(resource);
-        if (!token) {
-          throw new Error('Challenge failed');
-        }
-        return token;
       },
     };
   });

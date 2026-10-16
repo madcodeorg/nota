@@ -106,6 +106,7 @@ export const CreateAtDocListProperty = ({ doc }: { doc: DocRecord }) => {
       }
     >
       <div className={styles.dateDocListInlineProperty}>
+        {t['com.affine.page-properties.property.createdAt']()}{' '}
         {i18nTime(createDate, { relative: true })}
       </div>
     </Tooltip>
@@ -128,6 +129,7 @@ export const UpdatedAtDocListProperty = ({ doc }: { doc: DocRecord }) => {
       }
     >
       <div className={styles.dateDocListInlineProperty}>
+        {t['com.affine.page-properties.property.updatedAt']()}{' '}
         {i18nTime(updatedDate, { relative: true })}
       </div>
     </Tooltip>

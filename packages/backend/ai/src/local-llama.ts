@@ -4,6 +4,8 @@ import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { type AddressInfo, createServer } from 'node:net';
 import path from 'node:path';
 
+import type { LanguageModelV3CallOptions } from '@ai-sdk/provider';
+
 import type { AiBackendConfig } from './config';
 import { localModelById } from './model-registry';
 
@@ -404,6 +406,7 @@ export async function streamLlamaText(input: {
   messages: LlamaMessage[];
   modelId: string;
   onText?: (text: string) => void;
+  responseFormat?: LanguageModelV3CallOptions['responseFormat'];
 }) {
   throwIfAborted(input.abortSignal);
   const lease = acquireServer(input.config, input.modelId);
@@ -425,6 +428,20 @@ export async function streamLlamaText(input: {
         chat_template_kwargs: { enable_thinking: false },
         max_tokens: maxTokens,
         messages: input.messages,
+        ...(input.responseFormat?.type === 'json'
+          ? {
+              response_format: input.responseFormat.schema
+                ? {
+                    type: 'json_schema',
+                    json_schema: {
+                      name: input.responseFormat.name ?? 'response',
+                      schema: input.responseFormat.schema,
+                      strict: true,
+                    },
+                  }
+                : { type: 'json_object' },
+            }
+          : {}),
         stream: true,
         temperature: 0,
       },
@@ -434,19 +451,29 @@ export async function streamLlamaText(input: {
 
     let text = '';
     let pending = '';
+    let completed = false;
+    let finishReason: string | null | undefined;
     const decoder = new TextDecoder();
     const readEvent = (line: string) => {
       if (!line.startsWith('data:')) return;
       const data = line.slice(5).trim();
-      if (!data || data === '[DONE]') return;
+      if (!data) return;
+      if (data === '[DONE]') {
+        completed = true;
+        return;
+      }
       const event = JSON.parse(data) as {
-        choices?: { delta?: { content?: string | null } }[];
+        choices?: {
+          delta?: { content?: string | null };
+          finish_reason?: string | null;
+        }[];
         error?: { message?: string };
       };
       if (event.error) {
         throw new Error(event.error.message ?? 'Local model failed.');
       }
       const delta = event.choices?.[0]?.delta?.content;
+      finishReason = event.choices?.[0]?.finish_reason ?? finishReason;
       if (delta) {
         text += delta;
         input.onText?.(delta);
@@ -462,12 +489,22 @@ export async function streamLlamaText(input: {
           newline = pending.indexOf('\n');
         }
       }
-      readEvent(pending);
+      readEvent(pending + decoder.decode());
     } catch (error) {
       if (input.abortSignal?.aborted) throw abortError(input.abortSignal);
       throw error;
     }
     throwIfAborted(input.abortSignal);
+    if (!completed) {
+      throw new Error(
+        'Local AI response was interrupted before it finished. Please retry.'
+      );
+    }
+    if (finishReason === 'length') {
+      throw new Error(
+        'Local AI response reached its token limit before it finished. Reduce the supplied context or use a model with a larger context window.'
+      );
+    }
     return text;
   } catch (error) {
     if (input.abortSignal?.aborted) throw abortError(input.abortSignal);

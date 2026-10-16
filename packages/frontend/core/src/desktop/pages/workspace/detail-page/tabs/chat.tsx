@@ -24,12 +24,19 @@ import { NotificationServiceImpl } from '@nota/core/blocksuite/view-extensions/e
 import { useAIChatConfig } from '@nota/core/components/hooks/nota/use-ai-chat-config';
 import { useAISpecs } from '@nota/core/components/hooks/nota/use-ai-specs';
 import {
+  linkSidebarChat,
+  pendingFullChatSessionId$,
+  type SidebarChatTarget,
+} from '@nota/core/components/root-app-sidebar/ai-panel-slot';
+import {
   AIDraftService,
   AIToolsConfigService,
 } from '@nota/core/modules/ai-button';
 import { AIModelService } from '@nota/core/modules/ai-button/services/models';
+import { AppSidebarService } from '@nota/core/modules/app-sidebar';
 import { WorkspaceDialogService } from '@nota/core/modules/dialogs';
 import { DocsService } from '@nota/core/modules/doc';
+import { DocDisplayMetaService } from '@nota/core/modules/doc-display-meta';
 import { useSignalValue } from '@nota/core/modules/doc-info/utils';
 import { FeatureFlagService } from '@nota/core/modules/feature-flag';
 import { PeekViewService } from '@nota/core/modules/peek-view';
@@ -46,32 +53,42 @@ import type {
   UpdateChatSessionInput,
 } from '@nota/graphql';
 import { useI18n } from '@nota/i18n';
-import { useFramework, useService } from '@nota/infra';
+import { useFramework, useLiveData, useService } from '@nota/infra';
 import type { Signal } from '@preact/signals-core';
 import { html } from 'lit';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import { useMockStd } from '../../chat-mock-std';
 import { createSessionDeleteHandler } from '../../chat-panel-utils';
 import { useActionProposalHandlers } from '../../use-action-proposal-handlers';
 import * as styles from './chat.css';
-import {
-  resolveInitialSession,
-  type WorkbenchLike,
-} from './chat-panel-session';
+import { buildChatUrl, resolveInitialSession } from './chat-panel-session';
 
 registerAIAppEffects();
 
-export interface SidebarTabProps {
+export interface EditorChatPanelProps {
+  /** The note this chat is linked to. */
+  target: SidebarChatTarget;
+  /** Live editor of the linked note, when that note is the active view. */
   editor: AffineEditorContainer | null;
   onLoad?: ((component: HTMLElement) => void) | null;
 }
 
-export const EditorChatPanel = ({ editor, onLoad }: SidebarTabProps) => {
+export const EditorChatPanel = ({
+  target,
+  editor,
+  onLoad,
+}: EditorChatPanelProps) => {
   const framework = useFramework();
   const workbench = useService(WorkbenchService).workbench;
+  const appSidebar = useService(AppSidebarService).sidebar;
   const docsService = useService(DocsService);
   const workspaceService = useService(WorkspaceService);
+  const docDisplayMetaService = useService(DocDisplayMetaService);
   const t = useI18n();
+  const docId = target.docId;
+  const workspaceId = workspaceService.workspace.id;
+  const docTitle = useLiveData(docDisplayMetaService.title$(docId));
 
   const { closeConfirmModal, openConfirmModal } = useConfirmModal();
   const notificationService = useMemo(
@@ -108,23 +125,28 @@ export const EditorChatPanel = ({ editor, onLoad }: SidebarTabProps) => {
   const lastDocIdRef = useRef<string | null>(null);
   const sessionLoadSeqRef = useRef(0);
 
-  const doc = editor?.doc;
-  const host = editor?.host;
+  const doc = useMemo(
+    () => ({ id: docId, workspace: { id: workspaceId } }),
+    [docId, workspaceId]
+  );
+  const liveEditor = editor?.doc.id === docId ? editor : null;
+  const mockStd = useMockStd(docId);
+  const host = liveEditor?.host ?? mockStd?.host;
 
   const appSidebarConfig = useMemo<AppSidebarConfig>(() => {
     return {
       getWidth: () =>
         createSignalFromObservable<number | undefined>(
-          workbench.sidebarWidth$.asObservable(),
+          appSidebar.width$.asObservable(),
           0
         ),
       isOpen: () =>
         createSignalFromObservable<boolean | undefined>(
-          workbench.sidebarOpen$.asObservable(),
+          appSidebar.open$.asObservable(),
           true
         ),
     };
-  }, [workbench]);
+  }, [appSidebar]);
 
   const [sidebarWidthSignal, setSidebarWidthSignal] =
     useState<Signal<number | undefined>>();
@@ -147,8 +169,9 @@ export const EditorChatPanel = ({ editor, onLoad }: SidebarTabProps) => {
     try {
       const nextSession = await resolveInitialSession({
         sessionService: AIProvider.session ?? undefined,
-        doc,
-        workbench: workbench as WorkbenchLike,
+        workspaceId,
+        docId,
+        sessionId: target.sessionId,
       });
 
       if (requestSeq !== sessionLoadSeqRef.current) return;
@@ -161,7 +184,7 @@ export const EditorChatPanel = ({ editor, onLoad }: SidebarTabProps) => {
     } catch (error) {
       console.error(error);
     }
-  }, [doc, workbench]);
+  }, [docId, target.sessionId, workspaceId]);
 
   const createSession = useCallback(
     async (options: Partial<BlockSuitePresets.AICreateSessionOptions> = {}) => {
@@ -249,28 +272,50 @@ export const EditorChatPanel = ({ editor, onLoad }: SidebarTabProps) => {
     [doc, session?.sessionId]
   );
 
+  // The expanded chat continues this conversation. The session is handed over
+  // in memory so its id never shows up in the URL.
+  const openExpanded = useCallback(() => {
+    pendingFullChatSessionId$.next(session?.sessionId ?? null);
+    workbench.open(buildChatUrl('/chat', { contextDocId: docId }), {
+      at: 'active',
+    });
+    workbench.closeSidebar();
+  }, [docId, session?.sessionId, workbench]);
+
+  // Notes referenced by answers open in the main view; the chat stays linked.
   const openDoc = useCallback(
-    async (docId: string, sessionId?: string) => {
-      if (!doc) {
-        return;
-      }
-      if (doc.id === docId) {
-        if (session?.sessionId === sessionId || session?.pinned) {
-          return;
-        }
-        if (sessionId) {
-          await openSession(sessionId);
-        }
-        return;
-      }
-      if (session?.pinned || !sessionId) {
-        workbench.open(`/${docId}`, { at: 'active' });
-        return;
-      }
-      workbench.open(`/${docId}?sessionId=${sessionId}`, { at: 'active' });
+    (nextDocId: string) => {
+      workbench.openDoc(nextDocId, { at: 'active' });
     },
-    [doc, openSession, session?.pinned, session?.sessionId, workbench]
+    [workbench]
   );
+
+  // A history entry continues that conversation here, linked to its note.
+  const openHistorySession = useCallback(
+    async (nextDocId: string, sessionId: string) => {
+      if (nextDocId === docId) {
+        await openSession(sessionId);
+        return;
+      }
+      linkSidebarChat({ docId: nextDocId, sessionId });
+      workbench.openDoc(nextDocId, { at: 'active' });
+    },
+    [docId, openSession, workbench]
+  );
+
+  // A link request with a session switches to it. When the note changes and
+  // the chat is not pinned, the panel resets and initPanel loads it instead.
+  const lastTargetRef = useRef(target);
+  useEffect(() => {
+    if (lastTargetRef.current === target) return;
+    lastTargetRef.current = target;
+    if (
+      target.sessionId &&
+      (target.docId === lastDocIdRef.current || session?.pinned)
+    ) {
+      openSession(target.sessionId).catch(console.error);
+    }
+  }, [openSession, session?.pinned, target]);
 
   const deleteSession = useMemo(
     () =>
@@ -344,14 +389,11 @@ export const EditorChatPanel = ({ editor, onLoad }: SidebarTabProps) => {
         AgentActionProposal,
         { type: 'insert_markdown' | 'replace_selection' }
       >
-    ) => (editor?.host && editor.doc.id === proposal.docId ? editor : null),
-    [editor]
-  );
-  const onOpenAppliedDoc = useCallback(
-    (docId: string) => {
-      openDoc(docId, session?.sessionId).catch(console.error);
-    },
-    [openDoc, session?.sessionId]
+    ) =>
+      liveEditor?.host && liveEditor.doc.id === proposal.docId
+        ? liveEditor
+        : null,
+    [liveEditor]
   );
   const {
     applyingProposalId,
@@ -366,7 +408,7 @@ export const EditorChatPanel = ({ editor, onLoad }: SidebarTabProps) => {
       workspaceService.workspace.flavour
     ),
     mindmapProvider: host?.std.store.provider,
-    onOpenDoc: onOpenAppliedDoc,
+    onOpenDoc: openDoc,
     sessionId: session?.sessionId,
     workspace: workspaceService.workspace.docCollection,
     workspaceId: workspaceService.workspace.id,
@@ -489,9 +531,7 @@ export const EditorChatPanel = ({ editor, onLoad }: SidebarTabProps) => {
     content.onEmbeddingProgressChange = onEmbeddingProgressChange;
     content.onContextChange = onContextChange;
     content.width = sidebarWidthSignal;
-    content.onOpenDoc = (docId: string, sessionId?: string) => {
-      openDoc(docId, sessionId).catch(console.error);
-    };
+    content.onOpenDoc = openDoc;
     content.applyingProposalId = applyingProposalId;
     content.onApplyActionProposal = applyActionProposal;
     content.onRejectActionProposal = rejectActionProposal;
@@ -550,8 +590,9 @@ export const EditorChatPanel = ({ editor, onLoad }: SidebarTabProps) => {
         openSession(sessionId).catch(console.error);
       },
       onOpenDoc: (docId: string, sessionId: string) => {
-        openDoc(docId, sessionId).catch(console.error);
+        openHistorySession(docId, sessionId).catch(console.error);
       },
+      onOpenExpanded: openExpanded,
       onSessionDelete: (sessionToDelete: BlockSuitePresets.AIRecentSession) => {
         deleteSession(sessionToDelete).catch(console.error);
       },
@@ -569,7 +610,8 @@ export const EditorChatPanel = ({ editor, onLoad }: SidebarTabProps) => {
     isHeaderProvided,
     newSession,
     notificationService,
-    openDoc,
+    openExpanded,
+    openHistorySession,
     openSession,
     session,
     status,
@@ -577,59 +619,42 @@ export const EditorChatPanel = ({ editor, onLoad }: SidebarTabProps) => {
   ]);
 
   useEffect(() => {
-    if (!editor?.host || !chatContent) {
+    if (!liveEditor?.host || !chatContent) {
       return;
     }
-    const docModeService = editor.host.std.get(DocModeProvider);
-    const refNodeService = editor.host.std.getOptional(RefNodeSlotsProvider);
-    const disposable = [
-      refNodeService?.docLinkClicked.subscribe(({ host: clickedHost }) => {
-        if (clickedHost === editor.host) {
-          chatContent.docId = editor.doc.id;
-        }
-      }),
-      docModeService?.onPrimaryModeChange(() => {
-        if (!editor.host) {
-          return;
-        }
-        chatContent.host = editor.host;
-      }, editor.doc.id),
-    ];
+    const docModeService = liveEditor.host.std.get(DocModeProvider);
+    const subscription = docModeService?.onPrimaryModeChange(() => {
+      if (liveEditor.host) chatContent.host = liveEditor.host;
+    }, liveEditor.doc.id);
+    return () => subscription?.unsubscribe();
+  }, [chatContent, liveEditor]);
 
-    return () => disposable.forEach(item => item?.unsubscribe());
-  }, [chatContent, editor]);
-
-  const [autoResized, setAutoResized] = useState(false);
+  // Links rendered through the detached editor have no page to handle them.
   useEffect(() => {
-    if (autoResized) {
-      return;
-    }
-    const subscription = AIProvider.slots.previewPanelOpenChange.subscribe(
-      open => {
-        if (!open) {
-          return;
-        }
-        const sidebarWidth = workbench.sidebarWidth$.value;
-        const minSidebarWidth = 1080;
-        if (!sidebarWidth || sidebarWidth < minSidebarWidth) {
-          workbench.setSidebarWidth(minSidebarWidth);
-          setAutoResized(true);
-        }
-      }
-    );
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, [autoResized, workbench]);
+    const refNodeSlots = mockStd?.getOptional(RefNodeSlotsProvider);
+    if (!refNodeSlots) return;
+    const subscription = refNodeSlots.docLinkClicked.subscribe(event => {
+      workbench.openDoc(
+        {
+          docId: event.pageId,
+          mode: event.params?.mode,
+          blockIds: event.params?.blockIds,
+          elementIds: event.params?.elementIds,
+        },
+        { at: 'active' }
+      );
+    });
+    return () => subscription.unsubscribe();
+  }, [mockStd, workbench]);
 
   const openPlayground = useCallback(() => {
-    if (!doc || !host) {
+    if (!host) {
       return;
     }
     const playgroundContent = html`
       <playground-content
         .host=${host}
-        .doc=${doc}
+        .doc=${host.store}
         .reasoningConfig=${reasoningConfig}
         .playgroundConfig=${playgroundConfig}
         .appSidebarConfig=${appSidebarConfig}
@@ -654,7 +679,6 @@ export const EditorChatPanel = ({ editor, onLoad }: SidebarTabProps) => {
     appSidebarConfig,
     applyingProposalId,
     applyActionProposal,
-    doc,
     docDisplayConfig,
     framework,
     host,
@@ -713,6 +737,15 @@ export const EditorChatPanel = ({ editor, onLoad }: SidebarTabProps) => {
               ) : (
                 t['com.affine.ai.chat-panel.title']()
               )}
+              <button
+                type="button"
+                className={styles.linkedNote}
+                data-testid="chat-panel-linked-note"
+                title={docTitle}
+                onClick={() => openDoc(docId)}
+              >
+                {docTitle}
+              </button>
             </div>
             {playgroundVisible ? (
               <div className={styles.playground} onClick={openPlayground}>

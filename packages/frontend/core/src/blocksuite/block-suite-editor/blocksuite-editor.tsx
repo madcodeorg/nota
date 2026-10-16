@@ -3,17 +3,12 @@ import type { DocTitle } from '@blocksuite/affine/fragments/doc-title';
 import { DisposableGroup } from '@blocksuite/affine/global/disposable';
 import { IS_LINUX } from '@blocksuite/affine/global/env';
 import type { DocMode, RootBlockModel } from '@blocksuite/affine/model';
-import {
-  customImageProxyMiddleware,
-  ImageProxyService,
-} from '@blocksuite/affine/shared/adapters';
 import { focusBlockEnd } from '@blocksuite/affine/shared/commands';
 import { getLastNoteBlock } from '@blocksuite/affine/shared/utils';
 import type { BlockStdScope, EditorHost } from '@blocksuite/affine/std';
 import type { Store } from '@blocksuite/affine/store';
 import { EditorLoading } from '@nota/component/page-detail-skeleton';
 import type { EdgelessEditor, PageEditor } from '@nota/core/blocksuite/editors';
-import { ServerService } from '@nota/core/modules/cloud';
 import {
   EditorSettingService,
   fontStyleOptions,
@@ -72,7 +67,6 @@ const BlockSuiteEditorImpl = ({
   const featureFlags = useService(FeatureFlagService).flags;
   const enableEditorRTL = useLiveData(featureFlags.enable_editor_rtl.$);
   const editorSetting = useService(EditorSettingService).editorSetting;
-  const server = useService(ServerService).server;
 
   const { enableMiddleClickPaste } = useLiveData(
     editorSetting.settings$.selector(s => ({
@@ -211,15 +205,6 @@ const BlockSuiteEditorImpl = ({
     const disposableGroup = new DisposableGroup();
     let canceled = false;
 
-    // provide image proxy endpoint to blocksuite
-    const imageProxyUrl = new URL(
-      BUILD_CONFIG.imageProxyUrl,
-      server.baseUrl
-    ).toString();
-
-    editor.std.clipboard.use(customImageProxyMiddleware(imageProxyUrl));
-    page.get(ImageProxyService).setImageProxyURL(imageProxyUrl);
-
     editor.updateComplete
       .then(() => {
         if (onEditorReady && !canceled) {
@@ -237,7 +222,7 @@ const BlockSuiteEditorImpl = ({
       canceled = true;
       disposableGroup.dispose();
     };
-  }, [affineEditorContainerProxy, onEditorReady, page, server]);
+  }, [affineEditorContainerProxy, onEditorReady]);
 
   return (
     <div

@@ -69,8 +69,13 @@ export class AgentActionProposalCard extends ShadowlessElement {
       margin: 10px 0;
       padding: 12px;
       border: 1px solid var(--affine-border-color);
+      border-left: 3px solid var(--affine-primary-color);
       border-radius: 8px;
-      background: var(--affine-background-secondary-color);
+      background: color-mix(
+        in srgb,
+        var(--affine-primary-color) 6%,
+        var(--affine-background-secondary-color)
+      );
       color: var(--affine-text-primary-color);
     }
 
@@ -95,7 +100,7 @@ export class AgentActionProposalCard extends ShadowlessElement {
     }
 
     .agent-action-eyebrow {
-      color: var(--affine-text-secondary-color);
+      color: var(--affine-primary-color);
       font-size: var(--affine-font-xs);
       font-weight: 600;
       text-transform: uppercase;

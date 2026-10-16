@@ -23,7 +23,6 @@ import {
   ServerScope,
   ServerService,
   ServersService,
-  ValidatorProvider,
 } from '@nota/core/modules/cloud';
 import { DocsService } from '@nota/core/modules/doc';
 import { GlobalContextService } from '@nota/core/modules/global-context';
@@ -51,7 +50,6 @@ import { RouterProvider } from 'react-router-dom';
 
 import { AIButton } from './plugins/ai-button';
 import { Auth } from './plugins/auth';
-import { HashCash } from './plugins/hashcash';
 import { NbStoreNativeDBApis } from './plugins/nbstore';
 import { NotaTheme } from './plugins/nota-theme';
 import { writeEndpointToken } from './proxy';
@@ -147,13 +145,6 @@ framework.impl(VirtualKeyboardProvider, {
     return () => {
       disposeRef.dispose();
     };
-  },
-});
-
-framework.impl(ValidatorProvider, {
-  async validate(_challenge, resource) {
-    const res = await HashCash.hash({ challenge: resource });
-    return res.value;
   },
 });
 

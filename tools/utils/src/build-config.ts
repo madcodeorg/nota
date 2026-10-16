@@ -1,6 +1,7 @@
 import type { Package } from '@nota-tools/utils/workspace';
 
 import { PackageToDistribution } from './distribution';
+import { readReleaseNotes } from './release-notes';
 
 export interface BuildFlags {
   channel: 'stable' | 'beta' | 'internal' | 'canary';
@@ -45,6 +46,7 @@ export function getBuildConfig(
         appVersion: pkg.version,
         // editorVersion: pkg.dependencies['@blocksuite/affine'],
         editorVersion: pkg.version,
+        releaseNotes: readReleaseNotes(pkg.version),
         githubUrl: 'https://github.com/madcodeorg/nota',
         changelogUrl: 'https://github.com/madcodeorg/nota/releases',
         downloadUrl: 'https://github.com/madcodeorg/nota/releases',
@@ -52,10 +54,6 @@ export function getBuildConfig(
         discordUrl: 'https://github.com/madcodeorg/nota/issues',
         requestLicenseUrl:
           'https://github.com/madcodeorg/nota/blob/main/LICENSE',
-        imageProxyUrl: '/api/worker/image-proxy',
-        linkPreviewUrl: '/api/worker/link-preview',
-        CAPTCHA_SITE_KEY: process.env.CAPTCHA_SITE_KEY ?? '',
-        SENTRY_DSN: process.env.SENTRY_DSN ?? '',
         googleClientId: process.env.GOOGLE_CLIENT_ID ?? '',
         // Google desktop-app client secrets are not confidential; Google's token endpoint still requires one.
         googleClientSecret: process.env.GOOGLE_CLIENT_SECRET ?? '',

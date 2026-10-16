@@ -4,27 +4,35 @@ import type { AiBackendConfig } from './config';
 import type { ModelSelection } from './providers';
 import { generateBackendObject } from './text-runtime';
 
+// Bound the grammar as well as validation: small local models can otherwise
+// keep extending an array until they exhaust their output token budget.
+const summaryBullet = z.string().max(200);
 const MeetingSummarySchema = z.object({
-  title: z.string().describe('Short meeting title.'),
+  title: z.string().max(100).describe('Short meeting title.'),
   overview: z
     .string()
+    .max(800)
     .describe('Two to four sentence executive meeting overview.'),
   keyTakeaways: z
-    .array(z.string())
+    .array(summaryBullet)
+    .max(6)
     .describe('Important takeaways a reader should remember.'),
   decisions: z
-    .array(z.string())
+    .array(summaryBullet)
+    .max(6)
     .describe('Concrete decisions made during the meeting.'),
   actionItems: z
     .array(
       z.object({
-        text: z.string().describe('Action item phrased as a task.'),
+        text: summaryBullet.describe('Action item phrased as a task.'),
         owner: z
           .string()
+          .max(80)
           .nullable()
           .describe('Owner if explicitly known, otherwise null.'),
         dueDate: z
           .string()
+          .max(80)
           .nullable()
           .describe('Due date if explicitly known, otherwise null.'),
         priority: z
@@ -33,23 +41,30 @@ const MeetingSummarySchema = z.object({
           .describe('Priority if inferable from urgency, otherwise null.'),
       })
     )
+    .max(8)
     .describe('Action items extracted from the meeting.'),
   followUps: z
-    .array(z.string())
+    .array(summaryBullet)
+    .max(6)
     .describe(
       'Follow-up topics or async checks that are not task assignments.'
     ),
   risksAndBlockers: z
-    .array(z.string())
+    .array(summaryBullet)
+    .max(6)
     .describe('Risks, blockers, dependencies, or caveats raised.'),
-  openQuestions: z.array(z.string()).describe('Unresolved questions.'),
+  openQuestions: z
+    .array(summaryBullet)
+    .max(6)
+    .describe('Unresolved questions.'),
   topics: z
     .array(
       z.object({
-        title: z.string(),
-        notes: z.array(z.string()),
+        title: z.string().max(100),
+        notes: z.array(summaryBullet).max(4),
       })
     )
+    .max(5)
     .describe('Topic-by-topic notes for skimming.'),
 });
 
@@ -62,6 +77,8 @@ const MEETING_SUMMARY_SYSTEM = [
   'If source material is missing, say so directly in the summary.',
   'Do not invent decisions, owners, dates, or action items.',
   'Prefer short bullets over paragraphs except for the overview.',
+  'Keep only the most important distinct points. Never repeat a point to fill a list.',
+  'Use an empty array for any section with no grounded items.',
 ].join(' ');
 
 function bulletList(items: string[], empty = '- None recorded.') {

@@ -1,5 +1,11 @@
+import { UrlService } from '@nota/core/modules/url';
+import { useServiceOptional } from '@nota/infra';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import {
+  ChatGPTConnection,
+  type ChatGPTStatus,
+} from '../../dialogs/setting/general-setting/ai/chatgpt-connection';
 import {
   canDownloadLocalModel,
   isListedLocalModel,
@@ -12,6 +18,7 @@ import {
   type LocalModelInfo,
   localModelName,
 } from '../../dialogs/setting/general-setting/ai/model-list';
+import type { DiscoveredModel } from '../../dialogs/setting/general-setting/ai/provider-model-discovery';
 import {
   meetingLanguageSelection,
   type MeetingProviderSelectionInput,
@@ -41,6 +48,7 @@ type SpeechProvider = MeetingProviderSelectionInput & {
 };
 type Settings = {
   provider: string;
+  chatgptModel?: string;
   localModel: string;
   meetings: {
     sttProviderId: string;
@@ -66,6 +74,8 @@ async function read<T>(url: string, signal: AbortSignal): Promise<T> {
   return response.json() as Promise<T>;
 }
 
+async function refreshConnectedModels() {}
+
 function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : String(error);
 }
@@ -80,18 +90,38 @@ export function NotaModelsSetup({
   onContinue: () => void;
   onSkip?: () => void;
   mode?: 'all' | 'chat' | 'transcription';
-  onChatSelected?: (modelId: string) => void | Promise<void>;
+  onChatSelected?: (
+    modelId: string,
+    provider?: 'local' | 'chatgpt'
+  ) => void | Promise<void>;
   onChatAction?: (
     modelId: string,
     action: 'download' | 'probe'
   ) => void | Promise<void>;
 }) {
+  const urlService = useServiceOptional(UrlService);
+  const openChatGPT = useCallback(
+    (url: string) => {
+      if (!urlService)
+        throw new Error('Browser sign-in is unavailable in this window.');
+      urlService.openExternal(url);
+    },
+    [urlService]
+  );
   const showChat = mode === 'all' || mode === 'chat';
   const showSpeech = mode === 'all' || mode === 'transcription';
   const [settings, setSettings] = useState<Settings | null>(null);
   const [health, setHealth] = useState<ModelHealth>({ models: [] });
   const [runtime, setRuntime] = useState<SpeechRuntime | null>(null);
   const [chatId, setChatId] = useState('');
+  const [chatProvider, setChatProvider] = useState<'local' | 'chatgpt'>(
+    'local'
+  );
+  const [chatgptModel, setChatGPTModel] = useState('');
+  const [chatgptStatus, setChatGPTStatus] = useState<ChatGPTStatus | null>(
+    null
+  );
+  const [chatgptCatalog, setChatGPTCatalog] = useState<DiscoveredModel[]>([]);
   const [speechId, setSpeechId] = useState('auto');
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -128,6 +158,8 @@ export function NotaModelsSetup({
         setRuntime(speech);
         // A saved hosted provider is preserved until the user chooses local AI.
         setChatId(config.provider === 'local' ? config.localModel : '');
+        setChatProvider(config.provider === 'chatgpt' ? 'chatgpt' : 'local');
+        setChatGPTModel(config.chatgptModel ?? '');
         setSpeechId(config.meetings.sttProviderId);
       })
       .catch(error => {
@@ -230,9 +262,19 @@ export function NotaModelsSetup({
   const postMeetingModel = health.models.find(
     model => model.type === 'stt' && model.id === POST_MEETING_MODEL_ID
   );
+  const selectedChatId =
+    chatProvider === 'chatgpt' ? chatgptModel.trim() : chatId;
   const chatChanged =
-    !!chatId &&
-    (settings?.provider !== 'local' || settings.localModel !== chatId);
+    chatProvider === 'chatgpt'
+      ? settings?.provider !== 'chatgpt' ||
+        settings.chatgptModel !== selectedChatId
+      : !!chatId &&
+        (settings?.provider !== 'local' || settings.localModel !== chatId);
+  const chatGPTSelectable =
+    !!chatgptStatus?.connected &&
+    chatgptStatus.planEnabled &&
+    !chatgptStatus.pending &&
+    chatgptCatalog.some(model => model.id === selectedChatId);
   const speechChanged =
     !!settings && settings.meetings.sttProviderId !== speechId;
   const chatSelection = chat ? localTextModelSelectionState(chat) : null;
@@ -240,7 +282,10 @@ export function NotaModelsSetup({
     ? meetingProviderSelectionState(speechProvider)
     : null;
   const invalidSelection =
-    (showChat && chatChanged && !chatSelection?.selectable) ||
+    (showChat &&
+      (chatProvider === 'chatgpt'
+        ? !chatGPTSelectable
+        : chatChanged && !chatSelection?.selectable)) ||
     (showSpeech &&
       speechChanged &&
       speechId !== 'auto' &&
@@ -314,11 +359,13 @@ export function NotaModelsSetup({
       return;
     const synchronizeCurrentChat =
       showChat &&
+      chatProvider === 'local' &&
       settings.provider === 'local' &&
       chatId === settings.localModel &&
       explicitChatActions.current.has(chatId) &&
       chatSelection?.selectable;
-    const shouldSaveChat = showChat && chatChanged;
+    const shouldSaveChat =
+      showChat && (chatChanged || chatProvider === 'chatgpt');
     const shouldSaveSpeech = showSpeech && speechChanged;
     if (!shouldSaveChat && !shouldSaveSpeech && !synchronizeCurrentChat) {
       onContinue();
@@ -348,9 +395,11 @@ export function NotaModelsSetup({
           body: JSON.stringify({
             ...(shouldSaveChat
               ? {
-                  defaultProvider: 'local',
-                  defaultModel: chatId,
-                  localModel: chatId,
+                  defaultProvider: chatProvider,
+                  defaultModel: selectedChatId,
+                  ...(chatProvider === 'chatgpt'
+                    ? { chatgptModel: selectedChatId }
+                    : { localModel: selectedChatId }),
                 }
               : {}),
             ...(shouldSaveSpeech
@@ -373,7 +422,9 @@ export function NotaModelsSetup({
       // A committed backend selection must also reach the renderer catalog
       // when Skip or Start working already closed this step.
       if (shouldSaveChat || synchronizeCurrentChat) {
-        await onChatSelected?.(chatId);
+        if (chatProvider === 'chatgpt')
+          await onChatSelected?.(selectedChatId, 'chatgpt');
+        else await onChatSelected?.(selectedChatId);
         explicitChatActions.current.delete(chatId);
       }
       if (mounted.current) onContinue();
@@ -437,52 +488,92 @@ export function NotaModelsSetup({
       <div className={styles.box}>
         {showChat ? (
           <section className={styles.choice}>
-            <h3 className={styles.choiceTitle}>Local chat model</h3>
-            <p className={styles.detail}>
-              Used for Nota AI, note actions and meeting summaries.
-            </p>
+            <h3 className={styles.choiceTitle}>AI chat</h3>
+            <label className={styles.detail} htmlFor="nota-chat-provider">
+              Chat provider
+            </label>
             <select
+              id="nota-chat-provider"
               className={styles.select}
-              aria-label="Local chat model"
-              value={chatId}
+              aria-label="Chat provider"
+              value={chatProvider}
               disabled={controlsDisabled}
-              onChange={event => setChatId(event.target.value)}
+              onChange={event => {
+                setChatProvider(event.target.value as 'local' | 'chatgpt');
+                setChatGPTStatus(null);
+                setChatGPTCatalog([]);
+              }}
             >
-              <option value="">Keep current AI settings</option>
-              {chatId && !chat ? (
-                <option value={chatId}>{chatId} (current)</option>
-              ) : null}
-              {chatModels.map(model => (
-                <option
-                  key={model.id}
-                  value={model.id}
-                  disabled={
-                    !isReleasedLocalModel(model) ||
-                    (model.deviceFit !== undefined &&
-                      model.deviceFit !== 'fits')
-                  }
-                >
-                  {localModelName(model.id)}
-                  {model.id === recommendedChatId ? ' (recommended)' : ''}
-                </option>
-              ))}
+              <option value="local">Local / keep current settings</option>
+              <option value="chatgpt">ChatGPT plan (optional)</option>
             </select>
-            {requirements(chat)}
-            <p className={styles.detail} role="status">
-              {chat
-                ? busy === `probe:${chat.id}`
-                  ? 'Checking model…'
-                  : busy === `download:${chat.id}`
-                    ? 'Starting download…'
-                    : localModelStatusLabel(chat, false)
-                : chatId
-                  ? 'Current local model is managed outside this model list.'
-                  : 'Your current AI settings will be preserved.'}
-            </p>
-            {chat && chatSelection?.reason ? (
-              <p className={styles.detail}>{chatSelection.reason}</p>
-            ) : null}
-            {actions(chat)}
+            {chatProvider === 'chatgpt' ? (
+              <>
+                <p className={styles.detail}>
+                  ChatGPT requires an eligible plan and an internet connection.
+                  Signing in does not change your saved provider. Save and
+                  continue to use this model.
+                </p>
+                <ChatGPTConnection
+                  compact
+                  disabled={controlsDisabled}
+                  openExternal={openChatGPT}
+                  onModelsChanged={refreshConnectedModels}
+                  model={chatgptModel}
+                  onModelChange={setChatGPTModel}
+                  onStatusChange={setChatGPTStatus}
+                  onCatalogChange={setChatGPTCatalog}
+                />
+              </>
+            ) : (
+              <>
+                <p className={styles.detail}>
+                  Used for Nota AI, note actions and meeting summaries.
+                </p>
+                <select
+                  className={styles.select}
+                  aria-label="Local chat model"
+                  value={chatId}
+                  disabled={controlsDisabled}
+                  onChange={event => setChatId(event.target.value)}
+                >
+                  <option value="">Keep current AI settings</option>
+                  {chatId && !chat ? (
+                    <option value={chatId}>{chatId} (current)</option>
+                  ) : null}
+                  {chatModels.map(model => (
+                    <option
+                      key={model.id}
+                      value={model.id}
+                      disabled={
+                        !isReleasedLocalModel(model) ||
+                        (model.deviceFit !== undefined &&
+                          model.deviceFit !== 'fits')
+                      }
+                    >
+                      {localModelName(model.id)}
+                      {model.id === recommendedChatId ? ' (recommended)' : ''}
+                    </option>
+                  ))}
+                </select>
+                {requirements(chat)}
+                <p className={styles.detail} role="status">
+                  {chat
+                    ? busy === `probe:${chat.id}`
+                      ? 'Checking model…'
+                      : busy === `download:${chat.id}`
+                        ? 'Starting download…'
+                        : localModelStatusLabel(chat, false)
+                    : chatId
+                      ? 'Current local model is managed outside this model list.'
+                      : 'Your current AI settings will be preserved.'}
+                </p>
+                {chat && chatSelection?.reason ? (
+                  <p className={styles.detail}>{chatSelection.reason}</p>
+                ) : null}
+                {actions(chat)}
+              </>
+            )}
           </section>
         ) : null}
         {showSpeech ? (

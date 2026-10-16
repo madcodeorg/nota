@@ -8,11 +8,7 @@ import {
 } from '@nota/component/auth-components';
 import { Button } from '@nota/component/ui/button';
 import { useAsyncCallback } from '@nota/core/components/hooks/nota-async-hooks';
-import {
-  AuthService,
-  CaptchaService,
-  ServerService,
-} from '@nota/core/modules/cloud';
+import { AuthService, ServerService } from '@nota/core/modules/cloud';
 import type { AuthSessionStatus } from '@nota/core/modules/cloud/entities/session';
 import { Unreachable } from '@nota/env/constant';
 import { UserFriendlyError } from '@nota/error';
@@ -24,7 +20,6 @@ import { useCallback, useEffect, useState } from 'react';
 
 import type { SignInState } from '.';
 import { Back } from './back';
-import { Captcha } from './captcha';
 import * as styles from './style.css';
 
 export const SignInWithPasswordStep = ({
@@ -48,7 +43,6 @@ export const SignInWithPasswordStep = ({
   const [password, setPassword] = useState('');
   const [passwordError, setPasswordError] = useState(false);
   const [passwordErrorHint, setPasswordErrorHint] = useState('');
-  const captchaService = useService(CaptchaService);
   const serverService = useService(ServerService);
   const isSelfhosted = useLiveData(
     serverService.server.config$.selector(
@@ -59,9 +53,6 @@ export const SignInWithPasswordStep = ({
     serverService.server.config$.selector(c => c.serverName)
   );
 
-  const verifyToken = useLiveData(captchaService.verifyToken$);
-  const needCaptcha = useLiveData(captchaService.needCaptcha$);
-  const challenge = useLiveData(captchaService.challenge$);
   const [isLoading, setIsLoading] = useState(false);
 
   const loginStatus = useLiveData(authService.session.status$);
@@ -81,17 +72,11 @@ export const SignInWithPasswordStep = ({
   }, [t]);
 
   const onSignIn = useAsyncCallback(async () => {
-    if (isLoading || (!verifyToken && needCaptcha)) return;
+    if (isLoading) return;
     setIsLoading(true);
 
     try {
-      captchaService.revalidate();
-      await authService.signInPassword({
-        email,
-        password,
-        verifyToken,
-        challenge,
-      });
+      await authService.signInPassword({ email, password });
     } catch (err) {
       console.error(err);
       const error = UserFriendlyError.fromAny(err);
@@ -114,17 +99,7 @@ export const SignInWithPasswordStep = ({
     } finally {
       setIsLoading(false);
     }
-  }, [
-    isLoading,
-    verifyToken,
-    needCaptcha,
-    captchaService,
-    authService,
-    email,
-    password,
-    challenge,
-    t,
-  ]);
+  }, [isLoading, authService, email, password, t]);
 
   const sendMagicLink = useCallback(() => {
     changeState(prev => ({ ...prev, step: 'signInWithEmail' }));
@@ -171,13 +146,12 @@ export const SignInWithPasswordStep = ({
             </a>
           </div>
         )}
-        {!verifyToken && needCaptcha && <Captcha />}
         <Button
           data-testid="sign-in-button"
           variant="primary"
           size="extraLarge"
           style={{ width: '100%' }}
-          disabled={isLoading || (!verifyToken && needCaptcha)}
+          disabled={isLoading}
           onClick={onSignIn}
         >
           {t['com.affine.auth.sign.in']()}

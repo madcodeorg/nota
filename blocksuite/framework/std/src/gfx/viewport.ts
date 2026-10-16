@@ -535,7 +535,12 @@ export class Viewport {
     if (wheel) {
       this.zooming$.next(true);
     }
-    this.setCenter(newCenter[0], newCenter[1], forceUpdate);
+    // Set the center directly: `setCenter` would emit a redundant
+    // `viewportUpdated` before the one below, doubling per-gesture work.
+    this._center.x = newCenter[0];
+    this._center.y = newCenter[1];
+    this.panning$.next(true);
+    this._resetPanning();
     this.viewportUpdated.next({
       zoom: this.zoom,
       center: Vec.toVec(this.center) as IVec,

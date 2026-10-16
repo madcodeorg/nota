@@ -39,3 +39,12 @@ export const chatHeader = style({
     },
   },
 });
+
+export const contextLabel = style({
+  minWidth: 0,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+  color: 'var(--affine-text-secondary-color)',
+  fontSize: 13,
+});

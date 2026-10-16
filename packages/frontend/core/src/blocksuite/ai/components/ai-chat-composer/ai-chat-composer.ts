@@ -186,6 +186,7 @@ export class AIChatComposer extends SignalWatcher(
         .aiDraftService=${this.aiDraftService}
         .aiToolsConfigService=${this.aiToolsConfigService}
         .notificationService=${this.notificationService}
+        .affineWorkspaceDialogService=${this.affineWorkspaceDialogService}
         .aiModelService=${this.aiModelService}
         .portalContainer=${this.portalContainer}
         .onChatSuccess=${this.onChatSuccess}

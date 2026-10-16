@@ -4,6 +4,7 @@ import {
   MenuSeparator,
   Tooltip,
 } from '@nota/component';
+import { AIProvider } from '@nota/core/blocksuite/ai';
 import { AppSidebarService } from '@nota/core/modules/app-sidebar/services/app-sidebar';
 import {
   AddPageButton,
@@ -58,6 +59,8 @@ import {
   NavigationPanelOrganize,
   NavigationPanelTags,
 } from '../../desktop/components/navigation-panel';
+import { EditorChatPanel } from '../../desktop/pages/workspace/detail-page/tabs/chat';
+import { getContextDocIdFromPathname } from '../../desktop/pages/workspace/detail-page/tabs/chat-panel-session';
 import {
   formatElapsedTime,
   meetingDurationSeconds,
@@ -65,9 +68,16 @@ import {
 import { WorkbenchService } from '../../modules/workbench';
 import { WorkspaceNavigator } from '../workspace-selector';
 import {
+  activeDocEditor$,
   aiPanelSlot$,
+  chatHistoryVersion$,
+  fullChatSessionId$,
+  linkSidebarChat,
   pagePanelSlot$,
+  pendingFullChatSessionId$,
+  pendingNewFullChat$,
   setSidebarSection,
+  sidebarChat$,
   type SidebarSection,
   sidebarSection$,
 } from './ai-panel-slot';
@@ -102,13 +112,13 @@ async function meetingJsonRequest<T>(url: string): Promise<T> {
   return data as T;
 }
 
-function formatMeetingHistoryTime(value: string) {
+function formatHistoryTime(value: string) {
   const parsed = dayjs(value);
   return parsed.isValid() ? parsed.format('MMM D, h:mm A') : 'Meeting';
 }
 
 function meetingTitle(meeting: MeetingHistoryItem) {
-  return `Meeting ${formatMeetingHistoryTime(meeting.createdAt)}`;
+  return `Meeting ${formatHistoryTime(meeting.createdAt)}`;
 }
 
 const SearchNavItem = () => {
@@ -185,7 +195,7 @@ const MeetingsNavItem = () => {
       postfix={
         <button
           aria-label="New meeting"
-          className={styles.meetingsNewButton}
+          className={styles.historyNewButton}
           title="New meeting"
           type="button"
           onClick={event => {
@@ -260,18 +270,18 @@ const MeetingHistorySidebar = () => {
   );
 
   return (
-    <div className={styles.meetingHistoryRoot}>
-      <div className={styles.meetingHistoryHeader}>
-        <div className={styles.meetingHistoryTitle}>Meetings</div>
-        <div className={styles.meetingHistoryCount}>
+    <div className={styles.historyRoot}>
+      <div className={styles.historyHeader}>
+        <div className={styles.historyTitle}>Meetings</div>
+        <div className={styles.historyCount}>
           {busy ? 'Loading...' : `${meetings.length} saved`}
         </div>
       </div>
-      <div className={styles.meetingHistoryList}>
+      <div className={styles.historyList}>
         {visibleMeetings.length ? (
           visibleMeetings.map(meeting => (
             <button
-              className={styles.meetingHistoryItem}
+              className={styles.historyItem}
               data-selected={meeting.id === selectedMeetingId}
               key={meeting.id}
               type="button"
@@ -285,10 +295,10 @@ const MeetingHistorySidebar = () => {
                 );
               }}
             >
-              <span className={styles.meetingHistoryItemTitle}>
+              <span className={styles.historyItemTitle}>
                 {meetingTitle(meeting)}
               </span>
-              <span className={styles.meetingHistoryItemMeta}>
+              <span className={styles.historyItemMeta}>
                 {meeting.status === 'stopped'
                   ? `${formatElapsedTime(meetingDurationSeconds(meeting))} · `
                   : 'Recording · '}
@@ -297,7 +307,7 @@ const MeetingHistorySidebar = () => {
               </span>
               {meeting.docId ? (
                 <span
-                  className={styles.meetingHistoryItemLink}
+                  className={styles.historyItemLink}
                   role="button"
                   tabIndex={0}
                   onClick={event => {
@@ -323,17 +333,167 @@ const MeetingHistorySidebar = () => {
             </button>
           ))
         ) : (
-          <div className={styles.meetingHistoryEmpty}>
-            No recorded meetings yet.
-          </div>
+          <div className={styles.historyEmpty}>No recorded meetings yet.</div>
         )}
         {meetings.length > visibleCount ? (
           <button
-            className={styles.meetingHistoryMoreButton}
+            className={styles.historyMoreButton}
             type="button"
             onClick={() => {
               setVisibleCount(count => count + INITIAL_MEETING_HISTORY_LIMIT);
             }}
+          >
+            More
+          </button>
+        ) : null}
+      </div>
+    </div>
+  );
+};
+
+const CHAT_HISTORY_PAGE_SIZE = 20;
+
+type ChatHistoryItem = BlockSuitePresets.AIRecentSession;
+
+const ChatsNavItem = () => {
+  const workbench = useService(WorkbenchService).workbench;
+  const chatActive = useLiveData(
+    workbench.location$.selector(location => location.pathname === '/chat')
+  );
+  const openNewChat = useCallback(() => {
+    pendingNewFullChat$.next(true);
+    workbench.open('/chat', { at: 'active' });
+  }, [workbench]);
+
+  return (
+    <MenuItem
+      icon={<RiSparkling2Fill size={18} />}
+      active={chatActive}
+      data-testid="sidebar-chats-button"
+      onClick={() => workbench.open('/chat', { at: 'active' })}
+      postfix={
+        <button
+          aria-label="New chat"
+          className={styles.historyNewButton}
+          title="New chat"
+          type="button"
+          onClick={event => {
+            event.preventDefault();
+            event.stopPropagation();
+            openNewChat();
+          }}
+        >
+          <RiAddFill aria-hidden size={16} />
+        </button>
+      }
+      postfixDisplay="always"
+    >
+      <span>Nota AI</span>
+    </MenuItem>
+  );
+};
+
+const ChatHistoryRow = ({
+  session,
+  selected,
+  onOpen,
+}: {
+  session: ChatHistoryItem;
+  selected: boolean;
+  onOpen: (sessionId: string) => void;
+}) => {
+  const docDisplayMetaService = useService(DocDisplayMetaService);
+  const docTitle = useLiveData(
+    session.docId ? docDisplayMetaService.title$(session.docId) : null
+  );
+  return (
+    <button
+      className={styles.historyItem}
+      data-selected={selected}
+      data-testid="sidebar-chat-history-item"
+      type="button"
+      onClick={() => onOpen(session.sessionId)}
+    >
+      <span className={styles.historyItemTitle}>
+        {session.title || 'New chat'}
+      </span>
+      <span className={styles.historyItemMeta}>
+        {formatHistoryTime(session.updatedAt)}
+        {docTitle ? ` · ${docTitle}` : ''}
+      </span>
+    </button>
+  );
+};
+
+const ChatHistorySidebar = () => {
+  const workbench = useService(WorkbenchService).workbench;
+  const workspaceId = useService(WorkspaceService).workspace.id;
+  const onChatPage = useLiveData(
+    workbench.location$.selector(location => location.pathname === '/chat')
+  );
+  const currentSessionId = useLiveData(fullChatSessionId$);
+  const version = useLiveData(chatHistoryVersion$);
+  const [sessions, setSessions] = useState<ChatHistoryItem[] | null>(null);
+  const [limit, setLimit] = useState(CHAT_HISTORY_PAGE_SIZE);
+  const [hasMore, setHasMore] = useState(false);
+
+  useEffect(() => {
+    let disposed = false;
+    // Reload the whole visible range so renamed or deleted chats update too.
+    Promise.resolve(
+      AIProvider.session?.getRecentSessions(workspaceId, limit + 1, 0)
+    )
+      .then(result => {
+        if (disposed) return;
+        const list = result ?? [];
+        setSessions(list.slice(0, limit));
+        setHasMore(list.length > limit);
+      })
+      .catch(error => {
+        console.warn('Failed to load chat history', error);
+        if (!disposed) setSessions(prev => prev ?? []);
+      });
+    return () => {
+      disposed = true;
+    };
+  }, [limit, version, workspaceId]);
+
+  const openSession = useCallback(
+    (sessionId: string) => {
+      pendingFullChatSessionId$.next(sessionId);
+      workbench.open('/chat', { at: 'active' });
+    },
+    [workbench]
+  );
+
+  return (
+    <div className={styles.historyRoot}>
+      <div className={styles.historyHeader}>
+        <div className={styles.historyTitle}>Chats</div>
+        <div className={styles.historyCount}>
+          {sessions
+            ? `${sessions.length}${hasMore ? '+' : ''} saved`
+            : 'Loading...'}
+        </div>
+      </div>
+      <div className={styles.historyList}>
+        {sessions?.length ? (
+          sessions.map(session => (
+            <ChatHistoryRow
+              key={session.sessionId}
+              session={session}
+              selected={onChatPage && session.sessionId === currentSessionId}
+              onOpen={openSession}
+            />
+          ))
+        ) : sessions ? (
+          <div className={styles.historyEmpty}>No chats yet.</div>
+        ) : null}
+        {hasMore ? (
+          <button
+            className={styles.historyMoreButton}
+            type="button"
+            onClick={() => setLimit(count => count + CHAT_HISTORY_PAGE_SIZE)}
           >
             More
           </button>
@@ -401,22 +561,58 @@ const RecentNotes = () => {
   );
 };
 
-const AIPanel = () => {
+// The sidebar owns the chat so it keeps running while the user moves between
+// pages. It stays linked to the note it was opened from.
+const AIPanel = ({ visible }: { visible: boolean }) => {
   const workbench = useService(WorkbenchService).workbench;
+  const location = useLiveData(workbench.location$);
+  const contextDocId = getContextDocIdFromPathname(location.pathname);
+  const docsService = useService(DocsService);
+  const workspaceId = useService(WorkspaceService).workspace.id;
+  const target = useLiveData(sidebarChat$);
+  const editor = useLiveData(activeDocEditor$);
+  const docListReady = useLiveData(docsService.list.isReady$);
+  const linkedDoc = useLiveData(
+    target ? docsService.list.doc$(target.docId) : null
+  );
+  const linkedDocTrashed = useLiveData(linkedDoc?.trash$);
+  const linkedDocMissing =
+    !!target && docListReady && (!linkedDoc || !!linkedDocTrashed);
   const slotRef = useCallback((node: HTMLDivElement | null) => {
     aiPanelSlot$.next(node);
   }, []);
+
+  // The link is a note id in this workspace; it means nothing in another one.
+  useEffect(() => {
+    return () => sidebarChat$.next(null);
+  }, [workspaceId]);
+
+  useEffect(() => {
+    if (linkedDocMissing) {
+      sidebarChat$.next(null);
+    }
+  }, [linkedDocMissing]);
+
+  useEffect(() => {
+    if (visible && !target && contextDocId) {
+      linkSidebarChat({ docId: contextDocId });
+    }
+  }, [contextDocId, target, visible]);
+
   return (
-    <div className={styles.aiPanel}>
-      <div className={styles.aiPanelSlot} ref={slotRef} />
-      <div className={styles.aiPanelFallback}>
-        <MenuItem
-          icon={<RiAddLine size={18} />}
-          onClick={() => workbench.open('/chat', { at: 'active' })}
-        >
-          <span>New chat</span>
-        </MenuItem>
-      </div>
+    <div className={styles.aiPanel} ref={slotRef}>
+      {target && !linkedDocMissing ? (
+        <EditorChatPanel target={target} editor={editor} />
+      ) : (
+        <div className={styles.aiPanelFallback}>
+          <MenuItem
+            icon={<RiAddLine size={18} />}
+            onClick={() => workbench.open('/chat', { at: 'active' })}
+          >
+            <span>New chat</span>
+          </MenuItem>
+        </div>
+      )}
     </div>
   );
 };
@@ -521,10 +717,14 @@ const SidebarRail = ({
   const isTrash = location.pathname.startsWith('/trash');
 
   const select = (id: SidebarSection) => {
-    setSidebarSection(id);
+    // AI from the rail opens the full Nota AI page with the chat history in
+    // the sidebar; the docked sidebar chat ('ai') opens from a note's AI
+    // button instead.
+    setSidebarSection(id === 'ai' ? 'chats' : id);
     // Hovering the rail previews the panel; clicking an icon pins it open.
     appSidebar.setHovering(false);
     appSidebar.setOpen(true);
+    if (id === 'ai') workbench.open('/chat', { at: 'active' });
     if (id === 'meetings') workbench.open('/meetings', { at: 'active' });
   };
 
@@ -535,17 +735,23 @@ const SidebarRail = ({
       data-electron={BUILD_CONFIG.isElectron}
     >
       <div className={styles.railGroup}>
-        {RAIL_ITEMS.filter(item => item.id !== 'ai' || aiEnabled).map(item => (
-          <RailButton
-            key={item.id}
-            label={item.label}
-            active={section === item.id}
-            testId={`sidebar-rail-${item.id}`}
-            onClick={() => select(item.id)}
-          >
-            {section === item.id ? item.activeIcon : item.icon}
-          </RailButton>
-        ))}
+        {RAIL_ITEMS.filter(item => item.id !== 'ai' || aiEnabled).map(item => {
+          const active =
+            section === item.id ||
+            (item.id === 'ai' &&
+              (section === 'chats' || location.pathname === '/chat'));
+          return (
+            <RailButton
+              key={item.id}
+              label={item.label}
+              active={active}
+              testId={`sidebar-rail-${item.id}`}
+              onClick={() => select(item.id)}
+            >
+              {active ? item.activeIcon : item.icon}
+            </RailButton>
+          );
+        })}
         <div className={styles.railDivider} />
         <RailButton
           label="Journals"
@@ -614,14 +820,6 @@ const MoreMenu = ({
       >
         All docs page
       </PopMenuItem>
-      {aiEnabled ? (
-        <PopMenuItem
-          prefixIcon={<RiSparkling2Line />}
-          onSelect={() => open('/chat')}
-        >
-          Nota AI full chat
-        </PopMenuItem>
-      ) : null}
       <MenuSeparator />
       {RAIL_ITEMS.filter(item => item.id !== 'ai' || aiEnabled).map(item => (
         <PopMenuItem
@@ -684,17 +882,12 @@ const PagePanel = ({ visible }: { visible: boolean }) => {
   // Page tabs only render their body while the workbench sidebar is "open".
   // That sidebar no longer has its own column, so the flag follows this panel.
   useEffect(() => {
-    if (visible) workbench.openSidebar();
-    else workbench.closeSidebar();
+    workbench.setSidebarOpen(visible);
   }, [visible, workbench]);
-  return (
-    <div
-      className={styles.pagePanel}
-      ref={node => {
-        if (pagePanelSlot$.value !== node) pagePanelSlot$.next(node);
-      }}
-    />
-  );
+  const slotRef = useCallback((node: HTMLDivElement | null) => {
+    pagePanelSlot$.next(node);
+  }, []);
+  return <div className={styles.pagePanel} ref={slotRef} />;
 };
 
 export const RootAppSidebar = memo((): ReactElement => {
@@ -709,7 +902,9 @@ export const RootAppSidebar = memo((): ReactElement => {
   const workspaceSelectorOpen = useLiveData(workbench.workspaceSelectorOpen$);
   const storedSection = useLiveData(sidebarSection$);
   const section =
-    storedSection === 'ai' && !aiEnabled ? 'notes' : storedSection;
+    (storedSection === 'ai' || storedSection === 'chats') && !aiEnabled
+      ? 'notes'
+      : storedSection;
 
   const onWorkspaceSelectorOpenChange = useCallback(
     (open: boolean) => {
@@ -739,10 +934,11 @@ export const RootAppSidebar = memo((): ReactElement => {
               </>
             ) : null}
             {section === 'meetings' ? <MeetingsNavItem /> : null}
+            {section === 'chats' ? <ChatsNavItem /> : null}
           </SidebarContainer>
           {aiEnabled ? (
             <div className={styles.aiPanelHost} data-hidden={section !== 'ai'}>
-              <AIPanel />
+              <AIPanel visible={section === 'ai'} />
             </div>
           ) : null}
           <div className={styles.aiPanelHost} data-hidden={section !== 'page'}>
@@ -752,6 +948,7 @@ export const RootAppSidebar = memo((): ReactElement => {
             <SidebarScrollableContainer>
               {section === 'notes' ? <RecentNotes /> : null}
               {section === 'meetings' ? <MeetingHistorySidebar /> : null}
+              {section === 'chats' ? <ChatHistorySidebar /> : null}
               {section === 'favorites' ? <NavigationPanelFavorites /> : null}
               {section === 'organize' ? <NavigationPanelOrganize /> : null}
               {section === 'collections' ? (

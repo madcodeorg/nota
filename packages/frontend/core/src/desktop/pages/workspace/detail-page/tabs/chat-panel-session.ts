@@ -1,4 +1,3 @@
-/* eslint-disable rxjs/finnish */
 import type { CopilotChatHistoryFragment } from '@nota/graphql';
 
 type SessionListOptions = {
@@ -6,6 +5,68 @@ type SessionListOptions = {
   action?: boolean;
   fork?: boolean;
   limit?: number;
+};
+
+export interface ChatUrlState {
+  contextDocId?: string;
+}
+
+export type ChatScope =
+  | { kind: 'document'; docId: string }
+  | { kind: 'workspace' };
+
+const RESERVED_WORKSPACE_PATHS = new Set([
+  'all',
+  'chat',
+  'journals',
+  'meetings',
+  'trash',
+]);
+
+const readQueryValue = (params: URLSearchParams, key: string) => {
+  const value = params.get(key)?.trim();
+  return value || undefined;
+};
+
+/** Reads the optional document context from a chat URL. */
+export const parseChatUrl = (search = ''): ChatUrlState => {
+  const params = new URLSearchParams(search);
+  return {
+    contextDocId: readQueryValue(params, 'contextDocId'),
+  };
+};
+
+/** Builds a chat URL that keeps the note context. */
+export const buildChatUrl = (pathname = '/chat', state: ChatUrlState = {}) => {
+  const params = new URLSearchParams();
+  if (state.contextDocId) {
+    params.set('contextDocId', state.contextDocId);
+  }
+  const query = params.toString();
+  return query ? `${pathname}?${query}` : pathname;
+};
+
+/** A document context scopes chat history; without one chat is workspace-wide. */
+export const resolveChatScope = (docId?: string | null): ChatScope => {
+  const normalizedDocId = docId?.trim();
+  return normalizedDocId
+    ? { kind: 'document', docId: normalizedDocId }
+    : { kind: 'workspace' };
+};
+
+/** Returns the active document id for a simple `/:docId` workspace route. */
+export const getContextDocIdFromPathname = (
+  pathname: string
+): string | undefined => {
+  const match = pathname.match(/^\/([^/]+)$/);
+  if (!match || RESERVED_WORKSPACE_PATHS.has(match[1])) {
+    return undefined;
+  }
+  try {
+    return decodeURIComponent(match[1]);
+  } catch {
+    return match[1];
+  }
 };
 
 export interface SessionService {
@@ -20,89 +81,44 @@ export interface SessionService {
   ) => Promise<CopilotChatHistoryFragment | null | undefined>;
 }
 
-export interface WorkbenchLike {
-  location$: {
-    value: {
-      search: string;
-    };
-  };
-  activeView$: {
-    value: {
-      updateQueryString: (
-        patch: Record<string, unknown>,
-        options?: { replace?: boolean }
-      ) => void;
-    };
-  };
-}
-
-export interface DocLike {
-  id: string;
-  workspace: {
-    id: string;
-  };
-}
-
-export const getSessionIdFromUrl = (workbench?: WorkbenchLike | null) => {
-  if (!workbench) {
-    return undefined;
-  }
-  const searchParams = new URLSearchParams(workbench.location$.value.search);
-  const sessionId = searchParams.get('sessionId');
-  if (sessionId) {
-    workbench.activeView$.value.updateQueryString(
-      { sessionId: undefined },
-      { replace: true }
-    );
-  }
-  return sessionId ?? undefined;
-};
-
+/**
+ * The conversation a chat opens with, shared by the sidebar and the full
+ * page: a requested session, else the workspace's pinned chat, else the
+ * note's latest chat. Without a note and nothing pinned, chat starts fresh.
+ */
 export const resolveInitialSession = async ({
   sessionService,
-  doc,
-  workbench,
+  workspaceId,
+  docId,
+  sessionId,
 }: {
   sessionService?: SessionService | null;
-  doc?: DocLike | null;
-  workbench?: WorkbenchLike | null;
+  workspaceId: string;
+  docId?: string;
+  sessionId?: string;
 }): Promise<CopilotChatHistoryFragment | null | undefined> => {
-  if (!sessionService || !doc) {
+  if (!sessionService) {
     return undefined;
   }
 
-  const sessionId = getSessionIdFromUrl(workbench);
+  if (sessionId) {
+    const session = await sessionService.getSession(workspaceId, sessionId);
+    if (session) return session;
+  }
 
-  const pinSessions = await sessionService.getSessions(
-    doc.workspace.id,
-    undefined,
-    {
-      pinned: true,
-      limit: 1,
-    }
-  );
-
+  const pinSessions = await sessionService.getSessions(workspaceId, undefined, {
+    pinned: true,
+    limit: 1,
+  });
   if (Array.isArray(pinSessions) && pinSessions[0]) {
     return pinSessions[0];
   }
 
-  if (sessionId) {
-    const session = await sessionService.getSession(
-      doc.workspace.id,
-      sessionId
-    );
-    return session ?? null;
-  }
-
-  const docSessions = await sessionService.getSessions(
-    doc.workspace.id,
-    doc.id,
-    {
-      action: false,
-      fork: false,
-      limit: 1,
-    }
-  );
-
+  if (!docId) return null;
+  const docSessions = await sessionService.getSessions(workspaceId, docId, {
+    action: false,
+    fork: false,
+    limit: 1,
+  });
   return docSessions?.[0] ?? null;
 };

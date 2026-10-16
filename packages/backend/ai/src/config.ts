@@ -7,7 +7,12 @@ import {
   validateMeetingSttLanguageProvider,
 } from './sherpa-stt.js';
 
-export type BuiltInProviderName = 'openai' | 'anthropic' | 'google' | 'local';
+export type BuiltInProviderName =
+  | 'openai'
+  | 'anthropic'
+  | 'google'
+  | 'local'
+  | 'chatgpt';
 export const OPENAI_COMPATIBLE_PROVIDER_NAMES = [
   'openrouter',
   'deepseek',
@@ -16,6 +21,26 @@ export const OPENAI_COMPATIBLE_PROVIDER_NAMES = [
   'groq',
   'perplexity',
   'custom',
+  'alibaba',
+  'baseten',
+  'cerebras',
+  'cohere',
+  'deepinfra',
+  'fireworks',
+  'huggingface',
+  'minimax',
+  'moonshotai',
+  'togetherai',
+  'zai',
+  'ai-gateway',
+  'open-responses',
+  'azure',
+  'amazon-bedrock',
+  'google-vertex',
+  'google-vertex-anthropic',
+  'google-vertex-maas',
+  'google-vertex-xai',
+  'anthropic-aws',
 ] as const;
 export type OpenAICompatibleProviderName =
   (typeof OPENAI_COMPATIBLE_PROVIDER_NAMES)[number];
@@ -27,6 +52,20 @@ export interface OpenAICompatibleProviderConfig {
   apiKey: string;
   baseUrl: string;
   model: string;
+  region?: string;
+  project?: string;
+  location?: string;
+  resourceName?: string;
+  workspaceId?: string;
+  apiMode?: 'responses' | 'chat' | 'deepseek';
+}
+
+function readAzureApiMode(
+  value: unknown
+): OpenAICompatibleProviderConfig['apiMode'] {
+  return value === 'responses' || value === 'chat' || value === 'deepseek'
+    ? value
+    : undefined;
 }
 
 export const PROVIDER_NAMES: ProviderName[] = [
@@ -34,6 +73,7 @@ export const PROVIDER_NAMES: ProviderName[] = [
   'openai',
   'anthropic',
   'google',
+  'chatgpt',
   ...OPENAI_COMPATIBLE_PROVIDER_NAMES,
 ];
 
@@ -55,6 +95,7 @@ export interface AiBackendConfig {
   anthropicModel: string;
   googleApiKey: string;
   googleModel: string;
+  chatgptModel: string;
   compatibleProviders: Record<
     OpenAICompatibleProviderName,
     OpenAICompatibleProviderConfig
@@ -94,6 +135,7 @@ type PersistedAiBackendSettings = Partial<
     | 'googleImageModel'
     | 'googleApiKey'
     | 'googleModel'
+    | 'chatgptModel'
     | 'imageProvider'
     | 'localBaseUrl'
     | 'localImageModel'
@@ -238,38 +280,27 @@ function readCompatibleProviderSettings(value: unknown) {
       apiKey: readOptionalStringSetting(item.apiKey),
       baseUrl: readOptionalStringSetting(item.baseUrl),
       model: readStringSetting(item.model),
+      region: readOptionalStringSetting(item.region),
+      project: readOptionalStringSetting(item.project),
+      location: readOptionalStringSetting(item.location),
+      resourceName: readOptionalStringSetting(item.resourceName),
+      workspaceId: readOptionalStringSetting(item.workspaceId),
+      apiMode:
+        provider === 'azure' ? readAzureApiMode(item.apiMode) : undefined,
     };
   }
   return providers;
 }
 
 function compatibleProviderEnvName(provider: OpenAICompatibleProviderName) {
-  switch (provider) {
-    case 'openrouter':
-      return 'OPENROUTER';
-    case 'deepseek':
-      return 'DEEPSEEK';
-    case 'xai':
-      return 'XAI';
-    case 'mistral':
-      return 'MISTRAL';
-    case 'groq':
-      return 'GROQ';
-    case 'perplexity':
-      return 'PERPLEXITY';
-    case 'custom':
-      return 'CUSTOM';
-  }
+  return provider.replace(/-/g, '_').toUpperCase();
 }
 
 function defaultCompatibleProviderSettings(): Record<
   OpenAICompatibleProviderName,
   OpenAICompatibleProviderConfig
 > {
-  const defaults: Record<
-    OpenAICompatibleProviderName,
-    OpenAICompatibleProviderConfig
-  > = {
+  const defaults = {
     openrouter: {
       apiKey: process.env.OPENROUTER_API_KEY ?? '',
       baseUrl:
@@ -311,23 +342,65 @@ function defaultCompatibleProviderSettings(): Record<
       baseUrl: process.env.NOTA_AI_CUSTOM_BASE_URL ?? '',
       model: process.env.NOTA_AI_CUSTOM_MODEL ?? '',
     },
-  };
+  } as Partial<
+    Record<OpenAICompatibleProviderName, OpenAICompatibleProviderConfig>
+  >;
 
   for (const provider of OPENAI_COMPATIBLE_PROVIDER_NAMES) {
     const envPrefix = compatibleProviderEnvName(provider);
+    const existing = defaults[provider];
+    const keyEnv =
+      provider === 'amazon-bedrock'
+        ? 'AWS_BEARER_TOKEN_BEDROCK'
+        : provider === 'togetherai'
+          ? 'TOGETHER_API_KEY'
+          : provider === 'moonshotai'
+            ? 'MOONSHOT_API_KEY'
+            : `${envPrefix}_API_KEY`;
     defaults[provider] = {
       apiKey:
         process.env[`NOTA_AI_${envPrefix}_API_KEY`] ??
-        defaults[provider].apiKey,
+        existing?.apiKey ??
+        process.env[keyEnv] ??
+        (provider === 'huggingface' ? process.env.HF_TOKEN : undefined) ??
+        '',
       baseUrl:
-        process.env[`NOTA_AI_${envPrefix}_BASE_URL`] ??
-        defaults[provider].baseUrl,
-      model:
-        process.env[`NOTA_AI_${envPrefix}_MODEL`] ?? defaults[provider].model,
+        process.env[`NOTA_AI_${envPrefix}_BASE_URL`] ?? existing?.baseUrl ?? '',
+      model: process.env[`NOTA_AI_${envPrefix}_MODEL`] ?? existing?.model ?? '',
+      region:
+        process.env[`NOTA_AI_${envPrefix}_REGION`] ??
+        (provider === 'amazon-bedrock' || provider === 'anthropic-aws'
+          ? process.env.AWS_REGION
+          : undefined),
+      project:
+        process.env[`NOTA_AI_${envPrefix}_PROJECT`] ??
+        (provider.startsWith('google-vertex')
+          ? process.env.GOOGLE_VERTEX_PROJECT
+          : undefined),
+      location:
+        process.env[`NOTA_AI_${envPrefix}_LOCATION`] ??
+        (provider.startsWith('google-vertex')
+          ? process.env.GOOGLE_VERTEX_LOCATION
+          : undefined),
+      resourceName:
+        process.env[`NOTA_AI_${envPrefix}_RESOURCE_NAME`] ??
+        (provider === 'azure' ? process.env.AZURE_RESOURCE_NAME : undefined),
+      workspaceId:
+        process.env[`NOTA_AI_${envPrefix}_WORKSPACE_ID`] ??
+        (provider === 'anthropic-aws'
+          ? process.env.ANTHROPIC_AWS_WORKSPACE_ID
+          : undefined),
+      apiMode:
+        provider === 'azure'
+          ? readAzureApiMode(process.env.NOTA_AI_AZURE_API_MODE)
+          : undefined,
     };
   }
 
-  return defaults;
+  return defaults as Record<
+    OpenAICompatibleProviderName,
+    OpenAICompatibleProviderConfig
+  >;
 }
 
 export function readEmbeddingMode(value: string | undefined): EmbeddingMode {
@@ -408,6 +481,7 @@ function loadPersistedSettings(
       googleImageModel: readStringSetting(settings.googleImageModel),
       googleApiKey: readOptionalStringSetting(settings.googleApiKey),
       googleModel: readStringSetting(settings.googleModel),
+      chatgptModel: readOptionalStringSetting(settings.chatgptModel),
       compatibleProviders: readCompatibleProviderSettings(
         settings.compatibleProviders
       ),
@@ -451,18 +525,13 @@ function loadPersistedSettings(
 }
 
 export function readProvider(value: string | undefined): ProviderName {
+  if (isOpenAICompatibleProvider(value)) return value;
   switch (value) {
+    case 'chatgpt':
     case 'anthropic':
     case 'google':
     case 'local':
     case 'openai':
-    case 'openrouter':
-    case 'deepseek':
-    case 'xai':
-    case 'mistral':
-    case 'groq':
-    case 'perplexity':
-    case 'custom':
       return value;
     default:
       return 'local';
@@ -488,7 +557,11 @@ export function mainTextModelForProvider(
   config: AiBackendConfig,
   provider: ProviderName = config.defaultProvider
 ) {
+  if (isOpenAICompatibleProvider(provider))
+    return config.compatibleProviders[provider].model;
   switch (provider) {
+    case 'chatgpt':
+      return config.chatgptModel;
     case 'anthropic':
       return config.anthropicModel;
     case 'google':
@@ -497,14 +570,6 @@ export function mainTextModelForProvider(
       return config.openaiModel;
     case 'local':
       return config.localModel;
-    case 'openrouter':
-    case 'deepseek':
-    case 'xai':
-    case 'mistral':
-    case 'groq':
-    case 'perplexity':
-    case 'custom':
-      return config.compatibleProviders[provider].model;
   }
 }
 
@@ -519,6 +584,7 @@ export function updateConfig(
     anthropicModel: string;
     googleApiKey: string;
     googleModel: string;
+    chatgptModel: string;
     compatibleProviders: PersistedAiBackendSettings['compatibleProviders'];
     localModel: string;
     imageProvider: string;
@@ -570,6 +636,8 @@ export function updateConfig(
   if (input.anthropicApiKey !== undefined) {
     config.anthropicApiKey = input.anthropicApiKey.trim();
   }
+  if (input.chatgptModel !== undefined)
+    config.chatgptModel = input.chatgptModel.trim();
   if (input.googleModel) {
     config.googleModel = input.googleModel;
   }
@@ -584,7 +652,18 @@ export function updateConfig(
       }
 
       const current = config.compatibleProviders[provider];
+      if (
+        provider === 'azure' &&
+        providerSettings.apiMode !== undefined &&
+        !readAzureApiMode(providerSettings.apiMode)
+      ) {
+        throw new Error('Azure API mode must be responses, chat, or deepseek.');
+      }
       config.compatibleProviders[provider] = {
+        ...current,
+        ...(provider === 'azure' && providerSettings.apiMode !== undefined
+          ? { apiMode: readAzureApiMode(providerSettings.apiMode) }
+          : {}),
         apiKey:
           providerSettings.apiKey !== undefined
             ? providerSettings.apiKey.trim()
@@ -593,7 +672,23 @@ export function updateConfig(
           providerSettings.baseUrl !== undefined
             ? providerSettings.baseUrl.trim()
             : current.baseUrl,
-        model: providerSettings.model?.trim() || current.model,
+        model:
+          providerSettings.model !== undefined
+            ? providerSettings.model.trim()
+            : current.model,
+        ...Object.fromEntries(
+          [
+            'region',
+            'project',
+            'location',
+            'resourceName',
+            'workspaceId',
+          ].flatMap(field => {
+            const value =
+              providerSettings[field as keyof OpenAICompatibleProviderConfig];
+            return typeof value === 'string' ? [[field, value.trim()]] : [];
+          })
+        ),
       };
     }
   }
@@ -669,6 +764,7 @@ export function updateConfig(
     input.defaultModel ||
     input.anthropicModel ||
     input.googleModel ||
+    input.chatgptModel !== undefined ||
     input.compatibleProviders ||
     input.openaiModel ||
     input.localModel
@@ -689,6 +785,7 @@ export function saveConfig(config: AiBackendConfig) {
     googleApiKey: config.googleApiKey,
     googleImageModel: config.googleImageModel,
     googleModel: config.googleModel,
+    chatgptModel: config.chatgptModel,
     compatibleProviders: config.compatibleProviders,
     imageProvider: config.imageProvider,
     localBaseUrl: config.localBaseUrl,
@@ -760,6 +857,13 @@ export function loadConfig(): AiBackendConfig {
   const imageProvider = readImageProvider(process.env.NOTA_AI_IMAGE_PROVIDER);
   const compatibleProviders = defaultCompatibleProviderSettings();
   const modelByProvider = {
+    ...Object.fromEntries(
+      OPENAI_COMPATIBLE_PROVIDER_NAMES.map(provider => [
+        provider,
+        compatibleProviders[provider].model,
+      ])
+    ),
+    chatgpt: process.env.NOTA_AI_CHATGPT_MODEL ?? '',
     openai: process.env.NOTA_AI_OPENAI_MODEL ?? 'gpt-5-mini',
     anthropic:
       process.env.NOTA_AI_ANTHROPIC_MODEL ?? 'claude-sonnet-4-5-20250929',
@@ -772,7 +876,7 @@ export function loadConfig(): AiBackendConfig {
     groq: compatibleProviders.groq.model,
     perplexity: compatibleProviders.perplexity.model,
     custom: compatibleProviders.custom.model,
-  } satisfies Record<ProviderName, string>;
+  } as Record<ProviderName, string>;
   const meetingSttProviderId = normalizeMeetingSttProvider(
     process.env.NOTA_MEETING_STT_PROVIDER ?? defaultMeetingSttProvider()
   );
@@ -790,6 +894,7 @@ export function loadConfig(): AiBackendConfig {
     anthropicModel: modelByProvider.anthropic,
     googleApiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY ?? '',
     googleModel: modelByProvider.google,
+    chatgptModel: modelByProvider.chatgpt,
     compatibleProviders,
     localModel: normalizeLocalTextModel(modelByProvider.local),
     imageProvider,

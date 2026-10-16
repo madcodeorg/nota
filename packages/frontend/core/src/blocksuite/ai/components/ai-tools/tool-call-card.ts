@@ -8,37 +8,34 @@ import { property, state } from 'lit/decorators.js';
 export class ToolCallCard extends WithDisposable(ShadowlessElement) {
   static override styles = css`
     .ai-tool-call-wrapper {
-      padding: 12px;
-      margin: 8px 0;
-      border-radius: 8px;
-      border: 0.5px solid ${unsafeCSSVarV2('layer/insideBorder/border')};
-      background-color: ${unsafeCSSVarV2('layer/background/primary')};
+      margin: 2px 0;
 
       .ai-tool-header {
         display: flex;
-        justify-content: space-between;
         align-items: center;
-        gap: 8px;
+        gap: 6px;
       }
 
       .ai-icon {
-        width: 24px;
-        height: 24px;
+        display: flex;
+        flex-shrink: 0;
+        width: 14px;
+        height: 14px;
 
         svg {
-          width: 24px;
-          height: 24px;
-          color: ${unsafeCSSVarV2('icon/activated')};
+          width: 14px;
+          height: 14px;
+          color: ${unsafeCSSVarV2('text/secondary')};
         }
       }
 
       .ai-tool-name {
-        font-size: 14px;
-        font-weight: 500;
-        line-height: 24px;
+        font-size: 12px;
+        font-weight: 400;
+        line-height: 20px;
         margin-left: 0px;
         margin-right: auto;
-        color: ${unsafeCSSVarV2('icon/activated')};
+        color: ${unsafeCSSVarV2('text/secondary')};
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
@@ -47,38 +44,24 @@ export class ToolCallCard extends WithDisposable(ShadowlessElement) {
       .loading-dots {
         display: inline;
         margin-left: 2px;
-        color: ${unsafeCSSVarV2('icon/activated')};
       }
-    }
-    .ai-tool-call-wrapper.shine {
-      position: relative;
-      overflow: hidden;
-      user-select: none;
 
-      &::after {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: 0;
-        pointer-events: none;
-        width: 80px;
-        height: 100%;
-        background: linear-gradient(
-          90deg,
-          transparent,
-          ${unsafeCSSVarV2('layer/background/primary')},
-          transparent
-        );
-        animation: shine 1.8s infinite;
+      .ai-spinner {
+        flex-shrink: 0;
+        box-sizing: border-box;
+        width: 12px;
+        height: 12px;
+        margin: 1px;
+        border-radius: 50%;
+        border: 1.5px solid ${unsafeCSSVarV2('layer/insideBorder/border')};
+        border-top-color: ${unsafeCSSVarV2('icon/activated')};
+        animation: ai-tool-spin 0.8s linear infinite;
       }
     }
 
-    @keyframes shine {
-      0% {
-        left: -80px;
-      }
-      100% {
-        left: 100%;
+    @keyframes ai-tool-spin {
+      to {
+        transform: rotate(360deg);
       }
     }
   `;
@@ -121,9 +104,9 @@ export class ToolCallCard extends WithDisposable(ShadowlessElement) {
 
   protected override render() {
     return html`
-      <div class="ai-tool-call-wrapper shine">
+      <div class="ai-tool-call-wrapper">
         <div class="ai-tool-header">
-          <div class="ai-icon">${this.icon}</div>
+          <div class="ai-spinner" aria-hidden="true"></div>
           <div class="ai-tool-name">
             ${this.name}<span class="loading-dots">${this.dotsText}</span>
           </div>

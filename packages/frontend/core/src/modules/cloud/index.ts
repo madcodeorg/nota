@@ -4,11 +4,9 @@ export { AccountChanged } from './events/account-changed';
 export { AccountLoggedIn } from './events/account-logged-in';
 export { AccountLoggedOut } from './events/account-logged-out';
 export { AuthProvider } from './provider/auth';
-export { ValidatorProvider } from './provider/validator';
 export { ServerScope } from './scopes/server';
 export { AccessTokenService } from './services/access-token';
 export { AuthService } from './services/auth';
-export { CaptchaService } from './services/captcha';
 export { DefaultServerService } from './services/default-server';
 export { DocCreatedByUpdatedBySyncService } from './services/doc-created-by-updated-by-sync';
 export { EventSourceService } from './services/eventsource';
@@ -43,12 +41,10 @@ import { UserFeature } from './entities/user-feature';
 import { UserQuota } from './entities/user-quota';
 import { configureDefaultAuthProvider } from './impl/auth';
 import { AuthProvider } from './provider/auth';
-import { ValidatorProvider } from './provider/validator';
 import { ServerScope } from './scopes/server';
 import { InvitationService } from './services/invitation';
 import { AuthService } from './services/auth';
 import { BlocksuiteWriterInfoService } from './services/blocksuite-writer-info';
-import { CaptchaService } from './services/captcha';
 import { DefaultServerService } from './services/default-server';
 import { EventSourceService } from './services/eventsource';
 import { FetchService } from './services/fetch';
@@ -95,13 +91,6 @@ export function configureCloudModule(framework: Framework) {
     .service(FetchService, [ServerService])
     .service(EventSourceService, [ServerService])
     .service(GraphQLService, [FetchService])
-    .service(CaptchaService, f => {
-      return new CaptchaService(
-        f.get(ServerService),
-        f.get(FetchService),
-        f.getOptional(ValidatorProvider)
-      );
-    })
     .service(AuthService, [
       FetchService,
       AuthStore,

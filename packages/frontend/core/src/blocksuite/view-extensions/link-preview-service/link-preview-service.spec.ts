@@ -1,6 +1,5 @@
 import type { LinkPreviewProvider } from '@blocksuite/affine/shared/services';
 import type { Container } from '@blocksuite/global/di';
-import type { FrameworkProvider } from '@nota/infra';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { patchLinkPreviewService } from './link-preview-service';
@@ -14,7 +13,7 @@ afterEach(() => {
   bridge.getBookmarkDataByLink.mockReset();
 });
 
-function createPreviewService(baseUrl = 'assets://./') {
+function createPreviewService() {
   const cache = {
     get: vi.fn(),
     set: vi.fn(),
@@ -22,11 +21,8 @@ function createPreviewService(baseUrl = 'assets://./') {
     setPendingRequest: vi.fn(),
     deletePendingRequest: vi.fn(),
   };
-  const framework = {
-    get: () => ({ server: { baseUrl } }),
-  } as unknown as FrameworkProvider;
   let service!: LinkPreviewProvider;
-  patchLinkPreviewService(framework).setup!({
+  patchLinkPreviewService().setup!({
     override: (
       _identifier: unknown,
       factory: (provider: unknown) => LinkPreviewProvider
@@ -55,19 +51,16 @@ describe('Nota link previews', () => {
     expect(network).not.toHaveBeenCalled();
   });
 
-  it('keeps a broken endpoint fallback on the local route', async () => {
+  it('makes no network request outside the desktop app', async () => {
     vi.stubGlobal('BUILD_CONFIG', { ...BUILD_CONFIG, isElectron: false });
-    vi.spyOn(console, 'error').mockImplementation(() => {});
-    const network = vi.fn(async (_url: string, _options?: RequestInit) => ({
-      ok: true,
-      json: async () => ({ title: 'Self-host preview' }),
-    }));
+    const network = vi.fn();
     vi.stubGlobal('fetch', network);
 
-    const service = createPreviewService('invalid base URL');
-    expect(service.endpoint).toBe('/api/worker/link-preview');
-    await service.query('https://example.com/private-path');
-    expect(network.mock.calls[0]?.[0]).toBe('/api/worker/link-preview');
+    expect(
+      await createPreviewService().query('https://example.com/private-path')
+    ).toEqual({});
+    expect(network).not.toHaveBeenCalled();
+    expect(bridge.getBookmarkDataByLink).not.toHaveBeenCalled();
   });
 
   it('does not request a preview for an aborted operation', async () => {

@@ -15,11 +15,7 @@ export function configureCommentModule(framework: Framework) {
     .scope(WorkspaceScope)
     .service(DocCommentManagerService)
     .service(CommentPanelService, [WorkbenchService])
-    .service(SnapshotHelper, [
-      WorkspaceService,
-      WorkspaceServerService,
-      DefaultServerService,
-    ])
+    .service(SnapshotHelper, [WorkspaceService])
     .entity(DocCommentEntity, [SnapshotHelper, DocDisplayMetaService])
     .entity(DocCommentStore, [
       WorkspaceService,

@@ -14,7 +14,7 @@ import { expect, type Page, test } from '@playwright/test';
 const TEST_SPOTIFY_URL =
   'https://open.spotify.com/episode/7makk4oTQel546B0PZlDM5';
 
-const TEST_NOTA_URL = 'https://app.nota.pro/';
+const TEST_NOTA_URL = 'https://thenota.app/';
 
 const EMBED_IFRAME_BLOCK = 'affine-embed-iframe-block';
 const EMBED_EDGELESS_IFRAME_BLOCK = 'affine-embed-edgeless-iframe-block';

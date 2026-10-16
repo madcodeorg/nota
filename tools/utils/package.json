@@ -10,6 +10,7 @@
     "./process": "./src/process.ts",
     "./logger": "./src/logger.ts",
     "./build-config": "./src/build-config.ts",
+    "./release-notes": "./src/release-notes.ts",
     "./distribution": "./src/distribution.ts"
   },
   "dependencies": {

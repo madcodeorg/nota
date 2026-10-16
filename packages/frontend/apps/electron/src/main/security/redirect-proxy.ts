@@ -1,25 +1,17 @@
 import { isAllowedRedirectTarget } from '@nota/infra/utils';
 
-import { buildType, isDev } from '../config';
+import { isDev } from '../config';
 
-const API_BASE_BY_BUILD_TYPE: Record<typeof buildType, string> = {
-  stable: 'https://app.nota.pro',
-  beta: 'https://insider.nota.pro',
-  internal: 'https://insider.nota.pro',
-  canary: 'https://nota.fail',
-};
+const NOTA_HOSTNAME = 'thenota.app';
 
 function resolveCurrentHostnameForRedirectAllowlist() {
   const devServerBase = process.env.DEV_SERVER_URL;
-  const base =
-    isDev && devServerBase
-      ? devServerBase
-      : (API_BASE_BY_BUILD_TYPE[buildType] ?? API_BASE_BY_BUILD_TYPE.stable);
+  if (!isDev || !devServerBase) return NOTA_HOSTNAME;
 
   try {
-    return new URL(base).hostname;
+    return new URL(devServerBase).hostname;
   } catch {
-    return 'app.nota.pro';
+    return NOTA_HOSTNAME;
   }
 }
 

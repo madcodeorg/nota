@@ -44,7 +44,10 @@ const icnsPath = path.join(
 
 const iconPngPath = path.join(ROOT, './resources/icons/icon.png');
 
-const iconUrl = `https://cdn.nota.pro/app-icons/icon_${buildType}.ico`;
+// Squirrel needs a public URL for the Windows "Apps & features" icon.
+const iconUrl = `https://raw.githubusercontent.com/madcodeorg/nota/main/packages/frontend/apps/electron/resources/icons/${
+  stableBuild ? 'icon' : `icon_${buildType}`
+}.ico`;
 
 log(`buildType=${buildType}, productName=${productName}, icoPath=${icoPath}`);
 

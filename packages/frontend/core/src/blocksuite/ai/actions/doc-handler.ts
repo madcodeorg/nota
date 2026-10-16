@@ -10,7 +10,6 @@ import {
   buildFinishConfig,
   buildGeneratingConfig,
 } from '../ai-panel';
-import { StreamObjectSchema } from '../components/ai-chat-messages';
 import { type AIItemGroupConfig } from '../components/ai-item/types';
 import { type AIError, AIProvider } from '../provider';
 import { reportResponse } from '../utils/action-reporter';
@@ -22,7 +21,7 @@ import {
   getSelections,
   selectAboveBlocks,
 } from '../utils/selection-utils';
-import { mergeStreamObjects } from '../utils/stream-objects';
+import { appendStreamChunk } from '../utils/stream-objects';
 import type { AffineAIPanelWidget } from '../widgets/ai-panel/ai-panel';
 import type { AIActionAnswer } from '../widgets/ai-panel/type';
 import { actionToAnswerRenderer } from './answer-renderer';
@@ -51,19 +50,7 @@ export function bindTextStream(
       if (signal?.aborted) {
         return;
       }
-      try {
-        const parsed = StreamObjectSchema.safeParse(JSON.parse(data));
-        if (parsed.success) {
-          answer.streamObjects = mergeStreamObjects([
-            ...(answer.streamObjects ?? []),
-            parsed.data,
-          ]);
-        } else {
-          answer.content += data;
-        }
-      } catch {
-        answer.content += data;
-      }
+      Object.assign(answer, appendStreamChunk(answer, data));
       update(answer);
     }
     finish('success');

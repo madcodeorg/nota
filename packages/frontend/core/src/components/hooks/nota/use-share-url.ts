@@ -32,7 +32,7 @@ export type UseSharingUrl = {
 /**
  * To generate a url like
  *
- * https://app.nota.pro/workspace/workspaceId/docId?mode=DocMode&elementIds=seletedElementIds&blockIds=selectedBlockIds
+ * https://thenota.app/workspace/workspaceId/docId?mode=DocMode&elementIds=seletedElementIds&blockIds=selectedBlockIds
  */
 export const generateUrl = ({
   baseUrl,

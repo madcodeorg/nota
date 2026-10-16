@@ -8,6 +8,7 @@ import {
 } from '@nota/infra';
 import { nanoid } from 'nanoid';
 
+import type { Artwork } from '../../../utils/met-artwork';
 import type { WorkspacePropertyType } from '../../workspace-property';
 
 const integrationType = f.enum('readwise');
@@ -31,6 +32,8 @@ export const AFFiNE_WORKSPACE_DB_SCHEMA = {
     integrationType: integrationType.optional(),
     createdBy: f.string().optional(),
     updatedBy: f.string().optional(),
+    coverArtwork: f.json<Artwork>().optional(),
+    coverHidden: f.boolean().optional(),
   }),
   docCustomPropertyInfo: {
     id: f.string().primaryKey().optional().default(nanoid),

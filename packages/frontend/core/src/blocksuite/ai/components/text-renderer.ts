@@ -180,7 +180,6 @@ export class TextRenderer extends SignalWatcher(
       overflow-y: auto;
       overflow-x: hidden;
       padding: 0;
-      overscroll-behavior-y: none;
     }
 
     .text-renderer-container[data-streaming='true'] .ai-answer-text-editor {

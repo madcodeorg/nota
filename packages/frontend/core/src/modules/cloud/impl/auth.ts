@@ -55,27 +55,12 @@ export function configureDefaultAuthProvider(framework: Framework) {
         });
         return await res.json();
       },
-      async signInPassword(credential: {
-        email: string;
-        password: string;
-        verifyToken?: string;
-        challenge?: string;
-      }) {
-        const headers: Record<string, string> = {};
-
-        if (credential.verifyToken) {
-          headers['x-captcha-token'] = credential.verifyToken;
-        }
-        if (credential.challenge) {
-          headers['x-captcha-challenge'] = credential.challenge;
-        }
-
+      async signInPassword(credential: { email: string; password: string }) {
         await fetchService.fetch('/api/auth/sign-in', {
           method: 'POST',
           body: JSON.stringify(credential),
           headers: {
             'content-type': 'application/json',
-            ...headers,
           },
         });
       },

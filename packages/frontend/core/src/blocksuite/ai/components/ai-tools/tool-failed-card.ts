@@ -8,33 +8,31 @@ import { property } from 'lit/decorators.js';
 export class ToolFailedCard extends WithDisposable(ShadowlessElement) {
   static override styles = css`
     .ai-tool-failed-wrapper {
-      padding: 12px;
-      margin: 8px 0;
-      border-radius: 8px;
-      border: 0.5px solid ${unsafeCSSVarV2('layer/insideBorder/border')};
+      margin: 2px 0;
 
       .ai-tool-header {
         display: flex;
-        justify-content: space-between;
         align-items: center;
-        gap: 8px;
+        gap: 6px;
       }
 
       .ai-icon {
-        width: 24px;
-        height: 24px;
+        display: flex;
+        flex-shrink: 0;
+        width: 14px;
+        height: 14px;
 
         svg {
-          width: 24px;
-          height: 24px;
+          width: 14px;
+          height: 14px;
           color: ${unsafeCSSVarV2('button/error')};
         }
       }
 
       .ai-error-name {
-        font-size: 14px;
-        font-weight: 500;
-        line-height: 24px;
+        font-size: 12px;
+        font-weight: 400;
+        line-height: 20px;
         margin-left: 0px;
         margin-right: auto;
         color: ${unsafeCSSVarV2('button/error')};

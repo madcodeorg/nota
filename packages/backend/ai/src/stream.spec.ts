@@ -563,7 +563,11 @@ describe('shared tool events', () => {
       });
       const assistant = store.requireSession(sessionId).messages.at(-1);
       expect(assistant?.content).toBe('Please approve the note proposal.');
-      expect(assistant?.streamObjects.slice(1)).toEqual(liveObjects);
+      // Saved history keeps the live order: tool cards first, then the answer.
+      expect(assistant?.streamObjects).toEqual([
+        ...liveObjects,
+        { type: 'text-delta', textDelta: 'Please approve the note proposal.' },
+      ]);
     }
   );
 });

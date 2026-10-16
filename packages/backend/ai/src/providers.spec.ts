@@ -125,7 +125,7 @@ describe('AI model catalog', () => {
         expect.objectContaining({
           id: 'local:gpt-oss:20b',
           reasoningLevels: ['none', 'minimal', 'low', 'medium', 'high'],
-          supportsImageAttachments: true,
+          supportsImageAttachments: false,
         }),
         expect.objectContaining({ id: 'local:llama3.2' }),
       ])
@@ -268,7 +268,7 @@ describe('AI model catalog', () => {
       expect.objectContaining({
         id: 'custom:custom-thinking:latest',
         name: 'Custom custom-thinking:latest',
-        readiness: 'ready',
+        readiness: 'unverified',
         selectable: true,
       }),
     ]);

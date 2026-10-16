@@ -8,7 +8,7 @@ import {
 } from '@nota/component/auth-components';
 import { Button } from '@nota/component/ui/button';
 import { useAsyncCallback } from '@nota/core/components/hooks/nota-async-hooks';
-import { AuthService, CaptchaService } from '@nota/core/modules/cloud';
+import { AuthService } from '@nota/core/modules/cloud';
 import type { AuthSessionStatus } from '@nota/core/modules/cloud/entities/session';
 import { Unreachable } from '@nota/env/constant';
 import { UserFriendlyError } from '@nota/error';
@@ -25,7 +25,6 @@ import {
 
 import type { SignInState } from '.';
 import { Back } from './back';
-import { Captcha } from './captcha';
 import * as style from './style.css';
 
 export const SignInWithEmailStep = ({
@@ -63,12 +62,6 @@ export const SignInWithEmailStep = ({
 
   const t = useI18n();
   const authService = useService(AuthService);
-  const captchaService = useService(CaptchaService);
-
-  const verifyToken = useLiveData(captchaService.verifyToken$);
-  const needCaptcha = useLiveData(captchaService.needCaptcha$);
-  const challenge = useLiveData(captchaService.challenge$);
-
   const loginStatus = useLiveData(authService.session.status$);
 
   useEffect(() => {
@@ -82,17 +75,11 @@ export const SignInWithEmailStep = ({
   }, [loginStatus, onAuthenticated, t]);
 
   const sendEmail = useAsyncCallback(async () => {
-    if (isSending || (!verifyToken && needCaptcha)) return;
+    if (isSending) return;
     setIsSending(true);
     try {
       setResendCountDown(60);
-      captchaService.revalidate();
-      await authService.sendEmailMagicLink(
-        email,
-        verifyToken,
-        challenge,
-        state.redirectUrl
-      );
+      await authService.sendEmailMagicLink(email, state.redirectUrl);
     } catch (err) {
       console.error(err);
       const error = UserFriendlyError.fromAny(err);
@@ -102,24 +89,14 @@ export const SignInWithEmailStep = ({
       });
     }
     setIsSending(false);
-  }, [
-    authService,
-    captchaService,
-    challenge,
-    email,
-    isSending,
-    needCaptcha,
-    state.redirectUrl,
-    verifyToken,
-    t,
-  ]);
+  }, [authService, email, isSending, state.redirectUrl, t]);
 
   useEffect(() => {
-    if (!initialSent.current && (verifyToken || !needCaptcha)) {
+    if (!initialSent.current) {
       initialSent.current = true;
       sendEmail();
     }
-  }, [initialSent, needCaptcha, sendEmail, verifyToken]);
+  }, [initialSent, sendEmail]);
 
   const onSignInWithPasswordClick = useCallback(() => {
     changeState(prev => ({ ...prev, step: 'signInWithPassword' }));
@@ -152,15 +129,7 @@ export const SignInWithEmailStep = ({
     }
   }, [authService, email, isVerifying, otp, t]);
 
-  return !verifyToken && needCaptcha ? (
-    <>
-      <AuthHeader title={t['com.affine.auth.sign.in']()} />
-      <AuthContent style={{ height: 100 }}>
-        <Captcha />
-      </AuthContent>
-      <Back changeState={changeState} />
-    </>
-  ) : (
+  return (
     <AuthContainer>
       <AuthHeader
         title={t['com.affine.auth.sign.in']()}

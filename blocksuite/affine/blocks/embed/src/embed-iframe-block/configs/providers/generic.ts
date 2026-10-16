@@ -7,14 +7,8 @@ const GENERIC_DEFAULT_HEIGHT_IN_NOTE = 400;
 
 /**
  * Nota domains that should be excluded from generic embedding.
- * These are based on the centralized cloud constants and known Nota domains.
  */
-const NOTA_DOMAINS = [
-  'app.nota.pro', // Stable cloud domain
-  'insider.nota.pro', // Beta/internal cloud domain
-  'nota.fail', // Canary cloud domain
-  'apple.getnotaapp.com', // Cloud domain for Apple app
-];
+const NOTA_DOMAINS = ['thenota.app'];
 
 /**
  * Validates if a URL is suitable for generic iframe embedding

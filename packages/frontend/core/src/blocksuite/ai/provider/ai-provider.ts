@@ -1,5 +1,4 @@
 import type { EditorHost } from '@blocksuite/affine/std';
-import { captureException } from '@sentry/react';
 import { BehaviorSubject, Subject } from 'rxjs';
 
 import type { ChatContextValue } from '../components/ai-chat-content';
@@ -197,9 +196,7 @@ export class AIProvider {
       if (isTextStream(result)) {
         return {
           [Symbol.asyncIterator]: async function* () {
-            let user = null;
             try {
-              user = await AIProvider.userInfo;
               yield* result;
               slots.actions.next({
                 action: id,
@@ -236,23 +233,14 @@ export class AIProvider {
                   options,
                   event: 'aborted:server-error',
                 });
-                captureException(err, {
-                  user: { id: user?.id },
-                  extra: {
-                    action: id,
-                    session: AIProvider.LAST_ACTION_SESSIONID,
-                  },
-                });
               }
               throw err;
             }
           },
         };
       } else {
-        let user: any = null;
         return result
-          .then(async result => {
-            user = await AIProvider.userInfo;
+          .then(result => {
             slots.actions.next({
               action: id,
               options,
@@ -271,14 +259,6 @@ export class AIProvider {
                 action: id,
                 options,
                 event: 'aborted:paywall',
-              });
-            } else {
-              captureException(err, {
-                user: { id: user?.id },
-                extra: {
-                  action: id,
-                  session: AIProvider.LAST_ACTION_SESSIONID,
-                },
               });
             }
             throw err;

@@ -23,13 +23,15 @@ import { GlobalPageHistoryModal } from '@nota/core/components/affine/page-histor
 import { CommentSidebar } from '@nota/core/components/comment/sidebar';
 import { useGuard } from '@nota/core/components/guard';
 import { useAppSettingHelper } from '@nota/core/components/hooks/nota/use-app-setting-helper';
-import { useEnableAI } from '@nota/core/components/hooks/nota/use-enable-ai';
 import { useRegisterBlocksuiteEditorCommands } from '@nota/core/components/hooks/nota/use-register-blocksuite-editor-commands';
 import { useActiveBlocksuiteEditor } from '@nota/core/components/hooks/use-block-suite-editor';
 import { PageDetailEditor } from '@nota/core/components/page-detail-editor';
 import { WorkspacePropertySidebar } from '@nota/core/components/properties/sidebar';
 import { TrashPageFooter } from '@nota/core/components/pure/trash-page-footer';
-import { aiPanelSlot$ } from '@nota/core/components/root-app-sidebar/ai-panel-slot';
+import {
+  activeDocEditor$,
+  linkSidebarChat,
+} from '@nota/core/components/root-app-sidebar/ai-panel-slot';
 import { TopTip } from '@nota/core/components/top-tip';
 import { ServerService } from '@nota/core/modules/cloud';
 import { DocService } from '@nota/core/modules/doc';
@@ -63,7 +65,6 @@ import track from '@nota/track';
 import clsx from 'clsx';
 import { nanoid } from 'nanoid';
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { useParams } from 'react-router-dom';
 import type { Subscription } from 'rxjs';
 
@@ -73,7 +74,6 @@ import { DetailPageHeader } from './detail-page-header';
 import { DetailPageWrapper } from './detail-page-wrapper';
 import { EditorAdapterPanel } from './tabs/adapter';
 import { EditorAnalyticsPanel } from './tabs/analytics';
-import { EditorChatPanel } from './tabs/chat';
 import { EditorFramePanel } from './tabs/frame';
 import { EditorJournalPanel } from './tabs/journal';
 import { EditorOutlinePanel } from './tabs/outline';
@@ -102,12 +102,10 @@ const DetailPageImpl = memo(function DetailPageImpl() {
   const doc = docService.doc;
 
   const mode = useLiveData(editor.mode$);
-  const activeSidebarTab = useLiveData(view.activeSidebarTab$);
 
   const isInTrash = useLiveData(doc.meta$.map(meta => meta.trash));
   const editorContainer = useLiveData(editor.editorContainer$);
 
-  const aiPanelSlot = useLiveData(aiPanelSlot$);
   const { appSettings } = useAppSettingHelper();
 
   const peekView = useService(PeekViewService).peekView;
@@ -115,8 +113,6 @@ const DetailPageImpl = memo(function DetailPageImpl() {
   const isActiveView = useIsActiveView();
   // TODO(@eyhn): remove jotai here
   const [_, setActiveBlockSuiteEditor] = useActiveBlocksuiteEditor();
-
-  const enableAI = useEnableAI();
 
   const featureFlagService = useService(FeatureFlagService);
   const enableAdapterPanel = useLiveData(
@@ -141,13 +137,23 @@ const DetailPageImpl = memo(function DetailPageImpl() {
   }, [editorContainer, isActiveView, setActiveBlockSuiteEditor]);
 
   useEffect(() => {
+    if (!isActiveView || !editorContainer) return;
+    activeDocEditor$.next(editorContainer);
+    return () => {
+      if (activeDocEditor$.value === editorContainer) {
+        activeDocEditor$.next(null);
+      }
+    };
+  }, [editorContainer, isActiveView]);
+
+  useEffect(() => {
     const disposables: Subscription[] = [];
     const openHandler = (params: AIChatParams | null) => {
-      if (!params) {
+      if (!params || !isActiveView) {
         return;
       }
-      workbench.openSidebar();
-      view.activeSidebarTab('chat');
+      linkSidebarChat({ docId: doc.id });
+      workbench.openSidebar('chat');
     };
     disposables.push(
       AIProvider.slots.requestOpenWithChat.subscribe(openHandler)
@@ -156,7 +162,7 @@ const DetailPageImpl = memo(function DetailPageImpl() {
       AIProvider.slots.requestSendWithChat.subscribe(openHandler)
     );
     return () => disposables.forEach(d => d.unsubscribe());
-  }, [activeSidebarTab, view, workbench]);
+  }, [doc.id, isActiveView, workbench]);
 
   useEffect(() => {
     if (isActiveView) {
@@ -375,13 +381,6 @@ const DetailPageImpl = memo(function DetailPageImpl() {
           {isInTrash ? <TrashPageFooter /> : null}
         </div>
       </ViewBody>
-
-      {enableAI && isActiveView && aiPanelSlot
-        ? createPortal(
-            <EditorChatPanel editor={editorContainer} />,
-            aiPanelSlot
-          )
-        : null}
 
       <ViewSidebarTab tabId="properties" icon={<PropertyIcon />}>
         <Scrollable.Root className={styles.sidebarScrollArea}>
