@@ -296,6 +296,17 @@ describe('desktop STT release packaging', () => {
       expect.objectContaining({ platform: 'darwin', arch: 'arm64' }),
     ]);
     expect(jobs.release.needs).toContain('finalize-installer-windows');
+    // One failed platform must not block publishing the others.
+    expect(jobs.release.if).not.toContain(
+      "contains(needs.*.result, 'failure')"
+    );
+    for (const job of [
+      'make-distribution-macos',
+      'make-distribution-linux',
+      'finalize-installer-windows',
+    ]) {
+      expect(jobs.release.if).toContain(`needs.${job}.result == 'success'`);
+    }
     expect(
       jobs.release.steps
         ?.filter(step => step.uses?.startsWith('actions/download-artifact@'))
@@ -319,13 +330,21 @@ describe('desktop STT release packaging', () => {
         {
           platform: 'win32',
           arch: 'x64',
-          input: 'desktop_windows',
+          job: 'finalize-installer-windows',
           steps: release.jobs['finalize-installer-windows'].steps!,
         },
         ...(!windowsOnly
           ? [
-              { platform: 'darwin', arch: 'arm64', input: 'desktop_macos' },
-              { platform: 'linux', arch: 'x64', input: 'desktop_linux' },
+              {
+                platform: 'darwin',
+                arch: 'arm64',
+                job: 'make-distribution-macos',
+              },
+              {
+                platform: 'linux',
+                arch: 'x64',
+                job: 'make-distribution-linux',
+              },
             ].map(target => ({ ...target, steps: platform.jobs.build.steps! }))
           : []),
       ];
@@ -347,7 +366,7 @@ describe('desktop STT release packaging', () => {
           step => step.with?.name === expand(String(upload.with?.name))
         );
         expect(download).toMatchObject({
-          if: `\${{ inputs.${target.input} }}`,
+          if: `\${{ needs.${target.job}.result == 'success' }}`,
           with: { path: './release' },
         });
         const attestation = target.steps.find(
