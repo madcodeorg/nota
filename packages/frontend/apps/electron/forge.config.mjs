@@ -849,6 +849,9 @@ export default {
   buildIdentifier: buildType,
   packagerConfig: {
     name: productName,
+    // Copy the hoisted dependency junction into the package; recreating it as
+    // a symbolic link requires elevated privileges on Windows.
+    derefSymlinks: process.platform === 'win32' ? true : undefined,
     appBundleId: packagerAppBundleId,
     appCategoryType: 'public.app-category.productivity',
     icon: icnsPath,
@@ -900,6 +903,9 @@ export default {
       // directory prevents a second copy from being sealed inside app.asar.
       /^\/dist\/local-models($|\/)/,
       /^\/dist\/tsconfig\.tsbuildinfo$/,
+      // A cancelled NSIS build can leave installer artifacts in dist.
+      /^\/dist\/Nota.*\.(?:exe|7z|blockmap)$/,
+      /^\/dist\/(?:builder-debug|builder-effective-config|latest)\.yml$/,
       /\/README\.md$/,
       /\/forge\.config\.mjs$/,
       /\/dev-app-update\.yml$/,
@@ -1017,7 +1023,11 @@ export default {
           recursive: true,
           force: true,
         });
-        await symlink(rootNodeModulesDir, electronNodeModulesDir);
+        await symlink(
+          rootNodeModulesDir,
+          electronNodeModulesDir,
+          process.platform === 'win32' ? 'junction' : 'dir'
+        );
       }
     },
     generateAssets: async (_, platform, arch) => {

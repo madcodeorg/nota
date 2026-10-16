@@ -2,7 +2,6 @@ import { notify } from '@nota/component';
 import {
   ChangeEmailPage,
   ChangePasswordPage,
-  OnboardingPage,
   SetPasswordPage,
   SignInSuccessPage,
   SignUpPage,
@@ -29,7 +28,6 @@ import { ConfirmChangeEmail } from './confirm-change-email';
 import { ConfirmVerifiedEmail } from './email-verified-email';
 
 const authTypeSchema = z.enum([
-  'onboarding',
   'setPassword',
   'signIn',
   'changePassword',
@@ -105,10 +103,6 @@ export const Component = () => {
   }
 
   switch (authType) {
-    case 'onboarding':
-      return (
-        account && <OnboardingPage user={account} onOpenAffine={onOpenAffine} />
-      );
     case 'signUp': {
       return (
         account && (

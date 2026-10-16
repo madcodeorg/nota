@@ -20,7 +20,7 @@ function defineTest(
 }
 
 beforeEach(() => {
-  vi.stubGlobal('location', { origin: 'https://nota.pro' });
+  vi.stubGlobal('location', { origin: 'https://thenota.app' });
 });
 
 afterEach(() => {
@@ -38,17 +38,17 @@ const testCases: [string, ReturnType<typeof resolveLinkToDoc>][] = [
     },
   ],
   [
-    'https://nota.pro/workspace/48__RTCSwASvWZxyAk3Jw/-Uge-K6SYcAbcNYfQ5U-j?blockIds=xxxx',
+    'https://thenota.app/workspace/48__RTCSwASvWZxyAk3Jw/-Uge-K6SYcAbcNYfQ5U-j?blockIds=xxxx',
     {
       workspaceId: '48__RTCSwASvWZxyAk3Jw',
       docId: '-Uge-K6SYcAbcNYfQ5U-j',
       blockIds: ['xxxx'],
     },
   ],
-  ['https://nota.pro/workspace/48__RTCSwASvWZxyAk3Jw/all', null],
-  ['https://nota.pro/workspace/48__RTCSwASvWZxyAk3Jw/collection', null],
-  ['https://nota.pro/workspace/48__RTCSwASvWZxyAk3Jw/tag', null],
-  ['https://nota.pro/workspace/48__RTCSwASvWZxyAk3Jw/trash', null],
+  ['https://thenota.app/workspace/48__RTCSwASvWZxyAk3Jw/all', null],
+  ['https://thenota.app/workspace/48__RTCSwASvWZxyAk3Jw/collection', null],
+  ['https://thenota.app/workspace/48__RTCSwASvWZxyAk3Jw/tag', null],
+  ['https://thenota.app/workspace/48__RTCSwASvWZxyAk3Jw/trash', null],
   [
     'file//./workspace/48__RTCSwASvWZxyAk3Jw/-Uge-K6SYcAbcNYfQ5U-j?blockIds=xxxx',
     {
@@ -122,12 +122,8 @@ describe('resolveLinkToDoc in self-hosted', () => {
       },
     ],
     [
-      'https://nota.pro/workspace/48__RTCSwASvWZxyAk3Jw/-Uge-K6SYcAbcNYfQ5U-j?blockIds=xxxx',
-      {
-        workspaceId: '48__RTCSwASvWZxyAk3Jw',
-        docId: '-Uge-K6SYcAbcNYfQ5U-j',
-        blockIds: ['xxxx'],
-      },
+      'https://thenota.app/workspace/48__RTCSwASvWZxyAk3Jw/-Uge-K6SYcAbcNYfQ5U-j?blockIds=xxxx',
+      null,
     ],
     [
       'https://local.first/workspace/48__RTCSwASvWZxyAk3Jw/-Uge-K6SYcAbcNYfQ5U-j?blockIds=xxxx',

@@ -1,8 +1,11 @@
 import { generateText, type ModelMessage, Output } from 'ai';
 import type { z } from 'zod';
 
+import { getChatGPTAuth } from './chatgpt-auth';
 import type { AiBackendConfig } from './config';
+import { isOpenAICompatibleProvider } from './config';
 import { assertLocalOnnxTextReady } from './local-onnx';
+import { providerConfigurationError } from './native-providers';
 import type { ModelSelection } from './providers';
 
 function errorMessage(error: unknown) {
@@ -13,6 +16,18 @@ export async function assertBackendTextModelAvailable(
   config: AiBackendConfig,
   selected: ModelSelection
 ) {
+  if (selected.provider === 'chatgpt') {
+    const status = getChatGPTAuth(config).status();
+    if (!status.connected || !status.planEnabled)
+      throw new Error('Connect an eligible ChatGPT account in AI Settings.');
+  }
+  if (isOpenAICompatibleProvider(selected.provider)) {
+    const error = providerConfigurationError(
+      selected.provider,
+      config.compatibleProviders[selected.provider]
+    );
+    if (error) throw new Error(`${selected.provider}: ${error}`);
+  }
   if (selected.provider === 'openai' && !config.openaiApiKey) {
     throw new Error('OpenAI is selected, but OPENAI_API_KEY is missing.');
   }

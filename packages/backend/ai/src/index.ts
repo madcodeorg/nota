@@ -54,6 +54,7 @@ async function start() {
       // Stop accepting new work, but leave current requests connected while
       // meeting queues, STT tails, search content, and session state persist.
       server.close();
+      getChatGPTAuth(config).cancelSignIn();
       await finalizeMeetingsBeforeShutdown(config);
       server.closeAllConnections?.();
       parentPort.postMessage({ type: 'nota-ai-backend-shutdown-complete' });
@@ -70,3 +71,4 @@ void start().catch(error => {
   console.error('[ai-backend] failed to start', error);
   process.exitCode = 1;
 });
+import { getChatGPTAuth } from './chatgpt-auth';

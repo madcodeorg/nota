@@ -17,6 +17,7 @@ import {
   type AIModelService,
   supportsAIModelImageAttachments,
 } from '@nota/core/modules/ai-button/services/models';
+import type { WorkspaceDialogService } from '@nota/core/modules/dialogs';
 import type { FeatureFlagService } from '@nota/core/modules/feature-flag';
 import type { CopilotChatHistoryFragment } from '@nota/graphql';
 import { effect } from '@preact/signals-core';
@@ -29,15 +30,11 @@ import { ChatAbortIcon } from '../../_common/icons';
 import { type AIError, AIProvider, type AISendParams } from '../../provider';
 import { reportResponse } from '../../utils/action-reporter';
 import { readBlobAsURL } from '../../utils/image';
-import { mergeStreamObjects } from '../../utils/stream-objects';
+import { appendStreamChunk } from '../../utils/stream-objects';
 import type { SearchMenuConfig } from '../ai-chat-add-context';
 import type { ChatChip, DocDisplayConfig } from '../ai-chat-chips/type';
 import { isDocChip } from '../ai-chat-chips/utils';
-import {
-  type ChatMessage,
-  isChatMessage,
-  StreamObjectSchema,
-} from '../ai-chat-messages';
+import { type ChatMessage, isChatMessage } from '../ai-chat-messages';
 import { type AIChatInputContext, type AIReasoningConfig } from './type';
 
 function getFirstTwoLines(text: string) {
@@ -382,6 +379,9 @@ export class AIChatInput extends SignalWatcher(
   accessor notificationService!: NotificationService;
 
   @property({ attribute: false })
+  accessor affineWorkspaceDialogService: WorkspaceDialogService | undefined;
+
+  @property({ attribute: false })
   accessor aiModelService!: AIModelService;
 
   @property({ attribute: false })
@@ -398,10 +398,6 @@ export class AIChatInput extends SignalWatcher(
 
   @property({ attribute: false })
   accessor portalContainer: HTMLElement | null = null;
-
-  private get _isReasoningActive() {
-    return this._reasoningLevel !== 'none';
-  }
 
   private get _reasoningLevel() {
     return reasoningLevelFromConfig(this.reasoningConfig);
@@ -562,11 +558,11 @@ export class AIChatInput extends SignalWatcher(
         <div class="chat-input-footer-spacer"></div>
         <chat-input-preference
           .session=${this.session}
-          .extendedThinking=${this._isReasoningActive}
           .reasoningLevel=${this._reasoningLevel}
           .onReasoningLevelChange=${this._setReasoningLevel}
           .toolsConfigService=${this.aiToolsConfigService}
           .aiModelService=${this.aiModelService}
+          .affineWorkspaceDialogService=${this.affineWorkspaceDialogService}
         ></chat-input-preference>
         ${status === 'transmitting' || status === 'loading'
           ? html`<button
@@ -678,7 +674,9 @@ export class AIChatInput extends SignalWatcher(
     reportResponse('aborted:stop');
   };
 
-  private readonly _setReasoningLevel = (level: AIReasoningLevel) => {
+  private readonly _setReasoningLevel = (
+    level: AIReasoningLevel | undefined
+  ) => {
     setReasoningLevelOnConfig(this.reasoningConfig, level);
   };
 
@@ -788,22 +786,10 @@ export class AIChatInput extends SignalWatcher(
         const messages = this.chatContextValue.messages.slice(0);
         const last = messages.at(-1);
         if (last && isChatMessage(last)) {
-          try {
-            const parsed = StreamObjectSchema.parse(JSON.parse(text));
-            const streamObjects = mergeStreamObjects([
-              ...(last.streamObjects ?? []),
-              parsed,
-            ]);
-            messages[messages.length - 1] = {
-              ...last,
-              streamObjects,
-            };
-          } catch {
-            messages[messages.length - 1] = {
-              ...last,
-              content: last.content + text,
-            };
-          }
+          messages[messages.length - 1] = {
+            ...last,
+            ...appendStreamChunk(last, text),
+          };
           this.updateContext({ messages, status: 'transmitting' });
         }
       }

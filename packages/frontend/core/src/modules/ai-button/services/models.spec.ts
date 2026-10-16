@@ -1,10 +1,12 @@
 import { describe, expect, test } from 'vitest';
 
 import {
+  groupAIModelsByProvider,
   mergeAIModelCatalog,
   migrateAIModelId,
   monitorLocalModelDownload,
   readAIModelCatalogMetadata,
+  resolveAIModelId,
   supportsAIModelImageAttachments,
 } from './models';
 
@@ -32,6 +34,37 @@ describe('migrateAIModelId', () => {
         'custom:shared-model',
       ])
     ).toBeNull();
+  });
+
+  test.each([
+    'chatgpt',
+    'alibaba',
+    'baseten',
+    'cerebras',
+    'cohere',
+    'deepinfra',
+    'fireworks',
+    'huggingface',
+    'minimax',
+    'moonshotai',
+    'togetherai',
+    'zai',
+    'ai-gateway',
+    'open-responses',
+    'azure',
+    'amazon-bedrock',
+    'google-vertex',
+    'google-vertex-anthropic',
+    'google-vertex-maas',
+    'google-vertex-xai',
+    'anthropic-aws',
+  ])('does not migrate a missing %s model to another provider', provider => {
+    expect(
+      migrateAIModelId(`${provider}:shared`, [`custom:${provider}:shared`])
+    ).toBeNull();
+    expect(migrateAIModelId(`${provider}:shared`, [`${provider}:shared`])).toBe(
+      `${provider}:shared`
+    );
   });
 
   test('does not silently move a missing qualified provider selection', () => {
@@ -131,6 +164,44 @@ describe('AI model catalog metadata', () => {
         reasoningLevels: ['none', 'low', 'high'],
         selectable: true,
       }),
+    ]);
+  });
+
+  test('sends the shown fallback model when the backend has no default', () => {
+    const models = mergeAIModelCatalog(
+      [
+        { id: 'chatgpt:gpt-5.4', name: 'ChatGPT gpt-5.4' },
+        { id: 'openai:gpt-5-mini', name: 'OpenAI gpt-5-mini' },
+      ],
+      ''
+    );
+
+    expect(resolveAIModelId(models, undefined)).toBe('chatgpt:gpt-5.4');
+    expect(resolveAIModelId(models, 'local:missing')).toBe('chatgpt:gpt-5.4');
+    expect(resolveAIModelId(models, 'openai:gpt-5-mini')).toBe(
+      'openai:gpt-5-mini'
+    );
+    expect(resolveAIModelId([], undefined)).toBeUndefined();
+  });
+
+  test('groups models by provider in catalog order', () => {
+    const models = mergeAIModelCatalog(
+      [
+        { id: 'chatgpt:gpt-6-sol', name: 'ChatGPT gpt-6-sol' },
+        { id: 'openai:gpt-5-mini', name: 'OpenAI gpt-5-mini' },
+        { id: 'chatgpt:gpt-6-luna', name: 'ChatGPT gpt-6-luna' },
+      ],
+      ''
+    );
+
+    expect(
+      groupAIModelsByProvider(models).map(group => ({
+        provider: group.provider,
+        ids: group.models.map(model => model.id),
+      }))
+    ).toEqual([
+      { provider: 'ChatGPT', ids: ['chatgpt:gpt-6-sol', 'chatgpt:gpt-6-luna'] },
+      { provider: 'OpenAI', ids: ['openai:gpt-5-mini'] },
     ]);
   });
 

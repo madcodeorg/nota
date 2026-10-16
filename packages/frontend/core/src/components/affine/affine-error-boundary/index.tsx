@@ -1,6 +1,9 @@
-import { ErrorBoundary, type FallbackRender } from '@sentry/react';
-import type { FC, PropsWithChildren } from 'react';
+import type { ErrorInfo, FC, PropsWithChildren } from 'react';
 import { useCallback } from 'react';
+import {
+  ErrorBoundary,
+  type FallbackProps as ErrorBoundaryFallbackProps,
+} from 'react-error-boundary';
 
 import { AffineErrorFallback } from './affine-error-fallback';
 
@@ -15,11 +18,12 @@ export interface AffineErrorBoundaryProps extends PropsWithChildren {
  * TODO(@eyhn): Unify with SWRErrorBoundary
  */
 export const AffineErrorBoundary: FC<AffineErrorBoundaryProps> = props => {
-  const fallbackRender: FallbackRender = useCallback(
-    fallbackProps => {
+  const fallbackRender = useCallback(
+    ({ error, resetErrorBoundary }: ErrorBoundaryFallbackProps) => {
       return (
         <AffineErrorFallback
-          {...fallbackProps}
+          error={error}
+          resetError={resetErrorBoundary}
           height={props.height}
           className={props.className}
         />
@@ -28,12 +32,12 @@ export const AffineErrorBoundary: FC<AffineErrorBoundaryProps> = props => {
     [props.height, props.className]
   );
 
-  const onError = useCallback((error: unknown, componentStack?: string) => {
-    console.error('Uncaught error:', error, componentStack);
+  const onError = useCallback((error: unknown, info: ErrorInfo) => {
+    console.error('Uncaught error:', error, info.componentStack);
   }, []);
 
   return (
-    <ErrorBoundary fallback={fallbackRender} onError={onError}>
+    <ErrorBoundary fallbackRender={fallbackRender} onError={onError}>
       {props.children}
     </ErrorBoundary>
   );

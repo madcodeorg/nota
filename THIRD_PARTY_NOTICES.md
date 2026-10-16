@@ -55,7 +55,7 @@ Models have separate licenses. The table records current catalog declarations an
 
 - `y-provider` (0.10.0-canary.9) is a small Yjs provider helper published to npm by an AFFiNE/BlockSuite maintainer. The npm package declares no license field. It appears to originate from the MIT-licensed AFFiNE monorepo, but this is inferred, not declared by the package.
 - `@img/sharp-libvips` is LGPL-3.0-or-later and is used as a dynamically linked library.
-- `@sentry/cli` (FSL-1.1-MIT) and `eslint-plugin-sonarjs` (LGPL-3.0-only) are development-only tools and are not shipped in installers.
+- `eslint-plugin-sonarjs` (LGPL-3.0-only) is a development-only tool and is not shipped in installers.
 - Run a license scan of the packaged dependency set before each release. Full per-package license text for npm dependencies is available from each package and the lockfile.
 
 ## Distribution requirements

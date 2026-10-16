@@ -5,13 +5,14 @@ import { unsafeCSSVarV2 } from '@blocksuite/affine/shared/theme';
 import { ShadowlessElement } from '@blocksuite/affine/std';
 import {
   ArrowDownSmallIcon,
+  OpenInNewIcon,
   PinedIcon,
   PinIcon,
   PlusIcon,
 } from '@blocksuite/icons/lit';
 import { flip, offset } from '@floating-ui/dom';
 import type { CopilotChatHistoryFragment } from '@nota/graphql';
-import { css, html } from 'lit';
+import { css, html, nothing } from 'lit';
 import { property, query } from 'lit/decorators.js';
 
 import type { DocDisplayConfig } from '../ai-chat-chips';
@@ -46,6 +47,12 @@ export class AIChatToolbar extends WithDisposable(ShadowlessElement) {
   accessor onSessionDelete!: (
     session: BlockSuitePresets.AIRecentSession
   ) => void;
+
+  @property({ attribute: false })
+  accessor onOpenExpanded: (() => void) | undefined;
+
+  @property({ attribute: false })
+  accessor onOpenCompact: (() => void) | undefined;
 
   @property({ attribute: false })
   accessor docDisplayConfig!: DocDisplayConfig;
@@ -124,6 +131,26 @@ export class AIChatToolbar extends WithDisposable(ShadowlessElement) {
           ${ArrowDownSmallIcon()}
           <affine-tooltip>Chat History</affine-tooltip>
         </div>
+        ${this.onOpenExpanded
+          ? html`<div
+              class="chat-toolbar-icon"
+              @click=${this.onOpenExpanded}
+              data-testid="ai-panel-expand-chat"
+            >
+              ${OpenInNewIcon()}
+              <affine-tooltip>Open expanded chat</affine-tooltip>
+            </div>`
+          : nothing}
+        ${this.onOpenCompact
+          ? html`<div
+              class="chat-toolbar-icon"
+              @click=${this.onOpenCompact}
+              data-testid="ai-panel-open-note-chat"
+            >
+              ${OpenInNewIcon()}
+              <affine-tooltip>Open in note</affine-tooltip>
+            </div>`
+          : nothing}
       </div>
     `;
   }

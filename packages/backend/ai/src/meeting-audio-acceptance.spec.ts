@@ -4,7 +4,7 @@ import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { pathToFileURL } from 'node:url';
 
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
@@ -174,12 +174,12 @@ function stop(id: string) {
 
 async function startChild() {
   const require = createRequire(import.meta.url);
-  const serverPath = fileURLToPath(new URL('./server.ts', import.meta.url));
+  const serverPath = new URL('./server.ts', import.meta.url).href;
   const child = spawn(
     process.execPath,
     [
       '--import',
-      require.resolve('tsx'),
+      pathToFileURL(require.resolve('tsx')).href,
       '--input-type=module',
       '--eval',
       `import { createServer } from ${JSON.stringify(serverPath)};

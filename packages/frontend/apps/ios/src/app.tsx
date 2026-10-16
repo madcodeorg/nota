@@ -26,7 +26,6 @@ import {
   ServerService,
   ServersService,
   SubscriptionService,
-  ValidatorProvider,
 } from '@nota/core/modules/cloud';
 import { DocsService } from '@nota/core/modules/doc';
 import { FeatureFlagService } from '@nota/core/modules/feature-flag';
@@ -68,7 +67,6 @@ import { RouterProvider } from 'react-router-dom';
 import { BlocksuiteMenuConfigProvider } from './bs-menu-config';
 import { ModalConfigProvider } from './modal-config';
 import { Auth } from './plugins/auth';
-import { Hashcash } from './plugins/hashcash';
 import { NbStoreNativeDBApis } from './plugins/nbstore';
 import { PayWall } from './plugins/paywall';
 import { writeEndpointToken } from './proxy';
@@ -112,12 +110,6 @@ framework.impl(PopupWindowProvider, {
 framework.impl(ClientSchemeProvider, {
   getClientScheme() {
     return 'nota';
-  },
-});
-framework.impl(ValidatorProvider, {
-  async validate(_challenge, resource) {
-    const res = await Hashcash.hash({ challenge: resource });
-    return res.value;
   },
 });
 framework.impl(VirtualKeyboardProvider, {

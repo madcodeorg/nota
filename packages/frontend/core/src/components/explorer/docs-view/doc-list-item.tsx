@@ -7,8 +7,10 @@ import {
 } from '@nota/component';
 import { DocsService } from '@nota/core/modules/doc';
 import { DocDisplayMetaService } from '@nota/core/modules/doc-display-meta';
+import { ExplorerIconService } from '@nota/core/modules/explorer-icon/services/explorer-icon';
 import { WorkbenchLink } from '@nota/core/modules/workbench';
 import type { AffineDNDData } from '@nota/core/types/dnd';
+import { isArtwork } from '@nota/core/utils/met-artwork';
 import { useI18n } from '@nota/i18n';
 import { useLiveData, useService } from '@nota/infra';
 import track from '@nota/track';
@@ -24,6 +26,7 @@ import {
   type ReactNode,
   useCallback,
   useContext,
+  useState,
 } from 'react';
 
 import { PagePreview } from '../../page-list/page-content-preview';
@@ -277,6 +280,47 @@ const DocIcon = memo(function DocIcon({
     </div>
   );
 });
+// A custom icon wins over the cover art, since the user picked it explicitly.
+const DocListThumb = memo(function DocListThumb({ id }: { id: string }) {
+  const contextValue = useContext(DocExplorerContext);
+  const showDocIcon = useLiveData(contextValue.showDocIcon$);
+  const docsService = useService(DocsService);
+  const explorerIconService = useService(ExplorerIconService);
+  const record = useLiveData(docsService.list.doc$(id));
+  const properties = useLiveData(record?.properties$);
+  const customIcon = useLiveData(explorerIconService.icon$('doc', id))?.icon;
+  const [brokenImageUrl, setBrokenImageUrl] = useState<string | null>(null);
+
+  if (!showDocIcon) {
+    return null;
+  }
+
+  const artwork =
+    !customIcon &&
+    !properties?.coverHidden &&
+    isArtwork(properties?.coverArtwork) &&
+    properties.coverArtwork.imageUrl !== brokenImageUrl
+      ? properties.coverArtwork
+      : null;
+
+  return (
+    <div className={styles.listThumb}>
+      {artwork ? (
+        <img
+          alt=""
+          className={styles.listThumbImage}
+          decoding="async"
+          loading="lazy"
+          onError={() => setBrokenImageUrl(artwork.imageUrl)}
+          referrerPolicy="no-referrer"
+          src={artwork.imageUrl}
+        />
+      ) : (
+        <RawDocIcon id={id} />
+      )}
+    </div>
+  );
+});
 const DocTitle = memo(function DocTitle({
   id,
   ...props
@@ -331,7 +375,7 @@ export const ListViewDoc = ({ docId }: DocListItemProps) => {
       <li className={styles.listViewRoot}>
         <DragHandle id={docId} className={styles.listDragHandle} />
         <Select id={docId} className={styles.listSelect} />
-        <DocIcon id={docId} className={styles.listIcon} />
+        <DocListThumb id={docId} />
         <div className={styles.listBrief}>
           <DocTitle
             id={docId}

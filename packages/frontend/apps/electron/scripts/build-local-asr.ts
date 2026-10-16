@@ -1,6 +1,7 @@
 import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
@@ -12,11 +13,18 @@ const electronDir = fileURLToPath(new URL('..', import.meta.url));
 const sourceDir = path.join(electronDir, 'native/local-asr-helper');
 const targetArch = process.env.NOTA_ELECTRON_TARGET_ARCH ?? makeArch;
 const targetPlatform = process.platform;
-const buildDir = path.join(
-  sourceDir,
-  '.build',
-  `${targetPlatform}-${targetArch}`
-);
+// MSBuild still imposes MAX_PATH on intermediate files, even when Git can
+// check out long paths. Keep Windows builds outside the deeply nested source.
+const buildRoot =
+  process.env.NOTA_LOCAL_ASR_BUILD_ROOT ??
+  (targetPlatform === 'win32'
+    ? path.join(
+        os.tmpdir(),
+        'nota-asr',
+        createHash('sha256').update(sourceDir).digest('hex').slice(0, 12)
+      )
+    : path.join(sourceDir, '.build'));
+const buildDir = path.join(buildRoot, `${targetPlatform}-${targetArch}`);
 const resourceDir = path.join(electronDir, 'resources/native');
 const whisperCommit = '60c0be6ac8fa71b1a2ae2dd938a31a34a508e774';
 // llama.cpp serves chat and meeting summaries on the GPU (Metal on macOS,
@@ -51,13 +59,29 @@ async function cloneAt(url: string, source: string, commit: string) {
   } catch {
     await run(
       'git',
-      ['clone', '--no-checkout', '--filter=blob:none', url, source],
+      [
+        '-c',
+        'core.longpaths=true',
+        'clone',
+        '--no-checkout',
+        '--filter=blob:none',
+        url,
+        source,
+      ],
       {
         maxBuffer: 16 * 1024 * 1024,
       }
     );
   }
-  await run('git', ['-C', source, 'checkout', '--detach', commit]);
+  await run('git', [
+    '-c',
+    'core.longpaths=true',
+    '-C',
+    source,
+    'checkout',
+    '--detach',
+    commit,
+  ]);
 }
 
 async function buildLlamaServer(cmake: string) {
@@ -94,7 +118,7 @@ async function buildLlamaServer(cmake: string) {
   }
   const vulkan =
     process.env.NOTA_LLAMA_VULKAN ?? (targetPlatform === 'win32' ? '1' : '0');
-  if (vulkan === '1') args.push('-DGGML_VULKAN=ON');
+  args.push(`-DGGML_VULKAN=${vulkan === '1' ? 'ON' : 'OFF'}`);
   await run(cmake, args, { maxBuffer: 16 * 1024 * 1024 });
   await run(
     cmake,
@@ -136,28 +160,11 @@ export async function buildLocalAsr() {
   await fs.mkdir(buildDir, { recursive: true });
   await fs.mkdir(resourceDir, { recursive: true });
   const whisperSource = path.join(buildDir, 'whisper.cpp');
-  try {
-    await fs.access(path.join(whisperSource, 'CMakeLists.txt'));
-  } catch {
-    await run(
-      'git',
-      [
-        'clone',
-        '--no-checkout',
-        '--filter=blob:none',
-        'https://github.com/ggml-org/whisper.cpp.git',
-        whisperSource,
-      ],
-      { maxBuffer: 16 * 1024 * 1024 }
-    );
-  }
-  await run('git', [
-    '-C',
+  await cloneAt(
+    'https://github.com/ggml-org/whisper.cpp.git',
     whisperSource,
-    'checkout',
-    '--detach',
-    whisperCommit,
-  ]);
+    whisperCommit
+  );
   const cmakeArgs = [
     '-S',
     sourceDir,
@@ -170,7 +177,7 @@ export async function buildLocalAsr() {
   // binary); macOS uses Metal via CMakeLists. Linux opts in explicitly.
   const vulkan =
     process.env.NOTA_WHISPER_VULKAN ?? (targetPlatform === 'win32' ? '1' : '0');
-  if (vulkan === '1') cmakeArgs.push('-DNOTA_WHISPER_VULKAN=ON');
+  cmakeArgs.push(`-DNOTA_WHISPER_VULKAN=${vulkan === '1' ? 'ON' : 'OFF'}`);
   if (targetPlatform === 'darwin')
     cmakeArgs.push(
       `-DCMAKE_OSX_ARCHITECTURES=${targetArch === 'x64' ? 'x86_64' : 'arm64'}`

@@ -1,4 +1,4 @@
-# If you would like to crawl a Nota public workspace, contact us via support@nota.pro
+# Nota has no hosted public workspaces.
 
 User-agent: *
 Allow: /

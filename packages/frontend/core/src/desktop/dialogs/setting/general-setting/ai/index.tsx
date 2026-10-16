@@ -14,6 +14,7 @@ import { SettingHeader, SettingRow } from '@nota/component/setting-components';
 import { AIModelService } from '@nota/core/modules/ai-button/services/models';
 import { ServerService } from '@nota/core/modules/cloud';
 import { FeatureFlagService } from '@nota/core/modules/feature-flag';
+import { UrlService } from '@nota/core/modules/url';
 import { useLiveData, useServices } from '@nota/infra';
 import clsx from 'clsx';
 import {
@@ -25,6 +26,8 @@ import {
   useState,
 } from 'react';
 
+import { AzureApiFormat, type AzureApiMode } from './azure-api-format';
+import { ChatGPTConnection, type ChatGPTStatus } from './chatgpt-connection';
 import {
   canDownloadLocalModel,
   isListedLocalModel,
@@ -34,9 +37,17 @@ import {
   localTextModelSelectionState,
 } from './local-model-selection';
 import { LocalModelList, localModelName } from './model-list';
+import type { DiscoveredModel } from './provider-model-discovery';
+import { ProviderModelDiscovery } from './provider-model-discovery';
+import { isADCOnlyProvider, SDK_PROVIDER_PRESETS } from './provider-presets';
 import * as styles from './style.css';
 
-type BuiltInProviderName = 'local' | 'openai' | 'anthropic' | 'google';
+type BuiltInProviderName =
+  | 'local'
+  | 'openai'
+  | 'anthropic'
+  | 'google'
+  | 'chatgpt';
 const openAICompatibleProviderNames = [
   'openrouter',
   'deepseek',
@@ -45,15 +56,24 @@ const openAICompatibleProviderNames = [
   'groq',
   'perplexity',
   'custom',
+  ...(Object.keys(SDK_PROVIDER_PRESETS) as Array<
+    keyof typeof SDK_PROVIDER_PRESETS
+  >),
 ] as const;
 type OpenAICompatibleProviderName =
   (typeof openAICompatibleProviderNames)[number];
 type ProviderName = BuiltInProviderName | OpenAICompatibleProviderName;
-type DirectApiProviderName = Exclude<BuiltInProviderName, 'local'>;
+type DirectApiProviderName = Exclude<BuiltInProviderName, 'local' | 'chatgpt'>;
 type ImageProviderName = 'local' | 'openai' | 'google';
 type EmbeddingMode = 'auto' | 'fallback' | 'semantic';
 type CompatibleProviderSettings = {
   baseUrl: string;
+  region?: string;
+  project?: string;
+  location?: string;
+  resourceName?: string;
+  workspaceId?: string;
+  apiMode?: AzureApiMode;
   hasKey?: boolean;
   model: string;
 };
@@ -100,6 +120,7 @@ type AIBackendSettings = {
   openaiModel: string;
   anthropicModel: string;
   googleModel: string;
+  chatgptModel: string;
   compatibleProviders: Record<
     OpenAICompatibleProviderName,
     CompatibleProviderSettings
@@ -215,6 +236,13 @@ const providerLabels: Record<ProviderName, string> = {
   openai: 'OpenAI',
   anthropic: 'Anthropic',
   google: 'Google',
+  chatgpt: 'ChatGPT plan',
+  ...(Object.fromEntries(
+    Object.entries(SDK_PROVIDER_PRESETS).map(([id, preset]) => [
+      id,
+      preset.label,
+    ])
+  ) as Record<keyof typeof SDK_PROVIDER_PRESETS, string>),
   openrouter: 'OpenRouter',
   deepseek: 'DeepSeek',
   xai: 'xAI',
@@ -262,6 +290,12 @@ const fallbackCompatibleProviders: Record<
     baseUrl: '',
     model: '',
   },
+  ...(Object.fromEntries(
+    Object.entries(SDK_PROVIDER_PRESETS).map(([id, preset]) => [
+      id,
+      { baseUrl: preset.baseUrl, model: preset.model },
+    ])
+  ) as Record<keyof typeof SDK_PROVIDER_PRESETS, CompatibleProviderSettings>),
 };
 
 const imageProviderLabels: Record<ImageProviderName, string> = {
@@ -296,6 +330,7 @@ const fallbackSettings: AIBackendSettings = {
     'openai',
     'anthropic',
     'google',
+    'chatgpt',
     ...openAICompatibleProviderNames,
   ],
   localBaseUrl: 'http://localhost:11434/v1',
@@ -303,6 +338,7 @@ const fallbackSettings: AIBackendSettings = {
   openaiModel: 'gpt-5-mini',
   anthropicModel: 'claude-sonnet-4-5-20250929',
   googleModel: 'gemini-2.5-flash',
+  chatgptModel: '',
   compatibleProviders: fallbackCompatibleProviders,
   imageProvider: 'openai',
   openaiImageModel: 'gpt-image-1-mini',
@@ -335,6 +371,10 @@ const fallbackSettings: AIBackendSettings = {
     openai: false,
     anthropic: false,
     google: false,
+    chatgpt: false,
+    ...(Object.fromEntries(
+      Object.keys(SDK_PROVIDER_PRESETS).map(id => [id, false])
+    ) as Record<keyof typeof SDK_PROVIDER_PRESETS, boolean>),
     openrouter: false,
     deepseek: false,
     xai: false,
@@ -391,6 +431,8 @@ function modelFieldForProvider(provider: BuiltInProviderName) {
       return 'googleModel';
     case 'openai':
       return 'openaiModel';
+    case 'chatgpt':
+      return 'chatgptModel';
     case 'local':
       return 'localModel';
   }
@@ -452,17 +494,23 @@ export const AISettingsPanel = ({
   scope?: 'all' | 'embeddings';
 } = {}) => {
   const embeddingOnly = scope === 'embeddings';
-  const { aIModelService, featureFlagService, serverService } = useServices({
-    AIModelService,
-    FeatureFlagService,
-    ServerService,
-  });
+  const { aIModelService, featureFlagService, serverService, urlService } =
+    useServices({
+      AIModelService,
+      FeatureFlagService,
+      ServerService,
+      UrlService,
+    });
   const aiModelService = aIModelService;
   const serverFeatures = useLiveData(serverService.server.features$);
   const enableAI = useLiveData(featureFlagService.flags.enable_ai.$);
   const [settings, setSettings] = useState<AIBackendSettings>(fallbackSettings);
   const [provider, setProvider] = useState<ProviderName>('local');
   const [model, setModel] = useState(fallbackSettings.model);
+  const [chatGPTStatus, setChatGPTStatus] = useState<ChatGPTStatus | null>(
+    null
+  );
+  const [chatGPTCatalog, setChatGPTCatalog] = useState<DiscoveredModel[]>([]);
   const [imageProvider, setImageProvider] = useState<ImageProviderName>(
     fallbackSettings.imageProvider
   );
@@ -519,6 +567,8 @@ export const AISettingsPanel = ({
   );
   const [mcpEnabled, setMcpEnabled] = useState(fallbackSettings.mcp.enabled);
   const [mcpConfig, setMcpConfig] = useState(fallbackSettings.mcp.config);
+  const [activeTab, setActiveTab] = useState('models');
+  const [localLibraryOpen, setLocalLibraryOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [downloadingModelId, setDownloadingModelId] = useState<string | null>(
@@ -528,6 +578,9 @@ export const AISettingsPanel = ({
   const [backendError, setBackendError] = useState<string | null>(null);
   const [modelActionError, setModelActionError] = useState<string | null>(null);
   const [healthError, setHealthError] = useState<string | null>(null);
+  const [modelActionErrorScope, setModelActionErrorScope] = useState<
+    'local' | 'settings'
+  >('settings');
   const requestRef = useRef(0);
   const healthRequestRef = useRef(0);
   const modelActionRef = useRef(false);
@@ -671,6 +724,18 @@ export const AISettingsPanel = ({
     !customLocalModel &&
     (provider !== settings.provider || model !== settings.model) &&
     (!selectedLocalModelState || !selectedLocalModelState.selectable);
+  const chatGPTCanChooseModel =
+    !!chatGPTStatus?.connected &&
+    chatGPTStatus.planEnabled &&
+    !chatGPTStatus.pending &&
+    chatGPTCatalog.length > 0;
+  const selectedChatGPTModel = chatGPTCatalog.find(
+    item => item.id === model.trim()
+  );
+  const chatGPTSelectionInvalid =
+    !embeddingOnly &&
+    provider === 'chatgpt' &&
+    (!chatGPTCanChooseModel || !selectedChatGPTModel);
   const localModelMenuLabel = customLocalModel
     ? 'Local endpoint'
     : selectedLocalModel
@@ -712,6 +777,7 @@ export const AISettingsPanel = ({
   const onProviderChange = useCallback(
     (nextProvider: ProviderName) => {
       if (controlsDisabled || saveRef.current) return;
+      setModelActionError(null);
       setProvider(nextProvider);
       const nextModel = isOpenAICompatibleProvider(nextProvider)
         ? compatibleProviderDrafts[nextProvider].model
@@ -958,6 +1024,7 @@ export const AISettingsPanel = ({
       )
         return;
       modelActionRef.current = true;
+      setModelActionErrorScope('local');
       setDownloadingModelId(modelId);
       setModelActionError(null);
       try {
@@ -1022,6 +1089,7 @@ export const AISettingsPanel = ({
       )
         return;
       modelActionRef.current = true;
+      setModelActionErrorScope('local');
       setProbingModelId(modelId);
       setModelActionError(null);
       try {
@@ -1086,6 +1154,7 @@ export const AISettingsPanel = ({
     if (saveRef.current || controlsDisabled || modelActionRef.current) return;
     saveRef.current = true;
     setSaving(true);
+    setModelActionErrorScope('settings');
     setModelActionError(null);
     try {
       if (localTextModelSelectionInvalid) {
@@ -1096,6 +1165,18 @@ export const AISettingsPanel = ({
       }
       if (!embeddingOnly && !model.trim()) {
         throw new Error('Enter a model ID before saving.');
+      }
+      if (
+        !embeddingOnly &&
+        provider === 'chatgpt' &&
+        (!chatGPTStatus?.connected ||
+          !chatGPTStatus.planEnabled ||
+          chatGPTStatus.pending ||
+          !chatGPTCatalog.some(item => item.id === model.trim()))
+      ) {
+        throw new Error(
+          'Connect an eligible ChatGPT account and choose a model from its catalog before saving.'
+        );
       }
       if (
         !embeddingOnly &&
@@ -1123,11 +1204,23 @@ export const AISettingsPanel = ({
         ? {
             compatibleProviders: {
               [provider]: {
-                apiKey: compatibleProviderDrafts[provider].apiKey.trim()
-                  ? compatibleProviderDrafts[provider].apiKey.trim()
-                  : undefined,
+                apiKey:
+                  !isADCOnlyProvider(provider) &&
+                  compatibleProviderDrafts[provider].apiKey.trim()
+                    ? compatibleProviderDrafts[provider].apiKey.trim()
+                    : undefined,
                 baseUrl: compatibleProviderDrafts[provider].baseUrl.trim(),
                 model: model.trim(),
+                region: compatibleProviderDrafts[provider].region,
+                project: compatibleProviderDrafts[provider].project,
+                location: compatibleProviderDrafts[provider].location,
+                resourceName: compatibleProviderDrafts[provider].resourceName,
+                workspaceId: compatibleProviderDrafts[provider].workspaceId,
+                apiMode:
+                  provider === 'azure'
+                    ? (compatibleProviderDrafts[provider].apiMode ??
+                      'responses')
+                    : undefined,
               },
             },
           }
@@ -1192,6 +1285,8 @@ export const AISettingsPanel = ({
     }
   }, [
     apiKeyDrafts,
+    chatGPTCatalog,
+    chatGPTStatus,
     compatibleProviderDrafts,
     controlsDisabled,
     customLocalModel,
@@ -1233,24 +1328,58 @@ export const AISettingsPanel = ({
       : (selectedEmbeddingModel?.deviceFitReason ??
         selectedEmbeddingModel?.runtimeProbe?.message);
 
+  const localLibraryActivity = [
+    [
+      'downloading',
+      localTextModels.filter(item => item.downloadStatus === 'downloading')
+        .length,
+    ],
+    [
+      'queued',
+      localTextModels.filter(item => item.downloadStatus === 'queued').length,
+    ],
+    [
+      'failed',
+      localTextModels.filter(
+        item =>
+          item.downloadStatus === 'error' ||
+          item.runtimeProbe?.status === 'failed'
+      ).length,
+    ],
+  ]
+    .filter(([, count]) => count)
+    .map(([status, count]) => `${count} ${status}`)
+    .join(', ');
+
+  const refreshModelStatus = (
+    <IconButton
+      icon={<ResetIcon />}
+      tooltip="Refresh model status"
+      aria-label="Refresh model status"
+      onClick={() => {
+        if (backendError) load().catch(console.error);
+        else refreshModelHealth().catch(console.error);
+      }}
+      disabled={loading || saving}
+    />
+  );
+
+  const localModelErrorsVisible =
+    embeddingOnly || provider === 'local' || activeTab === 'search';
+  const visibleModelError =
+    (modelActionErrorScope === 'settings' || localModelErrorsVisible
+      ? modelActionError
+      : null) ?? (localModelErrorsVisible ? healthError : null);
+
   const saveSettings = (
     <div className={styles.saveBar}>
-      {modelActionError || healthError ? (
+      {visibleModelError ? (
         <div role="alert" className={styles.error}>
-          {modelActionError ?? healthError}
+          {visibleModelError}
         </div>
       ) : null}
       <div className={styles.actions}>
-        <IconButton
-          icon={<ResetIcon />}
-          tooltip="Refresh model status"
-          aria-label="Refresh model status"
-          onClick={() => {
-            if (backendError) load().catch(console.error);
-            else refreshModelHealth().catch(console.error);
-          }}
-          disabled={loading || saving}
-        />
+        {embeddingOnly ? refreshModelStatus : null}
         <Button
           variant="primary"
           onClick={() => {
@@ -1262,7 +1391,8 @@ export const AISettingsPanel = ({
             downloadingModelId !== null ||
             probingModelId !== null ||
             !!backendError ||
-            localTextModelSelectionInvalid
+            localTextModelSelectionInvalid ||
+            chatGPTSelectionInvalid
           }
           loading={saving}
         >
@@ -1433,7 +1563,11 @@ export const AISettingsPanel = ({
 
   return (
     <div className={styles.panel}>
-      <SettingHeader title="AI & Models" data-testid="ai-settings-title" />
+      <SettingHeader
+        title="AI & Models"
+        subtitle="Local models, cloud providers, workspace search, and tools"
+        data-testid="ai-settings-title"
+      />
       <SettingsSection>
         <SettingRow name="AI in Nota">
           <Switch
@@ -1459,7 +1593,7 @@ export const AISettingsPanel = ({
         </SettingRow>
       </SettingsSection>
 
-      <Tabs.Root defaultValue="models">
+      <Tabs.Root defaultValue="models" onValueChange={setActiveTab}>
         <Tabs.List aria-label="AI settings sections">
           <Tabs.Trigger value="models">Models</Tabs.Trigger>
           <Tabs.Trigger value="search">Search</Tabs.Trigger>
@@ -1470,15 +1604,25 @@ export const AISettingsPanel = ({
             <SettingRow
               name="Provider"
               desc={
-                provider === 'local'
-                  ? 'On-device'
-                  : provider === 'custom' && selectedConnectionState
-                    ? 'A compatible endpoint is configured.'
-                    : selectedApiKeyState
-                      ? 'A saved key is available for this provider.'
-                      : isOpenAICompatibleProvider(provider)
-                        ? 'Add an API key and confirm the base URL to use this provider.'
-                        : 'Add an API key to use this provider.'
+                provider === 'chatgpt'
+                  ? 'Use your ChatGPT plan. Sign-in does not change the saved provider until you Save.'
+                  : provider === 'local'
+                    ? 'On-device'
+                    : provider === 'custom' && selectedConnectionState
+                      ? 'A compatible endpoint is configured.'
+                      : provider === 'amazon-bedrock'
+                        ? 'Use AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY configured on this device, or an AWS bearer token.'
+                        : provider === 'anthropic-aws'
+                          ? 'Use an AWS-provisioned Anthropic API key or AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY configured on this device.'
+                          : isADCOnlyProvider(provider)
+                            ? 'Uses Google Application Default Credentials with the configured project and location.'
+                            : provider === 'google-vertex'
+                              ? 'Use an express API key, or a project and location with device credentials.'
+                              : selectedApiKeyState
+                                ? 'A saved key is available for this provider.'
+                                : isOpenAICompatibleProvider(provider)
+                                  ? 'Configure credentials and enter this provider’s model ID.'
+                                  : 'Add an API key to use this provider.'
               }
             >
               <Menu
@@ -1503,7 +1647,8 @@ export const AISettingsPanel = ({
               </Menu>
             </SettingRow>
 
-            {(provider !== 'local' || customLocalModel) &&
+            {provider !== 'chatgpt' &&
+            (provider !== 'local' || customLocalModel) &&
             providerCatalogModels.length ? (
               <SettingRow
                 name="Configured models"
@@ -1599,7 +1744,7 @@ export const AISettingsPanel = ({
                   </Menu>
                 </SettingRow>
                 {!customLocalModel && selectedLocalModelState?.reason ? (
-                  <div className={styles.notice} role="status">
+                  <div className={styles.statusNotice} role="status">
                     {selectedLocalModelState.reason}
                   </div>
                 ) : null}
@@ -1626,38 +1771,103 @@ export const AISettingsPanel = ({
                   </>
                 ) : null}
               </>
+            ) : provider === 'chatgpt' ? (
+              <SettingRow
+                name="Model"
+                desc={
+                  chatGPTStatus?.pending
+                    ? 'Finish signing in before choosing a model.'
+                    : !chatGPTStatus?.connected || !chatGPTStatus.planEnabled
+                      ? 'Connect an eligible ChatGPT account below to choose a model.'
+                      : !chatGPTCatalog.length
+                        ? 'The account catalog is unavailable. Refresh models below to retry.'
+                        : 'Choose a model available to this account, then Save changes.'
+                }
+              >
+                <Menu
+                  contentOptions={{
+                    align: 'end',
+                    className: styles.menuContent,
+                  }}
+                  items={chatGPTCatalog.map(item => (
+                    <MenuItem
+                      key={item.id}
+                      selected={item.id === model}
+                      onSelect={() => {
+                        if (
+                          controlsDisabled ||
+                          saveRef.current ||
+                          !chatGPTCanChooseModel
+                        )
+                          return;
+                        onTextModelChange(item.id);
+                      }}
+                    >
+                      {item.name}
+                    </MenuItem>
+                  ))}
+                >
+                  <MenuTrigger
+                    aria-label="Chat model"
+                    className={styles.menuTrigger}
+                    disabled={controlsDisabled || !chatGPTCanChooseModel}
+                  >
+                    {selectedChatGPTModel?.name ??
+                      (model ? `${model} (unavailable)` : 'Choose model')}
+                  </MenuTrigger>
+                </Menu>
+              </SettingRow>
             ) : isOpenAICompatibleProvider(provider) ? (
               <>
-                <SettingRow
-                  name={`${providerLabels[provider]} API key`}
-                  desc={
-                    provider === 'custom'
-                      ? 'Optional for local or private compatible endpoints. Saved locally and hidden after save.'
-                      : 'Saved locally in .nota/ai-settings.json and never returned by GET settings.'
-                  }
-                >
-                  <Input
-                    className={styles.rowControl}
-                    type="password"
-                    aria-label={`${providerLabels[provider]} API key`}
-                    value={compatibleProviderDrafts[provider].apiKey}
-                    placeholder={
-                      selectedApiKeyState
-                        ? 'Saved'
-                        : provider === 'custom'
-                          ? 'Optional'
-                          : 'Paste API key'
+                {!isADCOnlyProvider(provider) ? (
+                  <SettingRow
+                    name={`${providerLabels[provider]} API key`}
+                    desc={
+                      provider === 'custom'
+                        ? 'Optional for local or private compatible endpoints. Saved locally and hidden after save.'
+                        : provider === 'amazon-bedrock'
+                          ? 'Optional AWS bearer token. Otherwise uses AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY configured on this device.'
+                          : provider === 'anthropic-aws'
+                            ? 'AWS-provisioned Anthropic API key (ANTHROPIC_AWS_API_KEY). Otherwise uses AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY configured on this device.'
+                            : provider === 'google-vertex'
+                              ? 'Optional API key where supported. Otherwise uses Google Application Default Credentials on this device.'
+                              : 'Saved locally in .nota/ai-settings.json and never returned by GET settings.'
                     }
-                    disabled={controlsDisabled}
-                    autoComplete="off"
-                    onChange={value =>
-                      onCompatibleProviderDraftChange(provider, 'apiKey', value)
-                    }
-                  />
-                </SettingRow>
+                  >
+                    <Input
+                      className={styles.rowControl}
+                      type="password"
+                      aria-label={`${providerLabels[provider]} API key`}
+                      value={compatibleProviderDrafts[provider].apiKey}
+                      placeholder={
+                        selectedApiKeyState
+                          ? 'Saved'
+                          : provider === 'custom' ||
+                              provider === 'amazon-bedrock' ||
+                              provider === 'anthropic-aws' ||
+                              provider === 'google-vertex'
+                            ? 'Optional'
+                            : 'Paste API key'
+                      }
+                      disabled={controlsDisabled}
+                      autoComplete="off"
+                      onChange={value =>
+                        onCompatibleProviderDraftChange(
+                          provider,
+                          'apiKey',
+                          value
+                        )
+                      }
+                    />
+                  </SettingRow>
+                ) : null}
                 <SettingRow
                   name="Base URL"
-                  desc="OpenAI-compatible API root. Presets can be edited when a provider uses a proxy or self-hosted gateway."
+                  desc={
+                    provider === 'open-responses'
+                      ? 'Complete POST /responses URL, including the /responses path.'
+                      : 'Optional endpoint override. Leave blank to use the SDK provider default.'
+                  }
                 >
                   <Input
                     className={styles.rowControl}
@@ -1673,7 +1883,11 @@ export const AISettingsPanel = ({
                     }
                   />
                 </SettingRow>
-                <SettingRow name="Model">
+                <SettingRow
+                  name={
+                    provider === 'azure' ? 'Model or deployment ID' : 'Model'
+                  }
+                >
                   <Input
                     className={styles.rowControl}
                     value={model}
@@ -1682,6 +1896,63 @@ export const AISettingsPanel = ({
                     onChange={onTextModelChange}
                   />
                 </SettingRow>
+                {provider === 'azure' ? (
+                  <AzureApiFormat
+                    value={compatibleProviderDrafts.azure.apiMode}
+                    disabled={controlsDisabled}
+                    onChange={value =>
+                      onCompatibleProviderDraftChange('azure', 'apiMode', value)
+                    }
+                  />
+                ) : null}
+                {(
+                  [
+                    'region',
+                    'project',
+                    'location',
+                    'resourceName',
+                    'workspaceId',
+                  ] as const
+                )
+                  .filter(field => {
+                    const fields =
+                      provider in SDK_PROVIDER_PRESETS
+                        ? SDK_PROVIDER_PRESETS[
+                            provider as keyof typeof SDK_PROVIDER_PRESETS
+                          ].fields
+                        : [];
+                    return (fields as string[]).includes(field);
+                  })
+                  .map(field => (
+                    <SettingRow
+                      key={field}
+                      name={
+                        field === 'region'
+                          ? 'AWS region'
+                          : field === 'project'
+                            ? 'Google Cloud project'
+                            : field === 'location'
+                              ? 'Google Cloud location'
+                              : field === 'resourceName'
+                                ? 'Azure resource name'
+                                : 'Anthropic AWS workspace ID'
+                      }
+                    >
+                      <Input
+                        className={styles.rowControl}
+                        aria-label={field}
+                        value={compatibleProviderDrafts[provider][field] ?? ''}
+                        disabled={controlsDisabled}
+                        onChange={value =>
+                          onCompatibleProviderDraftChange(
+                            provider,
+                            field,
+                            value
+                          )
+                        }
+                      />
+                    </SettingRow>
+                  ))}
               </>
             ) : (
               <>
@@ -1713,43 +1984,92 @@ export const AISettingsPanel = ({
                 </SettingRow>
               </>
             )}
-          </SettingsSection>
-
-          <SettingsSection title="Local model library">
-            {settings.meetings.device ? (
-              <div className={styles.device}>
-                {settings.meetings.device.platform} /{' '}
-                {settings.meetings.device.arch}
-                {' / '}
-                {settings.meetings.device.availableRamGb.toFixed(1)} GB RAM
-                available
-              </div>
+            {provider !== 'local' && provider !== 'chatgpt' ? (
+              <ProviderModelDiscovery
+                key={provider}
+                provider={provider}
+                disabled={controlsDisabled}
+                onModelChange={onTextModelChange}
+              />
             ) : null}
-            <LocalModelList
-              models={localTextModels}
-              selectedModelId={
-                provider === 'local' && !customLocalModel ? model : null
-              }
-              disabled={
-                controlsDisabled ||
-                downloadingModelId !== null ||
-                probingModelId !== null
-              }
-              downloadingModelId={downloadingModelId}
-              probingModelId={probingModelId}
-              onSelect={onUseLocalTextModel}
-              onDownload={id => {
-                onDownloadModel(id).catch(console.error);
-              }}
-              onProbe={id => {
-                onProbeModel(id).catch(console.error);
-              }}
-            />
+
+            <div
+              hidden={provider !== 'chatgpt'}
+              className={styles.providerConnectionGroup}
+            >
+              <ChatGPTConnection
+                collapseAccountControls
+                disabled={controlsDisabled}
+                openExternal={urlService.openExternal.bind(urlService)}
+                onModelsChanged={aiModelService.refreshModels}
+                showModelSettings={false}
+                showCatalogRefresh={provider === 'chatgpt'}
+                onStatusChange={setChatGPTStatus}
+                onCatalogChange={setChatGPTCatalog}
+                model={model}
+                onModelChange={onTextModelChange}
+              />
+            </div>
           </SettingsSection>
+          {provider === 'local' ? (
+            <details
+              className={styles.disclosure}
+              open={localLibraryOpen}
+              onToggle={event => setLocalLibraryOpen(event.currentTarget.open)}
+            >
+              <summary className={styles.disclosureSummary}>
+                <span>Manage local models</span>
+                <span className={styles.notice}>
+                  Download or check on-device models. {localTextModels.length}{' '}
+                  models
+                  {localLibraryActivity ? ` · ${localLibraryActivity}` : ''}
+                </span>
+              </summary>
+              {localLibraryOpen ? (
+                <div className={styles.disclosureContent}>
+                  <div className={styles.disclosureHeader}>
+                    {settings.meetings.device ? (
+                      <div className={styles.device}>
+                        {settings.meetings.device.platform} /{' '}
+                        {settings.meetings.device.arch}
+                        {' / '}
+                        {settings.meetings.device.availableRamGb.toFixed(1)} GB
+                        RAM available
+                      </div>
+                    ) : (
+                      <span />
+                    )}
+                    {refreshModelStatus}
+                  </div>
+                  <LocalModelList
+                    models={localTextModels}
+                    selectedModelId={
+                      provider === 'local' && !customLocalModel ? model : null
+                    }
+                    disabled={
+                      controlsDisabled ||
+                      downloadingModelId !== null ||
+                      probingModelId !== null
+                    }
+                    downloadingModelId={downloadingModelId}
+                    probingModelId={probingModelId}
+                    onSelect={onUseLocalTextModel}
+                    onDownload={id => {
+                      onDownloadModel(id).catch(console.error);
+                    }}
+                    onProbe={id => {
+                      onProbeModel(id).catch(console.error);
+                    }}
+                  />
+                </div>
+              ) : null}
+            </details>
+          ) : null}
         </Tabs.Content>
         <Tabs.Content value="search" className={styles.tabContent}>
           {embeddingSettings}
           {embeddingModelDownloads}
+          <div className={styles.actions}>{refreshModelStatus}</div>
         </Tabs.Content>
         <Tabs.Content value="advanced" className={styles.tabContent}>
           <SettingsSection title="Image Generation">

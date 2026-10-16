@@ -14,6 +14,27 @@ const AI_MODEL_ID_KEY = 'AIModelId';
 const DEFAULT_CHAT_PROMPT = 'Chat With Nota AI';
 const QUALIFIED_MODEL_PROVIDERS = new Set([
   'anthropic',
+  'chatgpt',
+  'alibaba',
+  'baseten',
+  'cerebras',
+  'cohere',
+  'deepinfra',
+  'fireworks',
+  'huggingface',
+  'minimax',
+  'moonshotai',
+  'togetherai',
+  'zai',
+  'ai-gateway',
+  'open-responses',
+  'azure',
+  'amazon-bedrock',
+  'google-vertex',
+  'google-vertex-anthropic',
+  'google-vertex-maas',
+  'google-vertex-xai',
+  'anthropic-aws',
   'custom',
   'deepseek',
   'google',
@@ -356,6 +377,29 @@ export function mergeAIModelCatalog(
   return selectable;
 }
 
+export function groupAIModelsByProvider(models: AIModel[]) {
+  const groups = new Map<string, AIModel[]>();
+  for (const model of models) {
+    const group = groups.get(model.category);
+    if (group) group.push(model);
+    else groups.set(model.category, [model]);
+  }
+  return [...groups].map(([provider, models]) => ({ provider, models }));
+}
+
+// The picker shows the default model when nothing is stored. Send that same
+// model: the backend's own default can be empty (for example, the saved
+// provider is local but no local model is installed).
+export function resolveAIModelId(
+  models: AIModel[],
+  selectedModelId: string | undefined
+) {
+  if (selectedModelId && models.some(model => model.id === selectedModelId)) {
+    return selectedModelId;
+  }
+  return models.find(model => model.isDefault)?.id;
+}
+
 export class AIModelService extends Service {
   modelId: ReadonlySignal<string | undefined>;
 
@@ -383,16 +427,9 @@ export class AIModelService extends Service {
       string | undefined
     >(this.modelId$, undefined);
     this.storedModelId = storedModelId;
-    this.modelId = computed(() => {
-      if (!this.models.value.length) {
-        return undefined;
-      }
-      const selectedModelId = this.storedModelId.value;
-      return selectedModelId &&
-        this.models.value.some(model => model.id === selectedModelId)
-        ? selectedModelId
-        : undefined;
-    });
+    this.modelId = computed(() =>
+      resolveAIModelId(this.models.value, this.storedModelId.value)
+    );
     this.disposables.push(cleanup);
     this.disposables.push(() => {
       for (const controller of this.localModelDownloadMonitors.values()) {

@@ -33,6 +33,28 @@ export const title = style({
   color: 'var(--affine-text-secondary-color)',
   display: 'flex',
   alignItems: 'center',
+  minWidth: 0,
+});
+
+export const linkedNote = style({
+  marginLeft: '6px',
+  padding: '0 4px',
+  maxWidth: '160px',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+  border: 'none',
+  borderRadius: '4px',
+  background: 'transparent',
+  color: cssVarV2('text/tertiary'),
+  fontSize: '12px',
+  cursor: 'pointer',
+  selectors: {
+    '&:hover': {
+      background: cssVarV2('layer/background/hoverOverlay'),
+      color: cssVarV2('text/primary'),
+    },
+  },
 });
 
 export const playground = style({

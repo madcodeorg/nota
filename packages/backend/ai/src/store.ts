@@ -10,6 +10,14 @@ import type {
   PaginatedSessions,
 } from './types';
 
+export interface SessionListOptions {
+  pinned?: boolean | null;
+  action?: boolean | null;
+  fork?: boolean | null;
+  limit?: number | null;
+  skip?: number | null;
+}
+
 interface PersistedCopilotStore {
   contexts?: Array<{ id: string; key: string; workspaceId: string }>;
   sessions?: unknown[];
@@ -265,12 +273,29 @@ export class CopilotStore {
     return session;
   }
 
-  listSessions(workspaceId: string, docId?: string | null, sessionId?: string) {
+  listSessions(
+    workspaceId: string,
+    docId?: string | null,
+    sessionId?: string,
+    options: SessionListOptions = {}
+  ) {
+    const matches = (expected: boolean | null | undefined, actual: boolean) =>
+      typeof expected === 'boolean' ? expected === actual : true;
+    const skip = Math.max(0, options.skip ?? 0);
     const sessions = [...this.sessions.values()]
       .filter(session => session.workspaceId === workspaceId)
       .filter(session => (docId ? session.docId === docId : true))
       .filter(session => (sessionId ? session.sessionId === sessionId : true))
-      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+      .filter(session => matches(options.pinned, session.pinned))
+      .filter(session => matches(options.action, !!session.action))
+      .filter(session => matches(options.fork, !!session.parentSessionId))
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+      .slice(
+        skip,
+        typeof options.limit === 'number' && options.limit > 0
+          ? skip + options.limit
+          : undefined
+      );
 
     return this.paginate(sessions);
   }

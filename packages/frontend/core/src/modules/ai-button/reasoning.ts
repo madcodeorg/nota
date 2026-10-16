@@ -12,11 +12,13 @@ export const AI_REASONING_LEVELS = [
 export type AIReasoningLevel = (typeof AI_REASONING_LEVELS)[number];
 export type LegacyAIReasoningPreference = AIReasoningLevel | boolean;
 
+// `undefined` means no level was chosen: nothing is sent, so the provider
+// applies its own default.
 export interface AIReasoningConfig {
   enabled: ReadonlySignal<boolean | undefined>;
-  level?: ReadonlySignal<AIReasoningLevel>;
+  level?: ReadonlySignal<AIReasoningLevel | undefined>;
   setEnabled: (state: boolean) => void;
-  setLevel?: (level: AIReasoningLevel) => void;
+  setLevel?: (level: AIReasoningLevel | undefined) => void;
 }
 
 const reasoningLevelSet = new Set<string>(AI_REASONING_LEVELS);
@@ -124,25 +126,27 @@ export function supportsReasoningLevelSelection(
 
 export function normalizeAIReasoningLevel(
   value: LegacyAIReasoningPreference | null | undefined
-): AIReasoningLevel {
+): AIReasoningLevel | undefined {
   if (value === true) return 'high';
-  if (value === false || value == null) return 'none';
-  return reasoningLevelSet.has(value) ? value : 'none';
+  if (value === false) return 'none';
+  if (value == null) return undefined;
+  return reasoningLevelSet.has(value) ? value : undefined;
 }
 
 export function reasoningLevelFromConfig(
   config: AIReasoningConfig
-): AIReasoningLevel {
-  return config.level?.value ?? (config.enabled.value ? 'high' : 'none');
+): AIReasoningLevel | undefined {
+  if (config.level) return config.level.value;
+  return config.enabled.value ? 'high' : 'none';
 }
 
 export function setReasoningLevelOnConfig(
   config: AIReasoningConfig,
-  level: AIReasoningLevel
+  level: AIReasoningLevel | undefined
 ) {
   if (config.setLevel) {
     config.setLevel(level);
     return;
   }
-  config.setEnabled(level !== 'none');
+  config.setEnabled(!!level && level !== 'none');
 }

@@ -21,6 +21,7 @@ import {
   localToolWarnings,
   mayStartLocalToolCall,
 } from './local-onnx-tools';
+import { isLlamaCppTextModel } from './model-registry';
 
 function usage(): LanguageModelV3Usage {
   return {
@@ -46,10 +47,14 @@ function finishReason(toolCalls = false): LanguageModelV3FinishReason {
 }
 
 function unsupportedWarnings(
-  options: LanguageModelV3CallOptions
+  options: LanguageModelV3CallOptions,
+  modelId: string
 ): SharedV3Warning[] {
   const warnings: SharedV3Warning[] = localToolWarnings(options);
-  if (options.responseFormat?.type === 'json') {
+  if (
+    options.responseFormat?.type === 'json' &&
+    !isLlamaCppTextModel(modelId)
+  ) {
     warnings.push({
       details:
         'Nota local ONNX models support JSON response format through prompt guidance.',
@@ -201,6 +206,7 @@ export function createLocalOnnxLanguageModel(input: {
         maxNewTokens: options.maxOutputTokens,
         messages: localOnnxMessages(options),
         modelId: input.modelId,
+        responseFormat: options.responseFormat,
       });
       const calls = localToolCalls(text, options);
       return {
@@ -210,7 +216,7 @@ export function createLocalOnnxLanguageModel(input: {
         finishReason: finishReason(!!calls),
         response: { modelId: input.modelId, timestamp: new Date() },
         usage: usage(),
-        warnings: unsupportedWarnings(options),
+        warnings: unsupportedWarnings(options, input.modelId),
       };
     },
     doStream: async options => {
@@ -219,7 +225,7 @@ export function createLocalOnnxLanguageModel(input: {
         start: async controller => {
           controller.enqueue({
             type: 'stream-start',
-            warnings: unsupportedWarnings(options),
+            warnings: unsupportedWarnings(options, input.modelId),
           });
           let textStarted = false;
           const emitText = (delta: string) => {
@@ -243,6 +249,7 @@ export function createLocalOnnxLanguageModel(input: {
               maxNewTokens: options.maxOutputTokens,
               messages: localOnnxMessages(options),
               modelId: input.modelId,
+              responseFormat: options.responseFormat,
               onText: delta => {
                 if (!streamingText) {
                   pending += delta;

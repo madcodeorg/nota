@@ -120,24 +120,8 @@ export const aiPanel = style({
   flexDirection: 'column',
 });
 
-export const aiPanelSlot = style({
-  flex: '1 1 auto',
-  minHeight: 0,
-  display: 'flex',
-  flexDirection: 'column',
-  selectors: {
-    '&:empty': {
-      display: 'none',
-    },
-  },
-});
-
 export const aiPanelFallback = style({
   padding: '0 6px',
-});
-
-globalStyle(`${aiPanelSlot}:not(:empty) + ${aiPanelFallback}`, {
-  display: 'none',
 });
 
 export const workspaceWrapper = style({
@@ -148,7 +132,7 @@ export const workspaceWrapper = style({
   alignSelf: 'center',
 });
 
-export const meetingsNewButton = style({
+export const historyNewButton = style({
   display: 'inline-flex',
   alignItems: 'center',
   justifyContent: 'center',
@@ -172,38 +156,38 @@ export const meetingsNewButton = style({
   },
 });
 
-export const meetingHistoryRoot = style({
+export const historyRoot = style({
   display: 'flex',
   flexDirection: 'column',
   gap: 8,
   minHeight: 0,
 });
 
-export const meetingHistoryHeader = style({
+export const historyHeader = style({
   padding: '6px 6px 4px',
 });
 
-export const meetingHistoryTitle = style({
+export const historyTitle = style({
   color: cssVar('textPrimaryColor'),
   fontSize: 13,
   fontWeight: 650,
   lineHeight: 1.2,
 });
 
-export const meetingHistoryCount = style({
+export const historyCount = style({
   marginTop: 3,
   color: cssVar('textSecondaryColor'),
   fontSize: 12,
   lineHeight: 1.2,
 });
 
-export const meetingHistoryList = style({
+export const historyList = style({
   display: 'flex',
   flexDirection: 'column',
   gap: 4,
 });
 
-export const meetingHistoryItem = style({
+export const historyItem = style({
   display: 'flex',
   flexDirection: 'column',
   alignItems: 'stretch',
@@ -229,7 +213,7 @@ export const meetingHistoryItem = style({
   },
 });
 
-export const meetingHistoryItemTitle = style({
+export const historyItemTitle = style({
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
@@ -238,13 +222,13 @@ export const meetingHistoryItemTitle = style({
   lineHeight: 1.25,
 });
 
-export const meetingHistoryItemMeta = style({
+export const historyItemMeta = style({
   color: cssVar('textSecondaryColor'),
   fontSize: 12,
   lineHeight: 1.25,
 });
 
-export const meetingHistoryItemLink = style({
+export const historyItemLink = style({
   alignSelf: 'flex-start',
   color: cssVar('linkColor'),
   fontSize: 12,
@@ -252,14 +236,14 @@ export const meetingHistoryItemLink = style({
   lineHeight: 1.25,
 });
 
-export const meetingHistoryEmpty = style({
+export const historyEmpty = style({
   padding: '12px 10px',
   color: cssVar('textSecondaryColor'),
   fontSize: 12,
   lineHeight: 1.4,
 });
 
-export const meetingHistoryMoreButton = style({
+export const historyMoreButton = style({
   height: 34,
   margin: '6px 4px 0',
   border: `1px solid ${cssVar('borderColor')}`,

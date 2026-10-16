@@ -68,6 +68,8 @@ export class AIChatContent extends SignalWatcher(
       ai-chat-messages {
         flex: 1;
         overflow-y: auto;
+        /* The app hides scrollbars globally; long chats need a visible one. */
+        scrollbar-width: thin;
         padding: 0 var(--h-padding);
         transition:
           flex-grow 0.32s cubic-bezier(0.07, 0.83, 0.46, 1),

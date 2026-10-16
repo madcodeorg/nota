@@ -1,6 +1,6 @@
 # Nota privacy policy
 
-Updated October 5, 2026.
+Updated October 16, 2026.
 
 This page describes the current source implementation. A release's build configuration and enabled integrations affect its network behavior; read the release notes for the installer you use.
 
@@ -50,13 +50,25 @@ Disconnecting Google in Nota clears the local Google session. It does not revoke
 
 You control retained local workspace content, exports, backups, and the app data in your Google account. Delete copies you no longer want from the relevant device or service. Revoking authorization prevents further authorized access; it does not automatically erase content already saved locally, exported, or retained by another service. Broker envelope expiry does not delete those copies.
 
+## Update checks
+
+The desktop app checks for new versions by downloading a small update file from thenota.app, which is hosted on GitHub Pages. With automatic checks on, the app checks at startup and at most every 30 minutes when its window comes to the front; you can also check from the Help menu. Each check reveals ordinary request information, such as your IP address, operating system, and the update channel requested. Updates download only when you choose to install one, from the location listed in the update file, such as GitHub Releases. GitHub's privacy terms apply to those requests.
+
+## AI web reading
+
+The AI assistant's web-reading tool is on by default. When the model you chose decides to read a public web page, Nota fetches that page from your device, so the site receives your IP address and an ordinary page request. The page text is then sent to that model as context. To turn the tool off, set `NOTA_AI_WEB_CRAWL_TOOL_ENABLED=false`.
+
+## Link previews
+
+When you add a link to a note, the desktop app fetches that public page directly from your device to build a preview card. For X (Twitter) post links, it asks api.fxtwitter.com, a third-party service, for the post's details; that service receives the post link and your IP address. Images in previews and notes load directly from the sites that host them. Nota does not route these requests through its own server.
+
 ## Other integrations
 
-Configured MCP servers, public-page crawling, external links, updates, and some export operations can also make network requests. Only enable integrations you intend to use. Data sent to an external tool or service is subject to that service's behavior and terms.
+Configured MCP servers, external links, and some export operations can also make network requests. Only enable integrations you intend to use. Data sent to an external tool or service is subject to that service's behavior and terms.
 
 ## Diagnostics
 
-The current frontend bootstrap disables usage-event tracking and renderer Sentry reporting. The source retains telemetry and Sentry support. Electron main-process Sentry reporting can be enabled by release build configuration, so this page does not promise that every custom or future build sends no diagnostics. A build that enables diagnostics must identify that configuration in its release notes.
+Nota includes no crash-reporting or analytics service and does not send crash reports, error reports, or usage events. The source keeps a dormant usage-event tracker that is always opted out and has no destination. A modified build can behave differently; a build that adds diagnostics must say so in its release notes.
 
 The app can write local logs for failures and troubleshooting. Logs and screenshots may contain paths, document titles, or error context; inspect them before sharing. Do not submit API keys, authorization tokens, recordings, or personal workspace content in public issues.
 

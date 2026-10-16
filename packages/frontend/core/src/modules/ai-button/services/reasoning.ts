@@ -25,13 +25,15 @@ export class AIReasoningService extends Service {
     this.level = computed(() =>
       normalizeAIReasoningLevel(this.preference.value)
     );
-    this.enabled = computed(() => this.level.value !== 'none');
+    this.enabled = computed(
+      () => !!this.level.value && this.level.value !== 'none'
+    );
     this.disposables.push(cleanup);
   }
 
   enabled: ReadonlySignal<boolean>;
 
-  level: ReadonlySignal<AIReasoningLevel>;
+  level: ReadonlySignal<AIReasoningLevel | undefined>;
 
   private readonly preference: Signal<LegacyAIReasoningPreference | undefined>;
 
@@ -46,7 +48,7 @@ export class AIReasoningService extends Service {
     this.setLevel(enabled ? 'high' : 'none');
   };
 
-  setLevel = (level: AIReasoningLevel) => {
+  setLevel = (level: AIReasoningLevel | undefined) => {
     this.globalStateService.globalState.set(AI_REASONING_KEY, level);
   };
 }

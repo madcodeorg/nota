@@ -3,7 +3,6 @@ import { fileURLToPath } from 'node:url';
 
 import { getBuildConfig } from '@nota-tools/utils/build-config';
 import { Package } from '@nota-tools/utils/workspace';
-import { sentryEsbuildPlugin } from '@sentry/esbuild-plugin';
 import type { BuildOptions, Plugin } from 'esbuild';
 
 export const electronDir = fileURLToPath(new URL('..', import.meta.url));
@@ -46,8 +45,6 @@ export const aiBackendConfig = (): BuildOptions => ({
 export const config = (): BuildOptions => {
   const define = {
     'process.env.GITHUB_SHA': process.env.GITHUB_SHA,
-    'process.env.SENTRY_RELEASE': process.env.SENTRY_RELEASE,
-    'process.env.SENTRY_DSN': process.env.SENTRY_DSN,
     'process.env.DEV_SERVER_URL': process.env.DEV_SERVER_URL,
     'process.env.NODE_ENV': process.env.NODE_ENV,
     REPLACE_ME_BUILD_ENV: process.env.BUILD_TYPE ?? 'stable',
@@ -67,20 +64,6 @@ export const config = (): BuildOptions => {
   };
 
   const plugins: Plugin[] = [];
-
-  if (
-    process.env.SENTRY_AUTH_TOKEN &&
-    process.env.SENTRY_ORG &&
-    process.env.SENTRY_PROJECT
-  ) {
-    plugins.push(
-      sentryEsbuildPlugin({
-        org: process.env.SENTRY_ORG,
-        project: process.env.SENTRY_PROJECT,
-        authToken: process.env.SENTRY_AUTH_TOKEN,
-      })
-    );
-  }
 
   plugins.push({
     name: 'no-side-effects',
@@ -128,7 +111,7 @@ export const config = (): BuildOptions => {
           JSON.stringify(val) ??
           String(
             val
-          ) /* JSON.stringify(undefined) == undefined, but we need 'undefined' */;
+          ); /* JSON.stringify(undefined) == undefined, but we need 'undefined' */
         return def;
       },
       {} as Record<string, string>

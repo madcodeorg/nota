@@ -1,273 +1,234 @@
 import { cssVar } from '@toeverything/theme';
+import { cssVarV2 } from '@toeverything/theme/v2';
 import { globalStyle, style } from '@vanilla-extract/css';
+
+const narrowViewport = 'viewport (width <= 640px)';
+const heroFade = 'linear-gradient(to bottom, #000 45%, transparent 100%)';
 
 export const briefCover = style({
   position: 'relative',
-  display: 'grid',
-  gridTemplateColumns: '72px minmax(0, 920px) 72px',
-  justifyContent: 'center',
-  alignItems: 'center',
-  columnGap: 16,
   width: '100%',
-  minHeight: 430,
-  padding: '42px 24px 36px',
-  boxSizing: 'border-box',
-  background: cssVar('backgroundPrimaryColor'),
   color: cssVar('textPrimaryColor'),
-  '@media': {
-    print: {
-      background: 'transparent',
-      color: 'inherit',
-      minHeight: 'auto',
-      padding: 0,
-      display: 'block',
-    },
-    '(max-width: 860px)': {
-      gridTemplateColumns: '1fr',
-      minHeight: 320,
-      padding: '28px 18px 30px',
-      background: 'transparent',
-      color: '#ebe4d5',
-    },
-  },
 });
 
-export const coverColumn = style({
-  width: '100%',
-  minWidth: 0,
-});
-
-export const coverFrame = style({
+export const hero = style({
   position: 'relative',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
   width: '100%',
-  aspectRatio: '2.18 / 1',
-  overflow: 'hidden',
-  border: '1px solid rgba(38, 39, 49, 0.1)',
-  borderRadius: 12,
-  background: cssVar('backgroundPrimaryColor'),
-  boxShadow: '0 14px 34px rgba(31, 28, 46, 0.14)',
-  selectors: {
-    '&::before': {
-      content: '""',
-      position: 'absolute',
-      inset: 0,
-      zIndex: 1,
-      pointerEvents: 'none',
-      background:
-        'linear-gradient(180deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.22) 38%, rgba(255, 255, 255, 0.86) 70%, var(--affine-background-primary-color) 100%)',
-    },
-    '&::after': {
-      content: '""',
-      position: 'absolute',
-      inset: 0,
-      zIndex: 1,
-      pointerEvents: 'none',
-      background:
-        'linear-gradient(90deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0) 34%, rgba(2, 8, 40, 0.08))',
+  height: 'clamp(200px, 40vh, 380px)',
+  '@container': {
+    [narrowViewport]: {
+      height: 'clamp(160px, 30vh, 240px)',
     },
   },
   '@media': {
     print: {
-      aspectRatio: 'auto',
-      background: 'transparent !important',
-      boxShadow: 'none',
-      overflow: 'visible',
-    },
-    '(max-width: 860px)': {
-      borderColor: 'rgba(207, 197, 169, 0.18)',
-      background: 'rgba(22, 23, 20, 0.84)',
-      boxShadow: '0 20px 48px rgba(0, 0, 0, 0.32)',
+      display: 'none',
     },
   },
 });
 
-export const coverImage = style({
+// Masking (instead of a color overlay) fades the art into whatever the page
+// background is, in both light and dark themes.
+export const heroArt = style({
   position: 'absolute',
   inset: 0,
+  overflow: 'hidden',
+  backgroundColor: cssVarV2.layer.background.secondary,
+  maskImage: heroFade,
+  WebkitMaskImage: heroFade,
+});
+
+export const heroImage = style({
+  display: 'block',
   width: '100%',
   height: '100%',
   objectFit: 'cover',
-  objectPosition: 'center 34%',
-  zIndex: 0,
-  filter: 'saturate(1.02) contrast(1.02)',
-  '@media': {
-    print: {
-      display: 'none',
-    },
-  },
+  objectPosition: 'center 40%',
 });
 
-export const coverIcon = style({
-  flex: '0 0 auto',
-  width: 96,
-  minWidth: 96,
-  minHeight: 78,
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  opacity: 0.98,
-  '@media': {
-    print: {
-      display: 'none',
-    },
-    '(max-width: 860px)': {
-      width: 82,
-      minWidth: 82,
-      minHeight: 60,
-    },
-  },
-});
-
-export const titleStack = style({
+export const heroActions = style({
   position: 'absolute',
-  left: '50%',
-  bottom: '13%',
-  zIndex: 2,
+  top: 16,
+  right: 16,
+  zIndex: 1,
   display: 'flex',
-  width: 'min(88%, 820px)',
-  flexDirection: 'row',
+  gap: 8,
+});
+
+export const heroAction = style({
+  display: 'inline-flex',
   alignItems: 'center',
   justifyContent: 'center',
-  gap: 18,
-  transform: 'translateX(-50%)',
-  textAlign: 'left',
-  '@media': {
-    '(max-width: 860px)': {
-      bottom: '12%',
-      width: 'min(90%, 560px)',
-      gap: 10,
+  width: 32,
+  height: 32,
+  padding: 0,
+  border: '1px solid rgba(255, 255, 255, 0.16)',
+  borderRadius: 8,
+  background: 'rgba(18, 18, 18, 0.42)',
+  color: '#fff',
+  fontSize: 16,
+  cursor: 'pointer',
+  backdropFilter: 'blur(8px)',
+  transition: 'background 0.2s ease',
+  selectors: {
+    '&:hover': {
+      background: 'rgba(18, 18, 18, 0.64)',
+    },
+    '&:focus-visible': {
+      outline: '2px solid #fff',
+      outlineOffset: 2,
     },
   },
 });
 
-const sideLabelBase = {
-  color: 'var(--affine-text-primary-color)',
-  fontFamily: 'var(--affine-font-serif-family)',
-  fontSize: 'clamp(30px, 3.9vw, 48px)',
-  fontStyle: 'italic',
+export const credit = style({
+  position: 'absolute',
+  right: 16,
+  bottom: '14%',
+  zIndex: 1,
+  maxWidth: 240,
+  padding: '8px 10px',
+  borderRadius: 6,
+  background: 'rgba(255, 255, 255, 0.92)',
+  boxShadow: '0 6px 20px rgba(0, 0, 0, 0.18)',
+  color: '#141414',
+  fontSize: 12,
+  lineHeight: 1.35,
+  '@container': {
+    [narrowViewport]: {
+      display: 'none',
+    },
+  },
+});
+
+export const creditTitle = style({
+  fontSize: 13,
   fontWeight: 700,
-  lineHeight: 1,
-  whiteSpace: 'nowrap',
-  textShadow: '0 1px 8px rgba(0, 0, 0, 0.18)',
+});
+
+export const creditSource = style({
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 4,
+  marginTop: 6,
+  color: 'rgba(20, 20, 20, 0.62)',
+  fontSize: 10.5,
+  textDecoration: 'none',
+  selectors: {
+    '&[href]:hover': {
+      textDecoration: 'underline',
+    },
+  },
+});
+
+export const titleArea = style({
+  width: '100%',
+  maxWidth: cssVar('editorWidth'),
+  margin: '0 auto',
+  padding: `8px ${cssVar('editorSidePadding', '24px')} 24px`,
+  boxSizing: 'border-box',
+  selectors: {
+    [`${briefCover}[data-cover-hidden="true"] &`]: {
+      paddingTop: 56,
+    },
+  },
+  '@container': {
+    [narrowViewport]: {
+      paddingLeft: 24,
+      paddingRight: 24,
+    },
+  },
+  '@media': {
+    print: {
+      padding: 0,
+    },
+  },
+});
+
+export const headerTools = style({
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+  marginBottom: 12,
+  selectors: {
+    '&:empty': {
+      display: 'none',
+    },
+  },
   '@media': {
     print: {
       display: 'none',
     },
-    '(max-width: 860px)': {
-      position: 'static',
-      justifySelf: 'center',
-      transform: 'none',
-      fontSize: 14,
-      fontFamily: 'var(--affine-font-number-family)',
-      fontStyle: 'normal',
-      fontWeight: 700,
-      color: 'rgba(235, 228, 213, 0.52)',
-    },
   },
+});
+
+const chipLook = {
+  height: 28,
+  padding: '0 10px',
+  border: `1px solid ${cssVarV2.layer.insideBorder.border}`,
+  borderRadius: 8,
+  background: cssVarV2.layer.background.secondary,
 } as const;
 
-export const sideDate = style({
-  ...sideLabelBase,
-  justifySelf: 'center',
-  transform: 'rotate(-90deg)',
+export const chip = style({
+  ...chipLook,
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 6,
+  color: cssVarV2.text.secondary,
+  fontSize: 12,
+  cursor: 'pointer',
+  selectors: {
+    '&:hover': {
+      color: cssVarV2.text.primary,
+    },
+  },
 });
 
-export const sideTime = style({
-  ...sideLabelBase,
-  justifySelf: 'center',
-  transform: 'rotate(90deg)',
+export const dateLine = style({
+  marginTop: 12,
+  color: cssVarV2.text.secondary,
+  fontSize: 11,
+  fontWeight: 500,
+  letterSpacing: '0.14em',
+  textTransform: 'uppercase',
+  fontVariantNumeric: 'tabular-nums',
 });
+
+globalStyle(`${briefCover} .doc-icon-container`, {
+  width: 'auto',
+  maxWidth: 'none',
+  margin: 0,
+  // Overrides the inline bottom padding set by DocIconPicker.
+  padding: '0 !important',
+});
+
+globalStyle(
+  `${headerTools} .doc-icon-container[data-has-icon="false"] button`,
+  chipLook
+);
 
 globalStyle(`${briefCover} doc-title`, {
   display: 'block',
-  flex: '1 1 auto',
-  width: 'min(100%, 720px)',
-  minWidth: 0,
 });
 
 globalStyle(`${briefCover} .doc-title-container`, {
   position: 'relative',
-  width: '100%',
   maxWidth: 'none',
-  minHeight: '1.08em',
   margin: 0,
   padding: 0,
-  color: '#fff227',
-  caretColor: '#fff9a8',
   fontFamily: 'var(--affine-font-serif-family)',
-  fontSize: 'clamp(34px, 5vw, 58px)',
-  fontWeight: 700,
-  lineHeight: 1.04,
+  fontSize: 'clamp(36px, 5vw, 52px)',
+  fontWeight: 600,
+  lineHeight: 1.15,
   overflowWrap: 'anywhere',
-  textWrap: 'balance',
-  textAlign: 'left',
-  textShadow: '0 4px 24px rgba(0, 0, 0, 0.42)',
   '@media': {
     print: {
-      color: 'inherit',
-      textShadow: 'none',
       fontSize: 40,
-      textAlign: 'left',
-    },
-    '(max-width: 860px)': {
-      fontSize: 'clamp(30px, 10vw, 46px)',
-      color: '#fff227',
-      textShadow: '0 4px 24px rgba(0, 0, 0, 0.5)',
     },
   },
 });
 
 globalStyle(`${briefCover} .doc-title-container-empty::before`, {
-  content: '"Title"',
-  right: 0,
-  left: 0,
-  color: 'rgba(255, 242, 39, 0.78)',
-  opacity: 1,
-  textAlign: 'left',
-});
-
-globalStyle(`${coverIcon} .doc-icon-container`, {
-  width: 78,
-  maxWidth: 'none',
-  margin: 0,
-  padding: '0 !important',
-});
-
-globalStyle(`${coverIcon} .doc-icon-container[data-has-icon="false"]`, {
-  width: 'auto',
-});
-
-globalStyle(`${coverIcon} [data-icon-type="emoji"]`, {
-  width: 78,
-  height: 78,
-  fontSize: 72,
-});
-
-globalStyle(`${coverIcon} [data-icon-type="nota-icon"]`, {
-  width: 78,
-  height: 78,
-  fontSize: 72,
-});
-
-globalStyle(`${coverIcon} .doc-icon-container[data-has-icon="false"] button`, {
-  minWidth: 96,
-  height: 36,
-  padding: '0 12px',
-  borderRadius: 18,
-  background: 'rgba(16, 17, 14, 0.34)',
-  color: 'rgba(255, 255, 255, 0.84)',
-  backdropFilter: 'blur(10px)',
-});
-
-globalStyle(`${coverIcon} .doc-icon-container[data-has-icon="false"] svg`, {
-  width: 18,
-  height: 18,
-});
-
-globalStyle(`${coverIcon} .doc-icon-container[data-has-icon="false"] span`, {
-  fontSize: 13,
-  fontWeight: 650,
+  content: '"Untitled"',
 });

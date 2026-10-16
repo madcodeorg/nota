@@ -49,7 +49,7 @@ describe('redirect allowlist', () => {
     ).toBe(true);
 
     expect(
-      isAllowedRedirectTarget('https://nota.pro./', {
+      isAllowedRedirectTarget('https://thenota.app./', {
         currentHostname: 'self.example.com',
       })
     ).toBe(true);

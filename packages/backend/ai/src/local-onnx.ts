@@ -605,6 +605,7 @@ export async function streamLocalOnnxText(input: {
   messages: LocalOnnxMessage[];
   modelId: string;
   onText: (text: string) => void;
+  responseFormat?: LanguageModelV3CallOptions['responseFormat'];
 }) {
   throwIfAborted(input.abortSignal);
   if (isLlamaCppTextModel(input.modelId)) {
@@ -690,6 +691,7 @@ export async function generateLocalOnnxText(input: {
   maxNewTokens?: number;
   messages: LocalOnnxMessage[];
   modelId: string;
+  responseFormat?: LanguageModelV3CallOptions['responseFormat'];
 }) {
   throwIfAborted(input.abortSignal);
   if (isLlamaCppTextModel(input.modelId)) {

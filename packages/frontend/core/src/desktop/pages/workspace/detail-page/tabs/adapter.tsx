@@ -1,6 +1,5 @@
 import { AdapterPanel } from '@blocksuite/affine/fragments/adapter-panel';
 import {
-  customImageProxyMiddleware,
   docLinkBaseURLMiddlewareBuilder,
   embedSyncedDocMiddleware,
   titleMiddleware,
@@ -13,26 +12,14 @@ import { useCallback, useEffect, useRef } from 'react';
 
 import * as styles from './adapter.css';
 
-const createImageProxyUrl = (baseUrl: string) => {
-  try {
-    return new URL(BUILD_CONFIG.imageProxyUrl, baseUrl).toString();
-  } catch (error) {
-    console.error('Failed to create image proxy url', error);
-    return '';
-  }
-};
-
 const createMiddlewares = (
   host: EditorHost,
   baseUrl: string
 ): TransformerMiddleware[] => {
-  const imageProxyUrl = createImageProxyUrl(baseUrl);
-
   return [
     docLinkBaseURLMiddlewareBuilder(baseUrl, host.store.workspace.id).get(),
     titleMiddleware(host.store.workspace.meta.docMetas),
     embedSyncedDocMiddleware('content'),
-    customImageProxyMiddleware(imageProxyUrl),
   ];
 };
 

@@ -1,19 +1,18 @@
 import {
   menu,
+  type MenuHandler,
   popMenu,
   popupTargetFromElement,
 } from '@blocksuite/affine/components/context-menu';
 import { SignalWatcher, WithDisposable } from '@blocksuite/affine/global/lit';
 import { unsafeCSSVarV2 } from '@blocksuite/affine/shared/theme';
 import {
-  AiOutlineIcon,
   ArrowDownSmallIcon,
-  DoneIcon,
   SearchIcon,
+  SettingsIcon,
   ThinkingIcon,
 } from '@blocksuite/icons/lit';
 import { ShadowlessElement } from '@blocksuite/std';
-import { autoPlacement, offset, shift } from '@floating-ui/dom';
 import type {
   AIReasoningLevel,
   AIToolsConfigService,
@@ -22,37 +21,44 @@ import {
   reasoningLevelsForModel,
   supportsReasoningLevelSelection,
 } from '@nota/core/modules/ai-button/reasoning';
-import type { AIModelService } from '@nota/core/modules/ai-button/services/models';
+import {
+  type AIModel,
+  type AIModelService,
+  groupAIModelsByProvider,
+} from '@nota/core/modules/ai-button/services/models';
+import type { WorkspaceDialogService } from '@nota/core/modules/dialogs';
 import type { CopilotChatHistoryFragment } from '@nota/graphql';
 import { computed } from '@preact/signals-core';
 import { css, html } from 'lit';
 import { property } from 'lit/decorators.js';
 
-const modelSubMenuMiddleware = [
-  autoPlacement({ allowedPlacements: ['right-start', 'left-start'] }),
-  offset({ mainAxis: 4, crossAxis: 0 }),
-  shift({ crossAxis: true, padding: 8 }),
-];
+const reasoningLevelLabels: Record<AIReasoningLevel, string> = {
+  none: 'Off',
+  minimal: 'Minimal',
+  low: 'Low',
+  medium: 'Medium',
+  high: 'High',
+  xhigh: 'Extra high',
+};
 
-const reasoningLevelOptions: Array<{
-  label: string;
-  level: AIReasoningLevel;
-}> = [
-  { label: 'Off', level: 'none' },
-  { label: 'Minimal', level: 'minimal' },
-  { label: 'Low', level: 'low' },
-  { label: 'Medium', level: 'medium' },
-  { label: 'High', level: 'high' },
-  { label: 'Extra high', level: 'xhigh' },
-];
+const modelSearchName = (model: AIModel) =>
+  `${model.category} ${model.version}`;
 
 export class ChatInputPreference extends SignalWatcher(
   WithDisposable(ShadowlessElement)
 ) {
   static override styles = css`
+    chat-input-preference {
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      min-width: 0;
+    }
     .chat-input-preference-trigger {
       display: flex;
       align-items: center;
+      gap: 2px;
+      min-width: 0;
       padding: 0px 4px;
       color: var(--affine-v2-icon-primary);
       transition: all 0.23s ease;
@@ -68,67 +74,61 @@ export class ChatInputPreference extends SignalWatcher(
       font-size: 14px;
       line-height: 22px;
       font-weight: 500;
-      padding: 0px 4px;
+      padding: 0px 2px;
+      max-width: 160px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
     .chat-input-preference-trigger-icon {
       font-size: 20px;
       line-height: 0;
     }
+    .chat-input-thinking-trigger .chat-input-preference-trigger-label {
+      font-weight: 400;
+      color: ${unsafeCSSVarV2('text/secondary')};
+    }
     .preference-action {
       white-space: nowrap;
-      min-width: 220px;
     }
-    .ai-active-model-name {
-      font-size: 14px;
-      color: ${unsafeCSSVarV2('text/secondary')};
-      line-height: 22px;
-      margin-left: 40px;
+    affine-menu[data-testid='chat-input-model-menu'] .affine-menu-body {
+      max-height: min(420px, 60vh);
+      overflow-y: auto;
     }
-    .ai-model-prefix {
-      width: 20px;
-      height: 20px;
-    }
-    .ai-model-prefix svg {
-      color: ${unsafeCSSVarV2('icon/activated')};
-    }
-    .ai-model-postfix svg:hover {
-      color: ${unsafeCSSVarV2('icon/activated')};
-    }
-    .ai-model-version {
+    .ai-model-group-name {
+      padding: 6px 4px 2px;
       font-size: 12px;
-      color: ${unsafeCSSVarV2('text/tertiary')};
       line-height: 20px;
-      margin-right: 40px;
+      color: ${unsafeCSSVarV2('text/secondary')};
     }
-    .ai-active-reasoning-level {
-      font-size: 12px;
-      color: ${unsafeCSSVarV2('text/tertiary')};
-      margin-left: 24px;
+    .ai-model-option.selected {
+      color: ${unsafeCSSVarV2('text/emphasis')};
+    }
+    .ai-model-menu-settings {
+      display: flex;
+      padding: 2px;
+      font-size: 20px;
+      color: ${unsafeCSSVarV2('icon/primary')};
+      background: transparent;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .ai-model-menu-settings:hover {
+      background-color: var(--affine-hover-color);
     }
   `;
 
   @property({ attribute: false })
   accessor session!: CopilotChatHistoryFragment | null | undefined;
-  // --------- model props end ---------
-
-  // --------- extended thinking props start ---------
-  @property({ attribute: false })
-  accessor extendedThinking: boolean = false;
-
-  @property({ attribute: false })
-  accessor onExtendedThinkingChange:
-    | ((extendedThinking: boolean) => void)
-    | undefined;
 
   @property({ attribute: false })
   accessor reasoningLevel: AIReasoningLevel | undefined;
 
   @property({ attribute: false })
   accessor onReasoningLevelChange:
-    | ((reasoningLevel: AIReasoningLevel) => void)
+    | ((reasoningLevel: AIReasoningLevel | undefined) => void)
     | undefined;
-
-  // --------- extended thinking props end ---------
 
   @property({ attribute: false })
   accessor toolsConfigService!: AIToolsConfigService;
@@ -136,24 +136,13 @@ export class ChatInputPreference extends SignalWatcher(
   @property({ attribute: false })
   accessor aiModelService!: AIModelService;
 
+  @property({ attribute: false })
+  accessor affineWorkspaceDialogService: WorkspaceDialogService | undefined;
+
   model = computed(() => {
     const modelId = this.aiModelService.modelId.value;
-    const activeModel = this.aiModelService.models.value.find(
-      model => model.id === modelId
-    );
-    const defaultModel = this.aiModelService.models.value.find(
-      model => model.isDefault
-    );
-    return activeModel || defaultModel;
+    return this.aiModelService.models.value.find(model => model.id === modelId);
   });
-
-  private get activeReasoningLevel(): AIReasoningLevel {
-    const requested =
-      this.reasoningLevel ?? (this.extendedThinking ? 'high' : 'none');
-    return this.supportedReasoningLevels.includes(requested)
-      ? requested
-      : 'none';
-  }
 
   private get supportedReasoningLevels() {
     return reasoningLevelsForModel(
@@ -162,144 +151,175 @@ export class ChatInputPreference extends SignalWatcher(
     );
   }
 
-  private readonly selectReasoningLevel = (level: AIReasoningLevel) => {
-    if (this.onReasoningLevelChange) {
-      this.onReasoningLevelChange(level);
-      return;
-    }
-    this.onExtendedThinkingChange?.(level !== 'none');
-  };
+  // A stored level the current model can't use is ignored by the backend,
+  // so it is shown as the provider default.
+  private get activeReasoningLevel() {
+    const level = this.reasoningLevel;
+    return level && this.supportedReasoningLevels.includes(level)
+      ? level
+      : undefined;
+  }
 
-  openPreference(e: Event) {
+  private readonly openThinkingMenu = (e: Event) => {
     const element = e.currentTarget;
     if (!(element instanceof HTMLElement)) return;
-    const modelItems = [];
-    const searchItems = [];
-
-    // model switch
-    modelItems.push(
-      menu.subMenu({
-        name: 'Model',
-        prefix: AiOutlineIcon(),
-        middleware: modelSubMenuMiddleware,
-        postfix: html`
-          <span class="ai-active-model-name"> ${this.model.value?.name} </span>
-        `,
-        options: {
-          items: this.aiModelService.models.value.map(model => {
-            const isSelected = model.id === this.model.value?.id;
-            return menu.action({
-              name: model.category,
-              info: html`
-                <span class="ai-model-version">${model.version}</span>
-              `,
-              prefix: html`
-                <div class="ai-model-prefix">
-                  ${isSelected ? DoneIcon() : undefined}
-                </div>
-              `,
-              select: () => {
-                this.aiModelService.setModel(model.id);
-                if (
-                  reasoningLevelsForModel(model.id, model.reasoningLevels)
-                    .length === 1
-                ) {
-                  this.selectReasoningLevel('none');
-                }
-              },
-            });
-          }),
-        },
-      })
-    );
-
-    if (
-      supportsReasoningLevelSelection(
-        this.model.value?.id,
-        this.model.value?.reasoningLevels
-      )
-    ) {
-      const activeReasoningLabel =
-        reasoningLevelOptions.find(
-          option => option.level === this.activeReasoningLevel
-        )?.label ?? 'Off';
-      modelItems.push(
-        menu.subMenu({
-          name: 'Thinking level',
-          prefix: ThinkingIcon(),
-          middleware: modelSubMenuMiddleware,
-          postfix: html`
-            <span class="ai-active-reasoning-level">
-              ${activeReasoningLabel}
-            </span>
-          `,
-          options: {
-            items: reasoningLevelOptions
-              .filter(option =>
-                this.supportedReasoningLevels.includes(option.level)
-              )
-              .map(option =>
-                menu.action({
-                  name: option.label,
-                  prefix:
-                    option.level === this.activeReasoningLevel
-                      ? DoneIcon()
-                      : undefined,
-                  select: () => this.selectReasoningLevel(option.level),
-                })
-              ),
-          },
-        })
-      );
-    }
-
-    searchItems.push(
-      menu.toggleSwitch({
-        name: 'Search workspace notes',
-        prefix: SearchIcon(),
-        on:
-          !!this.toolsConfigService.config.value.searchWorkspace &&
-          !!this.toolsConfigService.config.value.readingDocs,
-        onChange: (value: boolean) =>
-          this.toolsConfigService.setConfig({
-            searchWorkspace: value,
-            readingDocs: value,
-          }),
-        class: { 'preference-action': true },
-      })
-    );
+    const active = this.activeReasoningLevel;
+    const select = (level: AIReasoningLevel | undefined) => () =>
+      this.onReasoningLevelChange?.(level);
 
     popMenu(popupTargetFromElement(element), {
       options: {
         items: [
           menu.group({
-            items: [...modelItems],
+            items: [
+              menu.action({
+                name: 'Default',
+                isSelected: !active,
+                select: select(undefined),
+              }),
+            ],
           }),
           menu.group({
-            items: [...searchItems],
+            items: this.supportedReasoningLevels.map(level =>
+              menu.action({
+                name: reasoningLevelLabels[level],
+                isSelected: level === active,
+                select: select(level),
+              })
+            ),
           }),
         ],
-        testId: 'chat-input-preference',
+        testId: 'chat-input-thinking-menu',
       },
     });
-  }
+  };
+
+  private readonly openModelMenu = (e: Event) => {
+    const element = e.currentTarget;
+    if (!(element instanceof HTMLElement)) return;
+    const selectedId = this.model.value?.id;
+    const dialogService = this.affineWorkspaceDialogService;
+    let handler: MenuHandler | undefined;
+
+    const modelGroups = groupAIModelsByProvider(
+      this.aiModelService.models.value
+    ).map(({ provider, models }) =>
+      menu.group({
+        items: [
+          currentMenu =>
+            models.some(model => currentMenu.search(modelSearchName(model)))
+              ? html`<div class="ai-model-group-name">${provider}</div>`
+              : undefined,
+          ...models.map(model => {
+            const selected = model.id === selectedId;
+            return menu.action({
+              name: modelSearchName(model),
+              label: () =>
+                html`<span
+                  class=${selected
+                    ? 'ai-model-option selected'
+                    : 'ai-model-option'}
+                  >${model.version}</span
+                >`,
+              // An empty postfix keeps the right side blank.
+              postfix: html``,
+              isSelected: selected,
+              testId: 'chat-input-model-option',
+              select: () => this.aiModelService.setModel(model.id),
+            });
+          }),
+        ],
+      })
+    );
+
+    handler = popMenu(popupTargetFromElement(element), {
+      options: {
+        title: {
+          text: 'Models',
+          postfix: () =>
+            dialogService
+              ? html`<button
+                  type="button"
+                  class="ai-model-menu-settings"
+                  aria-label="Open AI settings"
+                  title="AI settings"
+                  @click=${() => {
+                    handler?.close();
+                    dialogService.open('setting', { activeTab: 'ai' });
+                  }}
+                >
+                  ${SettingsIcon()}
+                </button>`
+              : html``,
+        },
+        search: { placeholder: 'Search models' },
+        items: [
+          ...modelGroups,
+          menu.group({
+            items: [
+              menu.toggleSwitch({
+                name: 'Search workspace notes',
+                prefix: SearchIcon(),
+                on:
+                  !!this.toolsConfigService.config.value.searchWorkspace &&
+                  !!this.toolsConfigService.config.value.readingDocs,
+                onChange: (value: boolean) =>
+                  this.toolsConfigService.setConfig({
+                    searchWorkspace: value,
+                    readingDocs: value,
+                  }),
+                class: { 'preference-action': true },
+              }),
+            ],
+          }),
+        ],
+        testId: 'chat-input-model-menu',
+      },
+    });
+  };
 
   override render() {
-    return html`<button
-      type="button"
-      @click=${this.openPreference}
-      aria-haspopup="menu"
-      aria-label="AI model and response settings"
-      title="Choose model, thinking level, and workspace search"
-      data-testid="chat-input-preference-trigger"
-      class="chat-input-preference-trigger"
-    >
-      <span class="chat-input-preference-trigger-label">
-        ${this.model.value?.category ?? 'Model'}
-      </span>
-      <span class="chat-input-preference-trigger-icon">
-        ${ArrowDownSmallIcon()}
-      </span>
-    </button>`;
+    const model = this.model.value;
+    const active = this.activeReasoningLevel;
+    const showThinking = supportsReasoningLevelSelection(
+      model?.id,
+      model?.reasoningLevels
+    );
+    const thinkingLabel = active ? reasoningLevelLabels[active] : 'Default';
+
+    return html`${showThinking
+        ? html`<button
+            type="button"
+            @click=${this.openThinkingMenu}
+            aria-haspopup="menu"
+            aria-label=${`Thinking level: ${thinkingLabel}`}
+            title="Thinking level"
+            data-testid="chat-input-thinking-trigger"
+            class="chat-input-preference-trigger chat-input-thinking-trigger"
+          >
+            <span class="chat-input-preference-trigger-icon">
+              ${ThinkingIcon()}
+            </span>
+            <span class="chat-input-preference-trigger-label">
+              ${thinkingLabel}
+            </span>
+          </button>`
+        : null}
+      <button
+        type="button"
+        @click=${this.openModelMenu}
+        aria-haspopup="menu"
+        aria-label="Choose AI model"
+        title=${model?.name ?? 'Choose model'}
+        data-testid="chat-input-preference-trigger"
+        class="chat-input-preference-trigger"
+      >
+        <span class="chat-input-preference-trigger-label">
+          ${model?.version ?? 'Model'}
+        </span>
+        <span class="chat-input-preference-trigger-icon">
+          ${ArrowDownSmallIcon()}
+        </span>
+      </button>`;
   }
 }

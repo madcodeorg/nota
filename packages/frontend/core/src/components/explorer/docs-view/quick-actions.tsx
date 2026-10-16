@@ -60,6 +60,7 @@ export const QuickFavorite = memo(function QuickFavorite({
       icon={<IsFavoriteIcon favorite={favourite} />}
       onClick={toggleFavorite}
       data-testid="doc-list-operation-favorite"
+      data-favorite={favourite}
       {...iconButtonProps}
     />
   );

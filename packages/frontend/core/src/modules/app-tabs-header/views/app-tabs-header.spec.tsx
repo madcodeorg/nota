@@ -112,6 +112,12 @@ vi.mock('@nota/core/modules/quicksearch/services/cmdk', () => ({
 vi.mock('@nota/core/modules/workspace', () => ({
   WorkspaceService: class WorkspaceService {},
 }));
+vi.mock(
+  '../../../desktop/components/app-container/header-update-button',
+  () => ({
+    HeaderUpdateButton: () => <button data-testid="header-update-button" />,
+  })
+);
 vi.mock('@nota/core/modules/app-tabs-header', async () =>
   vi.importActual('./app-tabs-header')
 );
@@ -178,6 +184,7 @@ describe('desktop layout readiness', () => {
       screen.getByRole('complementary', { name: 'Loading sidebar' })
     ).toBeTruthy();
     expect(screen.getByTestId('add-tab-view-button')).toBeTruthy();
+    expect(screen.queryByTestId('header-update-button')).toBeNull();
     expect(
       mocks.desktopApi.handler.ui.pingAppLayoutReady
     ).not.toHaveBeenCalled();
@@ -188,6 +195,7 @@ describe('desktop layout readiness', () => {
       </AppContainer>
     );
     expect(screen.getByRole('main').textContent).toBe('Workspace content');
+    expect(screen.getByTestId('header-update-button')).toBeTruthy();
     expect(
       screen.queryByRole('complementary', { name: 'Loading sidebar' })
     ).toBeNull();

@@ -16,7 +16,11 @@ describe('normalizeAIReasoningLevel', () => {
   test('migrates the legacy boolean preference', () => {
     expect(normalizeAIReasoningLevel(true)).toBe('high');
     expect(normalizeAIReasoningLevel(false)).toBe('none');
-    expect(normalizeAIReasoningLevel(undefined)).toBe('none');
+  });
+
+  test('leaves an unset preference to the provider default', () => {
+    expect(normalizeAIReasoningLevel(undefined)).toBeUndefined();
+    expect(normalizeAIReasoningLevel(null)).toBeUndefined();
   });
 });
 

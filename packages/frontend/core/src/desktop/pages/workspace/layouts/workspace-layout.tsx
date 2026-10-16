@@ -6,6 +6,7 @@ import { WorkspaceSideEffects } from '@nota/core/components/providers/workspace-
 import { AIIsland } from '@nota/core/desktop/components/ai-island';
 import { AppContainer } from '@nota/core/desktop/components/app-container';
 import { DocumentTitle } from '@nota/core/desktop/components/document-title';
+import { WhatsNewModal } from '@nota/core/desktop/components/whats-new';
 import { WorkspaceDialogs } from '@nota/core/desktop/dialogs';
 import { PeekViewManagerModal } from '@nota/core/modules/peek-view';
 import { QuotaCheck } from '@nota/core/modules/quota';
@@ -30,6 +31,7 @@ export const WorkspaceLayout = function WorkspaceLayout({
     <SWRConfigProvider>
       <WorkspaceDialogs />
       <WorkspaceSetup />
+      <WhatsNewModal />
 
       {/* ---- some side-effect components ---- */}
       {isServerBackedWorkspaceFlavour(currentWorkspace.flavour) ? (

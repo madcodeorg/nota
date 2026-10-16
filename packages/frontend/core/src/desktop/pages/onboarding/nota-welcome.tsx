@@ -59,7 +59,7 @@ const titles: Record<CardStep, string> = {
   welcome: 'Welcome to Nota',
   drive: 'Sync with Google Drive',
   transcription: 'Meeting transcription',
-  chat: 'Local AI chat',
+  chat: 'AI chat',
   permissions: 'Recording and calendar',
   import: 'Bring your notes',
 };
@@ -70,7 +70,7 @@ const copy: Record<CardStep, string> = {
     'Sign in to keep a synced copy of your workspace in your own Google Drive.',
   transcription:
     'Choose the model that turns meeting recordings into text on this device.',
-  chat: 'Choose the local model for Nota AI, note actions and meeting summaries.',
+  chat: 'Choose local AI or connect your ChatGPT plan for Nota AI, note actions and meeting summaries.',
   permissions:
     'Allow recording and calendar access now, or later when you start a meeting.',
   import: 'Start with a fresh workspace, or bring pages over from another app.',
@@ -116,7 +116,10 @@ export function NotaWelcome({
 }: {
   onOpenApp: () => void | Promise<void>;
   desktopOverlay?: boolean;
-  onChatSelected?: (id: string) => void | Promise<void>;
+  onChatSelected?: (
+    id: string,
+    provider?: 'local' | 'chatgpt'
+  ) => void | Promise<void>;
 }) {
   const reducedMotion = useReducedMotion();
   const [phase, setPhase] = useState<Phase>(() =>
@@ -301,7 +304,10 @@ function SetupCard({
   leaving: boolean;
   onStep: (step: CardStep) => void;
   onFinish: () => void;
-  onChatSelected?: (id: string) => void | Promise<void>;
+  onChatSelected?: (
+    id: string,
+    provider?: 'local' | 'chatgpt'
+  ) => void | Promise<void>;
 }) {
   const heading = useRef<HTMLHeadingElement>(null);
   const primary = useRef<HTMLButtonElement>(null);

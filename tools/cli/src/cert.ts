@@ -65,7 +65,7 @@ export class CertCommand extends Command {
     confPath.writeFile(config);
     this.exec(`openssl genrsa -out ${keyPath} 2048`);
     this.exec(
-      `openssl req -new -key ${keyPath} -out ${csrPath} -config ${confPath} -subj "/C=/ST=/O=/localityName=/commonName=${domain}/organizationalUnitName=/emailAddress=${domain}@nota.pro/"`
+      `openssl req -new -key ${keyPath} -out ${csrPath} -config ${confPath} -subj "/C=/ST=/O=/localityName=/commonName=${domain}/organizationalUnitName=/emailAddress=${domain}@thenota.app/"`
     );
     this.exec(
       `openssl x509 -req -days 1024 -in ${csrPath} -CA ${CA_PEM_PATH} -CAkey ${CA_KEY_PATH} -CAcreateserial -out ${crtPath} -extensions v3_req -extfile ${confPath}`
@@ -89,7 +89,7 @@ export class CertCommand extends Command {
     CA_DIR.mkdir();
 
     this.exec(
-      `openssl req -new -newkey rsa:2048 -days 1024 -nodes -x509 -subj "/C=/ST=/O=${CA_ORG}/localityName=/commonName=${CA_NAME}/organizationalUnitName=Developers/emailAddress=dev@nota.pro/" -keyout ${CA_KEY_PATH} -out ${CA_PEM_PATH}`
+      `openssl req -new -newkey rsa:2048 -days 1024 -nodes -x509 -subj "/C=/ST=/O=${CA_ORG}/localityName=/commonName=${CA_NAME}/organizationalUnitName=Developers/emailAddress=dev@thenota.app/" -keyout ${CA_KEY_PATH} -out ${CA_PEM_PATH}`
     );
     this.trustCa(CA_PEM_PATH);
   }

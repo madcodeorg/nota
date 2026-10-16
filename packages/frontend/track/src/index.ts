@@ -1,6 +1,5 @@
 import { enableAutoTrack, makeTracker } from './auto';
 import { type EventArgs, type Events } from './events';
-import { sentry } from './sentry';
 import {
   flushTelemetry,
   setTelemetryContext,
@@ -16,7 +15,6 @@ export {
   type EventArgs,
   type Events,
   flushTelemetry,
-  sentry,
   setTelemetryContext,
   setTelemetryTransport,
   tracker,

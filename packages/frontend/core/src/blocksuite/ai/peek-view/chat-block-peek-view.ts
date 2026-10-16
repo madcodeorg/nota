@@ -44,16 +44,12 @@ import type { ChatMessage } from '../components/ai-chat-messages';
 import {
   ChatMessagesSchema,
   isChatMessage,
-  StreamObjectSchema,
 } from '../components/ai-chat-messages';
 import type { AgentActionProposalHandler } from '../components/ai-tools/agent-action-proposal-card';
 import type { TextRendererOptions } from '../components/text-renderer';
 import { AIChatErrorRenderer } from '../messages/error';
 import { type AIError, AIProvider } from '../provider';
-import {
-  mergeStreamContent,
-  mergeStreamObjects,
-} from '../utils/stream-objects';
+import { appendStreamChunk, mergeStreamContent } from '../utils/stream-objects';
 import { PeekViewStyles } from './styles';
 import type { ChatContext } from './types';
 import { calcChildBound } from './utils';
@@ -417,22 +413,10 @@ export class AIChatBlockPeekView extends LitElement {
         const messages = this.chatContext.messages.slice(0);
         const last = messages.at(-1);
         if (last && isChatMessage(last)) {
-          try {
-            const parsed = StreamObjectSchema.parse(JSON.parse(text));
-            const streamObjects = mergeStreamObjects([
-              ...(last.streamObjects ?? []),
-              parsed,
-            ]);
-            messages[messages.length - 1] = {
-              ...last,
-              streamObjects,
-            };
-          } catch {
-            messages[messages.length - 1] = {
-              ...last,
-              content: last.content + text,
-            };
-          }
+          messages[messages.length - 1] = {
+            ...last,
+            ...appendStreamChunk(last, text),
+          };
           this.updateContext({ messages, status: 'transmitting' });
         }
       }

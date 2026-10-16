@@ -30,6 +30,11 @@ import {
   WorkspaceService,
 } from '@nota/core/modules/workspace';
 import {
+  DEFAULT_ARTWORK,
+  loadArtworkPool,
+  pickFreshArtwork,
+} from '@nota/core/utils/met-artwork';
+import {
   createStreamEncoder,
   type OpusStreamEncoder,
 } from '@nota/core/utils/opus-encoding';
@@ -93,14 +98,6 @@ import {
 import { finalizeConfirmedMeetingCapture } from './meeting-stop-finalization';
 import { createMeetingTranscriptReplayFilter } from './meeting-transcript-replay';
 import * as styles from './style.css';
-
-type Artwork = {
-  artist: string;
-  date: string;
-  imageUrl: string;
-  objectId?: number;
-  title: string;
-};
 
 type MeetingState = 'idle' | 'recording' | 'paused' | 'stopped';
 type TranscriptSource = 'mic' | 'system';
@@ -457,69 +454,6 @@ const CAPTURE_START_WATCHDOG_MS = 4000;
 const MEETING_AUDIO_POSTED_EVENT = 'nota:meeting-audio-frame-posted';
 const CAPTURE_START_NO_AUDIO_MESSAGE =
   'Meeting recording started, but Nota has not received microphone or app audio yet. Check Microphone and System Audio access, then restart the meeting.';
-const DEFAULT_ARTWORK: Artwork = {
-  artist: 'Vincent van Gogh',
-  date: '1889',
-  imageUrl:
-    'https://images.metmuseum.org/CRDImages/ep/web-large/DP-42549-001.jpg',
-  title: 'Wheat Field with Cypresses',
-};
-const MEETING_ARTWORK_CACHE_KEY = 'nota:meetings-cover-met-artworks:v1';
-const MEETING_LAST_ARTWORK_KEY = 'nota:meetings-cover-last-artwork:v1';
-
-function readCachedArtworkPool() {
-  try {
-    const raw = window.localStorage.getItem(MEETING_ARTWORK_CACHE_KEY);
-    if (!raw) {
-      return [];
-    }
-    const cached = JSON.parse(raw) as { artworks?: Artwork[] };
-    return (cached.artworks ?? []).filter(
-      artwork =>
-        typeof artwork?.imageUrl === 'string' &&
-        artwork.imageUrl.startsWith('https://') &&
-        typeof artwork.title === 'string' &&
-        typeof artwork.artist === 'string' &&
-        typeof artwork.date === 'string'
-    );
-  } catch {
-    return [];
-  }
-}
-
-function artworkStorageKey(artwork: Artwork) {
-  return String(artwork.objectId ?? artwork.imageUrl);
-}
-
-function pickFreshArtwork(cachedArtworks: Artwork[]) {
-  const artworkByImage = new Map<string, Artwork>();
-  for (const artwork of [...cachedArtworks, DEFAULT_ARTWORK]) {
-    artworkByImage.set(artwork.imageUrl, artwork);
-  }
-  const pool = [...artworkByImage.values()];
-  let lastArtworkKey: string | null = null;
-  try {
-    lastArtworkKey = window.localStorage.getItem(MEETING_LAST_ARTWORK_KEY);
-  } catch {
-    // Rotation works without persisted state.
-  }
-  const candidates =
-    pool.length > 1
-      ? pool.filter(artwork => artworkStorageKey(artwork) !== lastArtworkKey)
-      : pool;
-  const next =
-    candidates[Math.floor(Math.random() * candidates.length)] ??
-    DEFAULT_ARTWORK;
-  try {
-    window.localStorage.setItem(
-      MEETING_LAST_ARTWORK_KEY,
-      artworkStorageKey(next)
-    );
-  } catch {
-    // Rotation works without persisted state.
-  }
-  return next;
-}
 
 function aiBackendUrl(path: string) {
   // Custom Electron schemes expose `location.origin` as "null". Resolve
@@ -2247,7 +2181,19 @@ export const Component = () => {
   }, [desktopApi]);
 
   useEffect(() => {
-    setArtwork(pickFreshArtwork(readCachedArtworkPool()));
+    let disposed = false;
+    loadArtworkPool()
+      .then(pool => {
+        if (!disposed) {
+          setArtwork(pickFreshArtwork(pool));
+        }
+      })
+      .catch(() => {
+        // Keep the bundled artwork while the Met API is unreachable.
+      });
+    return () => {
+      disposed = true;
+    };
   }, []);
 
   useEffect(() => {

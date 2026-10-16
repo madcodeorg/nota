@@ -1,8 +1,5 @@
 import { Container } from '@blocksuite/affine/global/di';
-import {
-  customImageProxyMiddleware,
-  MarkdownAdapter,
-} from '@blocksuite/affine/shared/adapters';
+import { MarkdownAdapter } from '@blocksuite/affine/shared/adapters';
 import {
   type BlockModel,
   type DocSnapshot,
@@ -16,7 +13,6 @@ import { toArrayBuffer } from '@nota/core/utils/array-buffer';
 import { Service } from '@nota/infra';
 import { Doc as YDoc } from 'yjs';
 
-import type { DefaultServerService, WorkspaceServerService } from '../../cloud';
 import {
   getAFFiNEWorkspaceSchema,
   type WorkspaceService,
@@ -24,18 +20,8 @@ import {
 import { WorkspaceImpl } from '../../workspace/impls/workspace';
 
 export class SnapshotHelper extends Service {
-  constructor(
-    private readonly workspaceService: WorkspaceService,
-    private readonly workspaceServerService: WorkspaceServerService,
-    private readonly defaultServerService: DefaultServerService
-  ) {
+  constructor(private readonly workspaceService: WorkspaceService) {
     super();
-  }
-
-  private get serverService() {
-    return (
-      this.workspaceServerService.server || this.defaultServerService.server
-    );
   }
 
   getTempWorkspace() {
@@ -70,12 +56,6 @@ export class SnapshotHelper extends Service {
   getTransformer() {
     const collection = this.getTempWorkspace();
     const schema = getAFFiNEWorkspaceSchema();
-    const imageProxyUrl = new URL(
-      BUILD_CONFIG.imageProxyUrl,
-      this.serverService.baseUrl
-    ).toString();
-
-    const middlewares = [customImageProxyMiddleware(imageProxyUrl)];
     const transformer = new Transformer({
       schema,
       blobCRUD: collection.blobSync,
@@ -87,7 +67,6 @@ export class SnapshotHelper extends Service {
         get: (id: string) => collection.getDoc(id)?.getStore({ id }) ?? null,
         delete: (id: string) => collection.removeDoc(id),
       },
-      middlewares,
     });
     return transformer;
   }

@@ -20,13 +20,25 @@ export function startScopedViewTransition(
     scopes.forEach(setScope);
 
     const vt = document.startViewTransition(cb);
+    // Skipping an animation rejects ready even when finished fulfills. DOM
+    // callback failures also reject updateCallbackDone independently; finished
+    // below reports those failures once.
+    void vt.ready.catch(() => {});
+    void vt.updateCallbackDone.catch(() => {});
+    let timer: ReturnType<typeof setTimeout>;
     const timeoutPromise = new Promise<void>((_, reject) => {
-      setTimeout(() => reject(new Error('View transition timeout')), timeout);
+      timer = setTimeout(() => {
+        vt.skipTransition();
+        reject(new Error('View transition timeout'));
+      }, timeout);
     });
 
     Promise.race([vt.finished, timeoutPromise])
       .catch(err => console.error(`View transition[${scope}] failed: ${err}`))
-      .finally(() => scopes.forEach(rmScope));
+      .finally(() => {
+        clearTimeout(timer);
+        scopes.forEach(rmScope);
+      });
   } else {
     cb()?.catch(console.error);
   }

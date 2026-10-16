@@ -329,6 +329,38 @@ export class EdgelessRootBlockComponent extends BlockComponent<
   }
 
   private _initWheelEvent() {
+    // Trackpad pinch fires wheel events faster than frames render. Apply them
+    // once per frame so a slow frame doesn't turn into one large zoom jump.
+    let pendingZoom: { zoom: number; clientX: number; clientY: number } | null =
+      null;
+    let zoomRafId: number | null = null;
+
+    const flushZoom = () => {
+      if (zoomRafId !== null) {
+        cancelAnimationFrame(zoomRafId);
+        zoomRafId = null;
+      }
+      if (!pendingZoom) return;
+
+      const { zoom, clientX, clientY } = pendingZoom;
+      pendingZoom = null;
+
+      const { viewport } = this.gfx;
+      const rect = this.getBoundingClientRect();
+      // Perform zooming relative to the mouse position
+      const [baseX, baseY] = viewport.toModelCoord(
+        clientX - rect.x,
+        clientY - rect.y
+      );
+      viewport.setZoom(zoom, new Point(baseX, baseY), true);
+    };
+
+    this._disposables.add(() => {
+      if (zoomRafId !== null) cancelAnimationFrame(zoomRafId);
+      zoomRafId = null;
+      pendingZoom = null;
+    });
+
     this._disposables.add(
       this.std.event.add('wheel', ctx => {
         const config = this.std.getOptional(EditorSettingProvider)?.setting$;
@@ -343,19 +375,29 @@ export class EdgelessRootBlockComponent extends BlockComponent<
 
         // zoom
         if (isTouchPadPinchEvent(e) || edgelessScrollZoom) {
-          const rect = this.getBoundingClientRect();
-          // Perform zooming relative to the mouse position
-          const [baseX, baseY] = this.gfx.viewport.toModelCoord(
-            e.clientX - rect.x,
-            e.clientY - rect.y
+          const zoom = normalizeWheelDeltaY(
+            e.deltaY,
+            pendingZoom?.zoom ?? viewport.zoom
           );
-
-          const zoom = normalizeWheelDeltaY(e.deltaY, viewport.zoom);
-          viewport.setZoom(zoom, new Point(baseX, baseY), true);
+          pendingZoom = {
+            zoom: Math.min(
+              Math.max(zoom, viewport.ZOOM_MIN),
+              viewport.ZOOM_MAX
+            ),
+            clientX: e.clientX,
+            clientY: e.clientY,
+          };
+          zoomRafId ??= requestAnimationFrame(() => {
+            zoomRafId = null;
+            flushZoom();
+          });
           e.stopPropagation();
         }
         // pan
         else {
+          // Pan deltas depend on the current zoom, so apply any pending zoom first.
+          flushZoom();
+
           const simulateHorizontalScroll = IS_WINDOWS && e.shiftKey;
           const dx = simulateHorizontalScroll
             ? e.deltaY / viewport.zoom

@@ -45,8 +45,4 @@ declare type Environment = {
   };
   var environment: Environment;
   var $AFFINE_SETUP: boolean | undefined;
-  /**
-   * Inject by https://www.npmjs.com/package/@sentry/webpack-plugin
-   */
-  var SENTRY_RELEASE: { id: string } | undefined;
 }

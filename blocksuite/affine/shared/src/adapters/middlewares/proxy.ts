@@ -52,7 +52,11 @@ export class ImageProxyService extends StoreExtension {
   }
 
   buildUrl(imageUrl: string) {
-    if (imageUrl.startsWith(this.imageProxyURL) || isImageProxyURL(imageUrl)) {
+    if (
+      !this.imageProxyURL ||
+      imageUrl.startsWith(this.imageProxyURL) ||
+      isImageProxyURL(imageUrl)
+    ) {
       return imageUrl;
     }
 

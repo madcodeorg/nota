@@ -60,8 +60,6 @@ export class AuthService extends Service {
 
   async sendEmailMagicLink(
     email: string,
-    verifyToken?: string,
-    challenge?: string,
     redirectUrl?: string // url to redirect to after signed-in
   ) {
     track.$.$.auth.signIn({ method: 'magic-link' });
@@ -90,7 +88,6 @@ export class AuthService extends Service {
         }),
         headers: {
           'content-type': 'application/json',
-          ...(verifyToken ? this.captchaHeaders(verifyToken, challenge) : {}),
         },
       });
     } catch (e) {
@@ -198,12 +195,7 @@ export class AuthService extends Service {
     this.session.revalidate();
   }
 
-  async signInPassword(credential: {
-    email: string;
-    password: string;
-    verifyToken?: string;
-    challenge?: string;
-  }) {
+  async signInPassword(credential: { email: string; password: string }) {
     track.$.$.auth.signIn({ method: 'password' });
     try {
       await this.store.signInPassword(credential);
@@ -234,18 +226,6 @@ export class AuthService extends Service {
 
   checkUserByEmail(email: string) {
     return this.store.checkUserByEmail(email);
-  }
-
-  captchaHeaders(token: string, challenge?: string) {
-    const headers: Record<string, string> = {
-      'x-captcha-token': token,
-    };
-
-    if (challenge) {
-      headers['x-captcha-challenge'] = challenge;
-    }
-
-    return headers;
   }
 
   private setClientNonce(): string {

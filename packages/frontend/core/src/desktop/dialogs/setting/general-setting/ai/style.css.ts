@@ -5,29 +5,40 @@ import { globalStyle, style } from '@vanilla-extract/css';
 export const panel = style({
   minWidth: 0,
   width: '100%',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 10,
   containerType: 'inline-size',
   letterSpacing: 0,
 });
 
 globalStyle(`${panel} .title`, { letterSpacing: 0 });
 globalStyle(`${panel} > div:first-child`, {
-  paddingBottom: 16,
-  marginBottom: 20,
+  paddingBottom: 12,
+  marginBottom: 2,
 });
 export const section = style({
-  padding: '16px 0',
+  padding: '14px 18px',
   marginBottom: 0,
-  border: 0,
-  borderRadius: 0,
+  border: `1px solid ${cssVarV2('layer/insideBorder/border')}`,
+  borderRadius: 12,
   boxShadow: 'none',
-  background: 'transparent',
+  background: cssVarV2('layer/background/primary'),
 });
 globalStyle(`${section} > h2`, {
-  margin: '0 0 16px',
-  fontSize: cssVar('fontSm'),
+  margin: '0 0 12px',
+  fontSize: cssVar('fontXs'),
   fontWeight: 600,
-  lineHeight: '20px',
-  color: cssVar('textPrimaryColor'),
+  lineHeight: '16px',
+  letterSpacing: '0.04em',
+  textTransform: 'uppercase',
+  color: cssVarV2('text/secondary'),
+});
+globalStyle(`${section} .two-col`, {
+  marginBottom: 12,
+});
+globalStyle(`${section} .two-col:last-of-type`, {
+  marginBottom: 0,
 });
 globalStyle(`${panel} .two-col`, {
   flexWrap: 'wrap',
@@ -52,9 +63,15 @@ globalStyle(`${panel} [role="tab"]:focus-visible`, {
   outlineOffset: 2,
 });
 
-export const tabContent = style({ minWidth: 0, gap: 8 });
+export const tabContent = style({
+  minWidth: 0,
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 10,
+  paddingTop: 2,
+});
 export const rowControl = style({
-  width: 280,
+  width: 240,
   minWidth: 0,
   maxWidth: '100%',
 });
@@ -81,7 +98,7 @@ export const textarea = style({
 
 export const menuTrigger = style({
   boxSizing: 'border-box',
-  width: 280,
+  width: 240,
   maxWidth: '100%',
   minHeight: 36,
   padding: '7px 10px',
@@ -136,10 +153,10 @@ export const mutedStatus = style({
 export const saveBar = style({
   display: 'flex',
   flexDirection: 'column',
-  gap: 12,
-  padding: '16px 0',
-  marginTop: 16,
-  borderTop: `1px solid ${cssVar('borderColor')}`,
+  gap: 10,
+  padding: '10px 0 0',
+  marginTop: 2,
+  borderTop: `1px solid ${cssVarV2('layer/insideBorder/border')}`,
 });
 export const actions = style({
   display: 'flex',
@@ -153,8 +170,34 @@ export const notice = style({
   color: cssVar('textSecondaryColor'),
   overflowWrap: 'anywhere',
 });
-export const error = style([notice, { color: cssVarV2('status/error') }]);
-export const device = style([notice, { marginBottom: 12 }]);
+export const statusNotice = style([
+  notice,
+  {
+    marginTop: 4,
+    padding: '8px 12px',
+    borderRadius: 6,
+    background: cssVar('hoverColor'),
+  },
+]);
+export const error = style([
+  notice,
+  {
+    marginTop: 8,
+    padding: '8px 12px',
+    borderRadius: 6,
+    borderLeft: `3px solid ${cssVarV2('status/error')}`,
+    background: cssVar('hoverColor'),
+    color: cssVarV2('status/error'),
+  },
+]);
+export const device = style([notice, { marginBottom: 0 }]);
+export const disclosureHeader = style({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: 8,
+  marginBottom: 8,
+});
 export const capability = style({
   display: 'flex',
   alignItems: 'center',
@@ -171,4 +214,103 @@ export const dot = style({
 });
 export const pendingDot = style({
   background: cssVar('textSecondaryColor'),
+});
+
+export const chatgptCompactRow = style({
+  width: '100%',
+  minWidth: 0,
+  maxWidth: '100%',
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'flex-start',
+  gap: 4,
+  marginBottom: 8,
+  selectors: {
+    '&:last-of-type': {
+      marginBottom: 0,
+    },
+  },
+});
+
+export const chatgptCompactActions = style({
+  display: 'flex',
+  flexWrap: 'wrap',
+  justifyContent: 'flex-end',
+  gap: 8,
+  minWidth: 0,
+  maxWidth: '100%',
+});
+globalStyle(`${chatgptCompactRow} ${chatgptCompactActions}`, {
+  justifyContent: 'flex-start',
+});
+
+export const providerConnectionGroup = style({
+  marginTop: 12,
+  paddingTop: 12,
+  borderTop: `1px solid ${cssVarV2('layer/insideBorder/border')}`,
+  selectors: {
+    '&[hidden]': {
+      display: 'none',
+    },
+  },
+});
+
+export const disclosure = style({
+  minWidth: 0,
+  padding: '12px 18px',
+  border: `1px solid ${cssVarV2('layer/insideBorder/border')}`,
+  borderRadius: 12,
+  background: cssVarV2('layer/background/primary'),
+});
+globalStyle(`${section} ${disclosure}`, {
+  padding: '8px 12px',
+  margin: '8px 0 12px',
+  border: `1px solid ${cssVarV2('layer/insideBorder/border')}`,
+  borderRadius: 8,
+  background: cssVar('hoverColor'),
+});
+export const disclosureSummary = style({
+  listStyle: 'none',
+  position: 'relative',
+  paddingRight: 24,
+  cursor: 'pointer',
+  color: cssVar('textPrimaryColor'),
+  fontSize: cssVar('fontSm'),
+  fontWeight: 600,
+  lineHeight: '20px',
+  overflowWrap: 'anywhere',
+  userSelect: 'none',
+  ':focus-visible': {
+    outline: `2px solid ${cssVar('primaryColor')}`,
+    outlineOffset: 2,
+  },
+  selectors: {
+    '&::-webkit-details-marker': {
+      display: 'none',
+    },
+    '&::after': {
+      content: '"\u25B8"',
+      position: 'absolute',
+      right: 2,
+      top: '50%',
+      transform: 'translateY(-50%)',
+      color: cssVar('textSecondaryColor'),
+      fontSize: cssVar('fontSm'),
+      transition: 'transform 150ms ease',
+    },
+  },
+});
+globalStyle(`${disclosure}[open] > ${disclosureSummary}::after`, {
+  transform: 'translateY(-50%) rotate(90deg)',
+});
+globalStyle(`${disclosureSummary} > span + span`, {
+  display: 'block',
+  marginTop: 4,
+  fontWeight: 400,
+});
+export const disclosureContent = style({
+  minWidth: 0,
+  marginTop: 12,
+  paddingTop: 12,
+  borderTop: `1px solid ${cssVarV2('layer/insideBorder/border')}`,
 });

@@ -17,7 +17,7 @@ const Template: StoryFn<AvatarProps> = args => <Avatar {...args} />;
 export const DefaultAvatar: StoryFn<AvatarProps> = Template.bind(undefined);
 DefaultAvatar.args = {
   name: 'Nota',
-  url: 'https://nota.pro/favicon-96.png',
+  url: 'https://github.com/madcodeorg.png',
   size: 50,
 };
 export const Fallback: StoryFn<AvatarProps> = Template.bind(undefined);

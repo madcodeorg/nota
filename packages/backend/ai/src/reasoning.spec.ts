@@ -1,4 +1,5 @@
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
+import { createVertex } from '@ai-sdk/google-vertex';
 import { generateText } from 'ai';
 import { describe, expect, test } from 'vitest';
 
@@ -17,6 +18,62 @@ describe('reasoning levels', () => {
     expect(parseReasoningLevel(true)).toBe('high');
     expect(parseReasoningLevel('false')).toBe('none');
     expect(parseReasoningLevel('unknown')).toBeNull();
+  });
+
+  test('recognizes known Gateway vendor namespaces without changing transmitted IDs', () => {
+    const selection = {
+      provider: 'ai-gateway' as const,
+      modelId: 'openai/gpt-5',
+      runtime: 'hosted' as const,
+    };
+    expect(resolveReasoning(selection, 'high').sdk.reasoning).toBe('high');
+    expect(selection.modelId).toBe('openai/gpt-5');
+    expect(
+      modelSupportsReasoning({ ...selection, modelId: 'owner/gpt-5' })
+    ).toBe(false);
+  });
+
+  test('uses Claude options for Vertex Anthropic and avoids Gemini options for partner adapters', () => {
+    expect(
+      resolveReasoning(
+        {
+          provider: 'google-vertex-anthropic',
+          modelId: 'claude-sonnet-4-5',
+          runtime: 'hosted',
+        },
+        'xhigh'
+      ).sdk
+    ).toEqual({
+      reasoning: 'xhigh',
+      providerOptions: { anthropic: { sendReasoning: true } },
+    });
+    expect(
+      resolveReasoning(
+        {
+          provider: 'google-vertex-maas',
+          modelId: 'openai/gpt-oss-120b-maas',
+          runtime: 'hosted',
+        },
+        'high'
+      ).sdk
+    ).toEqual({ reasoning: 'high', providerOptions: undefined });
+    expect(
+      reasoningLevelsForSelection({
+        provider: 'google-vertex-xai',
+        modelId: 'xai/grok-4.1-fast-reasoning',
+        runtime: 'hosted',
+      })
+    ).toEqual(['none']);
+    expect(
+      resolveReasoning(
+        {
+          provider: 'google-vertex-xai',
+          modelId: 'xai/grok-4.1-fast-reasoning',
+          runtime: 'hosted',
+        },
+        'high'
+      ).sdk
+    ).toEqual({});
   });
 
   test('does not send reasoning to text-only local ONNX models', () => {
@@ -64,6 +121,17 @@ describe('reasoning levels', () => {
     );
     expect(codexMax.effective).toBe('xhigh');
     expect(codexMax.sdk.reasoning).toBe('xhigh');
+
+    const chatgptSol = resolveReasoning(
+      {
+        modelId: 'gpt-6-sol',
+        provider: 'chatgpt',
+        runtime: 'hosted',
+      },
+      'xhigh'
+    );
+    expect(chatgptSol.effective).toBe('xhigh');
+    expect(chatgptSol.sdk.reasoning).toBe('xhigh');
   });
 
   test('adds provider options needed to display Google thinking', () => {
@@ -201,5 +269,52 @@ describe('reasoning levels', () => {
         runtime: 'hosted',
       })
     ).toContain('xhigh');
+  });
+  test('uses Vertex native thinking options and supported low thinking when none is requested', async () => {
+    const resolution = resolveReasoning(
+      {
+        modelId: 'gemini-3.8-flash',
+        provider: 'google-vertex',
+        runtime: 'hosted',
+      },
+      'none'
+    );
+    expect(resolution.effective).toBe('low');
+    expect(resolution.sdk).toMatchObject({
+      providerOptions: {
+        googleVertex: { thinkingConfig: { includeThoughts: false } },
+      },
+    });
+    let payload: Record<string, unknown> | undefined;
+    const vertex = createVertex({
+      apiKey: 'test-only-key',
+      fetch: async (_url, options) => {
+        payload = JSON.parse(String(options?.body));
+        return Response.json({
+          candidates: [
+            {
+              content: { role: 'model', parts: [{ text: 'Done.' }] },
+              finishReason: 'STOP',
+            },
+          ],
+          usageMetadata: {
+            promptTokenCount: 1,
+            candidatesTokenCount: 1,
+            totalTokenCount: 2,
+          },
+        });
+      },
+    });
+    const result = await generateText({
+      model: vertex('gemini-3.8-flash'),
+      prompt: 'Hello',
+      ...resolution.sdk,
+    });
+    expect(result.text).toBe('Done.');
+    expect(payload).toMatchObject({
+      generationConfig: {
+        thinkingConfig: { thinkingLevel: 'low', includeThoughts: false },
+      },
+    });
   });
 });

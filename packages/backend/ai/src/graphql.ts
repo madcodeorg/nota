@@ -3,7 +3,7 @@ import type { Request, Response } from 'express';
 import type { AiBackendConfig } from './config';
 import { getLocalModelHealth } from './meetings';
 import type { AiModelRouter } from './providers';
-import type { CopilotStore } from './store';
+import type { CopilotStore, SessionListOptions } from './store';
 import type { GraphQLRequestBody } from './types';
 
 type GraphQLContext = {
@@ -213,19 +213,26 @@ export function createGraphQLHandler(context: GraphQLContext) {
           const docId =
             typeof variables.docId === 'string' ? variables.docId : null;
           const options = variables.options as
-            | { sessionId?: string | null }
+            | (SessionListOptions & { sessionId?: string | null })
             | undefined;
           const sessionId =
             typeof variables.sessionId === 'string'
               ? variables.sessionId
               : (options?.sessionId ?? undefined);
+          const numberVar = (value: unknown) =>
+            typeof value === 'number' ? value : undefined;
           ok(res, {
             currentUser: {
               copilot: {
                 chats: context.store.listSessions(
                   workspaceId,
                   docId,
-                  sessionId
+                  sessionId,
+                  {
+                    ...options,
+                    limit: options?.limit ?? numberVar(variables.limit),
+                    skip: options?.skip ?? numberVar(variables.offset),
+                  }
                 ),
               },
             },

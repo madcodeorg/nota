@@ -1,4 +1,5 @@
 import type { WorkspaceService } from '@nota/core/modules/workspace';
+import { DebugLogger } from '@nota/debug';
 import {
   catchErrorInto,
   effect,
@@ -9,12 +10,13 @@ import {
   onStart,
   smartRetry,
 } from '@nota/infra';
-import { logger } from '@sentry/react';
 import { EMPTY, interval, Subject } from 'rxjs';
 import { exhaustMap, mergeMap, switchMap, takeUntil } from 'rxjs/operators';
 
 import type { EmbeddingStore } from '../stores/embedding';
 import type { LocalAttachmentFile } from '../types';
+
+const logger = new DebugLogger('nota:embedding-progress');
 
 interface Progress {
   embedded: number;

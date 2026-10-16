@@ -35,6 +35,17 @@ Before you start building Nota Desktop Client Application, please following the 
 
 On Windows, enable symbolic-link support before cloning. See [the build prerequisites](./BUILDING.md#prerequisites).
 
+Windows speech and chat helper builds enable Vulkan by default and require the
+Vulkan SDK, including `glslc`. For a local CPU-only build, set both
+`$env:NOTA_WHISPER_VULKAN="0"` and `$env:NOTA_LLAMA_VULKAN="0"` before building
+Electron. These settings select CPU-only helper binaries, so the resulting app
+does not provide Vulkan acceleration.
+
+Windows helper sources and CMake output use a checkout-specific directory under
+the system temporary directory to avoid MSBuild's 260-character path limit.
+`NOTA_LOCAL_ASR_BUILD_ROOT` can override that location; choose a short absolute
+path. Other platforms continue to use the helper's `.build` directory.
+
 ## Development
 
 After installing dependencies and building `@nota/native`, start the renderer in one terminal:

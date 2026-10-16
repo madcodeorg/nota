@@ -2,8 +2,6 @@ import './security-restrictions';
 
 import path from 'node:path';
 
-import * as Sentry from '@sentry/electron/main';
-import { IPCMode } from '@sentry/electron/main';
 import { app, nativeImage, protocol } from 'electron';
 
 import { resourcesPath } from '../shared/utils';
@@ -160,23 +158,6 @@ applicationInitialization = app
 
 setupDeepLink(app, () => applicationInitialization);
 applicationInitialization.catch(e => console.error('Failed create window:', e));
-
-if (process.env.SENTRY_RELEASE) {
-  // https://docs.sentry.io/platforms/javascript/guides/electron/
-  Sentry.init({
-    dsn: process.env.SENTRY_DSN,
-    environment: process.env.BUILD_TYPE ?? 'development',
-    ipcMode: IPCMode.Protocol,
-    transportOptions: {
-      maxAgeDays: 30,
-      maxQueueSize: 100,
-    },
-  });
-  Sentry.setTags({
-    distribution: 'electron',
-    appVersion: app.getVersion(),
-  });
-}
 
 protocol.registerSchemesAsPrivileged([
   {

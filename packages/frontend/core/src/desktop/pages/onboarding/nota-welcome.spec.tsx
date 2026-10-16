@@ -215,7 +215,7 @@ describe('Nota welcome and sequential setup', () => {
     expect(screen.getByLabelText('Transcription model')).toBeTruthy();
     expect(screen.queryByLabelText('Local chat model')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Save and continue' }));
-    expect(screen.getByRole('heading', { name: 'Local AI chat' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'AI chat' })).toBeTruthy();
     expect(screen.getByLabelText('Local chat model')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Skip for now' }));
     expect(
@@ -239,7 +239,7 @@ describe('Nota welcome and sequential setup', () => {
   test('an interrupted setup resumes on its saved step', () => {
     updateWelcomeState({ introCompleted: true, setupStep: 'chat' });
     render(<NotaWelcome onOpenApp={vi.fn()} />);
-    expect(screen.getByRole('heading', { name: 'Local AI chat' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'AI chat' })).toBeTruthy();
   });
 
   test('a legacy models step resumes on transcription', () => {

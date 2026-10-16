@@ -6,11 +6,7 @@ import queryString from 'query-string';
 
 function maybeNotaOrigin(origin: string, baseUrl: string) {
   return (
-    origin.startsWith('assets://') ||
-    origin.endsWith('nota.pro') || // stable/beta
-    origin.endsWith('apple.getnotaapp.com') || // stable/beta
-    origin.endsWith('nota.fail') || // canary
-    origin === baseUrl // localhost or self-hosted
+    origin.startsWith('assets://') || origin === baseUrl // localhost or self-hosted
   );
 }
 

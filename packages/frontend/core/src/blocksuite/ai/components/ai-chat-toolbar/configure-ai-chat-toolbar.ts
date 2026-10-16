@@ -17,6 +17,8 @@ export type ConfigureAIChatToolbarOptions = {
   onOpenSession: (sessionId: string) => void;
   onOpenDoc: (docId: string, sessionId: string) => void;
   onSessionDelete: (session: BlockSuitePresets.AIRecentSession) => void;
+  onOpenExpanded?: () => void;
+  onOpenCompact?: () => void;
 };
 
 export function getOrCreateAIChatToolbar(
@@ -40,5 +42,7 @@ export function configureAIChatToolbar(
   tool.onOpenSession = options.onOpenSession;
   tool.onOpenDoc = options.onOpenDoc;
   tool.onSessionDelete = options.onSessionDelete;
+  tool.onOpenExpanded = options.onOpenExpanded;
+  tool.onOpenCompact = options.onOpenCompact;
   return tool;
 }

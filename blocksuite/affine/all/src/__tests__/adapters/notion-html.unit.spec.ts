@@ -1,6 +1,5 @@
 import { DefaultTheme, NoteDisplayMode } from '@blocksuite/affine-model';
 import { NotionHtmlAdapter } from '@blocksuite/affine-shared/adapters';
-import { DEFAULT_IMAGE_PROXY_ENDPOINT } from '@blocksuite/affine-shared/consts';
 import {
   AssetsManager,
   type BlockSnapshot,
@@ -1202,12 +1201,9 @@ describe('notion html to snapshot', () => {
     const originalUrl =
       'https://raw.githubusercontent.com/toeverything/blocksuite/master/assets/logo.svg';
 
-    const imageProxy = DEFAULT_IMAGE_PROXY_ENDPOINT;
-    const imageUrl = `${imageProxy}?url=${encodeURIComponent(originalUrl)}`;
-
     // Mock the image request
     const imageRequestHandlers = [
-      http.get(imageUrl.toString(), async () => {
+      http.get(originalUrl, async () => {
         // Return a mock image blob
         const mockImageBlob = new Blob(['mock image data'], {
           type: 'image/svg+xml',

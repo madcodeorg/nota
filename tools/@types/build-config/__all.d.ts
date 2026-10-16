@@ -24,6 +24,8 @@ declare interface BUILD_CONFIG_TYPE {
   appVersion: string;
   editorVersion: string;
   appBuildType: 'stable' | 'beta' | 'internal' | 'canary';
+  /** CHANGELOG.md bullets for appVersion, shown once after an update. */
+  releaseNotes: string[];
 
   githubUrl: string;
   changelogUrl: string;
@@ -31,12 +33,7 @@ declare interface BUILD_CONFIG_TYPE {
   downloadUrl: string;
   discordUrl: string;
   requestLicenseUrl: string;
-  // see: tools/workers
-  imageProxyUrl: string;
-  linkPreviewUrl: string;
 
-  CAPTCHA_SITE_KEY: string;
-  SENTRY_DSN: string;
   googleClientId: string;
   googleClientSecret: string;
   googleAuthBrokerUrl: string;

@@ -17,12 +17,14 @@ import {
   readActionProposal,
   updateActionProposalStatus,
 } from './actions';
+import { getChatGPTAuth } from './chatgpt-auth';
 import {
   type AiBackendConfig,
   loadConfig,
   mainTextModelForProvider,
   OPENAI_COMPATIBLE_PROVIDER_NAMES,
   PROVIDER_NAMES,
+  type ProviderName,
   saveConfig,
   updateConfig,
 } from './config';
@@ -169,6 +171,13 @@ export function createServer() {
     path.join(path.dirname(config.settingsPath), 'copilot-sessions.json')
   );
   const ready = seededModelsReady.then(async () => {
+    if (getChatGPTAuth(config).status().planEnabled) {
+      // Restore cached account choices immediately and refresh in the
+      // background. Hosted auth/network timeouts must not delay local startup.
+      void getChatGPTAuth(config)
+        .refreshCatalog()
+        .catch(() => {});
+    }
     try {
       // Seed installation changes the on-disk catalog after the router and
       // Copilot store are constructed. Refresh from the existing health
@@ -264,11 +273,11 @@ export function createServer() {
       case 'create_mindmap':
       case 'insert_markdown':
       case 'replace_selection':
-        return `${proposal.type.replace(/_/g, ' ')} in ${proposal.docId}`;
+        return `${proposal.type.replace(/_/g, ' ')} in the note`;
       case 'append_database_rows':
-        return `append database rows in ${proposal.docId}`;
+        return 'append database rows in the note';
       case 'clear_doc':
-        return `clear document ${proposal.docId}`;
+        return 'clear the note';
       case 'run_mcp_tool':
         return `run MCP tool ${proposal.toolName}`;
     }
@@ -282,19 +291,15 @@ export function createServer() {
       return;
     }
 
-    const docId =
-      input.proposal.result && typeof input.proposal.result.docId === 'string'
-        ? input.proposal.result.docId
-        : null;
     const message =
       input.status === 'applied'
         ? `Applied Nota AI action: ${describeActionProposal(
             input.proposal.proposal
-          )}${docId ? ` -> ${docId}` : ''}.`
+          )}.`
         : input.status === 'undone'
           ? `Undid Nota AI action: ${describeActionProposal(
               input.proposal.proposal
-            )}${docId ? ` -> ${docId}` : ''}.`
+            )}.`
           : input.status === 'failed'
             ? `Failed Nota AI action: ${describeActionProposal(
                 input.proposal.proposal
@@ -346,19 +351,10 @@ export function createServer() {
         return !!config.openaiApiKey;
       case 'local':
         return localProviderAvailable();
-      case 'openrouter':
-      case 'deepseek':
-      case 'xai':
-      case 'mistral':
-      case 'groq':
-      case 'perplexity':
-      case 'custom': {
-        const provider = config.compatibleProviders[config.defaultProvider];
-        return (
-          !!provider.baseUrl &&
-          (config.defaultProvider === 'custom' || !!provider.apiKey)
-        );
-      }
+      case 'chatgpt':
+        return getChatGPTAuth(config).status().planEnabled;
+      default:
+        return models.isProviderConfigured(config.defaultProvider);
     }
   }
 
@@ -406,6 +402,125 @@ export function createServer() {
   });
   app.use(express.json({ limit: '10mb' }));
 
+  let chatGPTCatalogFingerprint = '';
+  app.use((_req, _res, next) => {
+    const auth = getChatGPTAuth(config);
+    const status = auth.status();
+    const fingerprint = JSON.stringify([
+      status.activeProfileId,
+      status.connected,
+      status.planEnabled,
+      auth.getCachedModels().map(model => model.id),
+    ]);
+    // The browser callback runs on a separate loopback listener. Bring the
+    // chat-session catalog up to date before the next authenticated request,
+    // including sign-in completion, account changes and disconnected accounts.
+    if (fingerprint !== chatGPTCatalogFingerprint) {
+      chatGPTCatalogFingerprint = fingerprint;
+      const catalog = models.models();
+      store.setDefaultModel(
+        catalog.defaultModel,
+        catalog.optionalModels
+          .filter(model => model.selectable)
+          .map(model => model.id)
+      );
+    }
+    next();
+  });
+
+  // These routes share the desktop backend's origin/token boundary. OAuth
+  // credentials remain in the backend; only connection metadata reaches UI.
+  app.get('/api/ai/chatgpt/status', (_req, res) => {
+    res.json(getChatGPTAuth(config).status());
+  });
+  app.post('/api/ai/chatgpt/sign-in', async (req, res) => {
+    try {
+      const body = req.body ?? {};
+      if (
+        (body.profileId !== undefined && typeof body.profileId !== 'string') ||
+        (body.newProfile !== undefined && typeof body.newProfile !== 'boolean')
+      ) {
+        res.status(400).json({ error: 'Invalid ChatGPT sign-in request.' });
+        return;
+      }
+      res.json(
+        await getChatGPTAuth(config).startSignIn({
+          profileId: body.profileId,
+          newProfile: body.newProfile,
+        })
+      );
+    } catch (error) {
+      res.status(400).json({
+        error:
+          error instanceof Error ? error.message : 'ChatGPT sign-in failed.',
+      });
+    }
+  });
+  app.post('/api/ai/chatgpt/cancel', (_req, res) => {
+    getChatGPTAuth(config).cancelSignIn();
+    res.json(getChatGPTAuth(config).status());
+  });
+  app.post('/api/ai/chatgpt/select-profile', async (req, res) => {
+    try {
+      if (
+        typeof req.body?.profileId !== 'string' ||
+        !req.body.profileId.trim()
+      ) {
+        res.status(400).json({ error: 'A ChatGPT profile ID is required.' });
+        return;
+      }
+      await getChatGPTAuth(config).selectProfile(req.body.profileId);
+      res.json(getChatGPTAuth(config).status());
+    } catch (error) {
+      res.status(400).json({
+        error:
+          error instanceof Error
+            ? error.message
+            : 'ChatGPT account selection failed.',
+      });
+    }
+  });
+  app.post('/api/ai/chatgpt/disconnect', async (_req, res) => {
+    try {
+      await getChatGPTAuth(config).signOut();
+      res.json(getChatGPTAuth(config).status());
+    } catch (error) {
+      res.status(400).json({
+        error:
+          error instanceof Error ? error.message : 'ChatGPT sign-out failed.',
+      });
+    }
+  });
+  app.get('/api/ai/chatgpt/models', async (_req, res) => {
+    try {
+      res.json({ models: await getChatGPTAuth(config).refreshCatalog() });
+    } catch (error) {
+      res.status(400).json({
+        error:
+          error instanceof Error
+            ? error.message
+            : 'ChatGPT model discovery failed.',
+      });
+    }
+  });
+  app.get('/api/ai/providers/:provider/models', async (req, res) => {
+    const provider = req.params.provider as ProviderName;
+    if (!PROVIDER_NAMES.includes(provider)) {
+      res.status(400).json({ error: 'Unknown AI provider.' });
+      return;
+    }
+    try {
+      res.json({ models: await models.discoverModels(provider) });
+    } catch (error) {
+      res.status(400).json({
+        error:
+          error instanceof Error
+            ? error.message
+            : 'Model discovery failed. Enter a model ID manually.',
+      });
+    }
+  });
+
   app.get('/api/health', (_req, res) => {
     const modelCatalog = models.models();
     const selected = modelCatalog.defaultModel
@@ -451,6 +566,7 @@ export function createServer() {
         openaiModel: config.openaiModel,
         anthropicModel: config.anthropicModel,
         googleModel: config.googleModel,
+        chatgptModel: config.chatgptModel,
         compatibleProviders: Object.fromEntries(
           OPENAI_COMPATIBLE_PROVIDER_NAMES.map(provider => [
             provider,
@@ -458,6 +574,12 @@ export function createServer() {
               baseUrl: config.compatibleProviders[provider].baseUrl,
               hasKey: !!config.compatibleProviders[provider].apiKey,
               model: config.compatibleProviders[provider].model,
+              apiMode: config.compatibleProviders[provider].apiMode,
+              region: config.compatibleProviders[provider].region,
+              project: config.compatibleProviders[provider].project,
+              location: config.compatibleProviders[provider].location,
+              resourceName: config.compatibleProviders[provider].resourceName,
+              workspaceId: config.compatibleProviders[provider].workspaceId,
             },
           ])
         ),
@@ -500,6 +622,7 @@ export function createServer() {
           anthropic: !!config.anthropicApiKey,
           google: !!config.googleApiKey,
           local: !!config.localApiKey,
+          chatgpt: getChatGPTAuth(config).status().planEnabled,
           ...Object.fromEntries(
             OPENAI_COMPATIBLE_PROVIDER_NAMES.map(provider => [
               provider,

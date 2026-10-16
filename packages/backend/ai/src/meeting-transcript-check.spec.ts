@@ -1,6 +1,14 @@
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test, vi } from 'vitest';
 
-import { applyTranscriptCheck } from './meeting-transcript-check';
+import type { AiBackendConfig } from './config';
+import {
+  applyTranscriptCheck,
+  checkMeetingTranscript,
+} from './meeting-transcript-check';
+import type { ModelSelection } from './providers';
+import { generateBackendObject } from './text-runtime';
+
+vi.mock('./text-runtime', () => ({ generateBackendObject: vi.fn() }));
 
 const lines = [
   {
@@ -22,6 +30,48 @@ const lines = [
 ];
 
 describe('transcript check guardrails', () => {
+  test('constrains generated corrections to each supplied batch', async () => {
+    const generate = vi.mocked(generateBackendObject);
+    generate.mockResolvedValue({
+      structured: { remove: [], fixes: [] },
+      model: 'fixture',
+      provider: 'local',
+      runtime: 'local-onnx',
+    });
+    const transcript = Array.from({ length: 61 }, (_, index) => ({
+      startMs: index * 1000,
+      endMs: (index + 1) * 1000,
+      text: 'This line contains actual speech.',
+    }));
+    const result = await checkMeetingTranscript({
+      config: {} as AiBackendConfig,
+      selected: {} as ModelSelection,
+      lines: transcript,
+    });
+    expect(result.lines).toEqual(transcript);
+    const first = generate.mock.calls[0][0].schema;
+    const second = generate.mock.calls[1][0].schema;
+    const removal = (line: number) => ({
+      remove: [{ line, reason: 'hallucination' }],
+      fixes: [],
+    });
+    expect(first.safeParse(removal(60)).success).toBe(true);
+    expect(first.safeParse(removal(61)).success).toBe(false);
+    expect(second.safeParse(removal(61)).success).toBe(true);
+    expect(second.safeParse(removal(60)).success).toBe(false);
+    expect(
+      second.safeParse({
+        remove: [removal(61).remove[0], removal(61).remove[0]],
+        fixes: [],
+      }).success
+    ).toBe(false);
+    expect(
+      second.safeParse({
+        remove: [],
+        fixes: [{ line: 61, text: 'rewritten '.repeat(100) }],
+      }).success
+    ).toBe(false);
+  });
   test('removes an overlapping duplicate and short filler', () => {
     const result = applyTranscriptCheck(lines, {
       fixes: [],

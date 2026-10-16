@@ -8,7 +8,6 @@ export * from './back-button';
 export * from './change-email-page';
 export * from './change-password-page';
 export { NotaLogoIcon } from './logo';
-export * from './onboarding-page';
 export * from './password-input';
 export * from './set-password-page';
 export * from './sign-in-page-container';

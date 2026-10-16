@@ -1,5 +1,6 @@
 import type { LanguageModelV4CallOptions } from '@ai-sdk/provider';
 
+import { isOpenAICompatibleProvider, type ProviderName } from './config';
 import type { ModelSelection } from './providers';
 
 export const REASONING_LEVELS = [
@@ -46,7 +47,9 @@ function isOpenAIReasoningModel(modelId: string) {
     modelId.startsWith('o1') ||
     modelId.startsWith('o3') ||
     modelId.startsWith('o4-mini') ||
-    (modelId.startsWith('gpt-5') && !modelId.startsWith('gpt-5-chat'))
+    (modelId.startsWith('gpt-5') && !modelId.startsWith('gpt-5-chat')) ||
+    modelId.startsWith('gpt-6') ||
+    modelId.startsWith('gpt-daybreak')
   );
 }
 
@@ -69,7 +72,8 @@ function isGoogleReasoningModel(modelId: string) {
 
 function requiresGoogleLowThinking(selection: ReasoningSelection) {
   return (
-    selection.provider === 'google' &&
+    (selection.provider === 'google' ||
+      selection.provider === 'google-vertex') &&
     /^gemini-3[.-][78]-flash(?:-|$)/.test(selection.modelId.toLowerCase())
   );
 }
@@ -86,25 +90,52 @@ function isCompatibleReasoningModel(modelId: string) {
   );
 }
 
+/** Proxy vendor prefixes describe capabilities; the original ID is still
+ * sent unchanged to the provider. Never strip an arbitrary owner namespace. */
+export function modelIdForCapabilities(
+  provider: ProviderName,
+  modelId: string
+) {
+  const normalized = modelId.toLowerCase();
+  if (
+    [
+      'ai-gateway',
+      'openrouter',
+      'custom',
+      'google-vertex-maas',
+      'google-vertex-xai',
+    ].includes(provider)
+  )
+    return normalized.replace(/^(?:openai|anthropic|google|xai)\//, '');
+  return normalized;
+}
+
+function isAnthropicProvider(provider: ProviderName) {
+  return (
+    provider === 'anthropic' ||
+    provider === 'google-vertex-anthropic' ||
+    provider === 'anthropic-aws'
+  );
+}
+
 export function modelSupportsReasoning(selection: ReasoningSelection) {
   if (selection.runtime === 'local-onnx') return false;
+  // Vertex's Grok API selects reasoning via the model ID. Its official
+  // adapter removes reasoning_effort, so adjustable levels are unsupported.
+  if (selection.provider === 'google-vertex-xai') return false;
 
-  const modelId = selection.modelId.toLowerCase();
+  const modelId = modelIdForCapabilities(selection.provider, selection.modelId);
+  if (isAnthropicProvider(selection.provider))
+    return isAnthropicReasoningModel(modelId);
+  if (isOpenAICompatibleProvider(selection.provider))
+    return isCompatibleReasoningModel(modelId);
   switch (selection.provider) {
     case 'openai':
       return isOpenAIReasoningModel(modelId);
-    case 'anthropic':
-      return isAnthropicReasoningModel(modelId);
     case 'google':
       return isGoogleReasoningModel(modelId);
     case 'local':
-    case 'openrouter':
-    case 'deepseek':
-    case 'xai':
-    case 'mistral':
-    case 'groq':
-    case 'perplexity':
-    case 'custom':
+    case 'chatgpt':
       return isCompatibleReasoningModel(modelId);
   }
 }
@@ -122,10 +153,10 @@ export function reasoningLevelsForSelection(
 
   const normalizedModelId = selection.modelId.toLowerCase();
   const supportsExtraHigh =
-    selection.provider === 'anthropic' ||
-    (selection.provider === 'openai' &&
+    isAnthropicProvider(selection.provider) ||
+    ((selection.provider === 'openai' || selection.provider === 'chatgpt') &&
       (normalizedModelId === 'gpt-5.1-codex-max' ||
-        /^gpt-5[.-](?:6|[7-9])/.test(normalizedModelId)));
+        /^gpt-(?:5[.-](?:6|[7-9])|6|daybreak)/.test(normalizedModelId)));
 
   return supportsExtraHigh
     ? [...REASONING_LEVELS]
@@ -147,11 +178,13 @@ function clampReasoningLevel(
   // Anthropic maps xhigh to adaptive effort or its largest token budget.
   // Other providers only accept xhigh on a narrower set of models, so use
   // high until the model catalog can advertise support explicitly.
-  if (selection.provider === 'anthropic') return requested;
+  if (isAnthropicProvider(selection.provider)) return requested;
   if (
-    selection.provider === 'openai' &&
+    (selection.provider === 'openai' || selection.provider === 'chatgpt') &&
     (selection.modelId.toLowerCase() === 'gpt-5.1-codex-max' ||
-      /^gpt-5[.-](?:6|[7-9])/.test(selection.modelId.toLowerCase()))
+      /^gpt-(?:5[.-](?:6|[7-9])|6|daybreak)/.test(
+        selection.modelId.toLowerCase()
+      ))
   ) {
     return requested;
   }
@@ -175,15 +208,16 @@ export function resolveReasoning(
 
   const effective = clampReasoningLevel(selection, requested);
   const providerOptions: LanguageModelV4CallOptions['providerOptions'] =
-    selection.provider === 'google'
+    selection.provider === 'google' || selection.provider === 'google-vertex'
       ? {
-          google: {
-            thinkingConfig: {
-              includeThoughts: requested !== 'none',
+          [selection.provider === 'google-vertex' ? 'googleVertex' : 'google']:
+            {
+              thinkingConfig: {
+                includeThoughts: requested !== 'none',
+              },
             },
-          },
         }
-      : selection.provider === 'anthropic'
+      : isAnthropicProvider(selection.provider)
         ? {
             anthropic: {
               sendReasoning: effective !== 'none',

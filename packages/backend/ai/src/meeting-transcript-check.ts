@@ -39,6 +39,8 @@ const SYSTEM = [
   'Fix only words that were clearly misheard, using the surrounding lines.',
   'Never add new content, summarize, reorder, or change meaning.',
   'When unsure, leave the line unchanged.',
+  'Use empty arrays when no confident corrections exist. Do not list unchanged lines.',
+  'Reference only the supplied line numbers, and include each line at most once per list.',
 ].join(' ');
 
 const BATCH_LINES = 60;
@@ -123,6 +125,35 @@ export async function checkMeetingTranscript<
   const result = { fixed: 0, lines: [] as T[], removed: 0 };
   for (let start = 0; start < input.lines.length; start += BATCH_LINES) {
     const batch = input.lines.slice(start, start + BATCH_LINES);
+    const lineNumber = z
+      .number()
+      .int()
+      .min(start + 1)
+      .max(start + batch.length);
+    // The model must not invent line numbers or endlessly extend its lists.
+    const batchSchema = TranscriptCheckSchema.extend({
+      remove: z
+        .array(
+          TranscriptCheckSchema.shape.remove.element.extend({
+            line: lineNumber,
+          })
+        )
+        .max(batch.length),
+      fixes: z
+        .array(
+          TranscriptCheckSchema.shape.fixes.element.extend({
+            line: lineNumber,
+            text: z
+              .string()
+              .max(
+                Math.ceil(
+                  Math.max(...batch.map(line => line.text.length), 1) * 1.25
+                )
+              ),
+          })
+        )
+        .max(batch.length),
+    });
     const prompt = batch
       .map(
         (line, index) =>
@@ -143,7 +174,7 @@ export async function checkMeetingTranscript<
       maxOutputTokens: 4000,
       name: 'transcript_check',
       prompt,
-      schema: TranscriptCheckSchema,
+      schema: batchSchema,
       selected: input.selected,
       system: SYSTEM,
     });

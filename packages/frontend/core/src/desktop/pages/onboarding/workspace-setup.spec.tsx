@@ -160,7 +160,10 @@ vi.mock('./setup-panel', () => ({
     driveContent: ReactNode;
     onImport: () => void;
     imported?: boolean;
-    onChatSelected: (id: string) => Promise<void>;
+    onChatSelected: (
+      id: string,
+      provider?: 'local' | 'chatgpt'
+    ) => Promise<void>;
     onChatAction: (id: string, action: 'download' | 'probe') => Promise<void>;
   }) => (
     <section aria-label="Setup steps">
@@ -169,6 +172,11 @@ vi.mock('./setup-panel', () => ({
         <>
           <button onClick={() => void onChatSelected('chosen-model')}>
             Save chat choice
+          </button>
+          <button
+            onClick={() => void onChatSelected('account-model', 'chatgpt')}
+          >
+            Save ChatGPT choice
           </button>
           <button onClick={() => void onChatAction('chosen-model', 'download')}>
             Download chat model
@@ -332,6 +340,23 @@ describe('workspace setup composition', () => {
     await waitFor(() =>
       expect(mocks.setModel).toHaveBeenCalledWith('local:chosen-model')
     );
+  });
+
+  test('refreshes before applying an explicitly saved ChatGPT-qualified selection', async () => {
+    let resolveRefresh!: () => void;
+    mocks.refreshModels.mockReturnValue(
+      new Promise<void>(resolve => {
+        resolveRefresh = resolve;
+      })
+    );
+    render(<WorkspaceSetup />);
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Save ChatGPT choice' })
+    );
+    expect(mocks.refreshModels).toHaveBeenCalledOnce();
+    expect(mocks.setModel).not.toHaveBeenCalled();
+    await act(async () => resolveRefresh());
+    expect(mocks.setModel).toHaveBeenCalledWith('chatgpt:account-model');
   });
 
   test('a chat download starts the existing service monitor without selecting a model', () => {

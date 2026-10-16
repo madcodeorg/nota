@@ -307,7 +307,7 @@
   "copilot": {
     "enabled": {
       "type": "Boolean",
-      "desc": "Whether to enable the copilot plugin. <br> Document: <a href=\"https://docs.nota.pro/self-host-nota/administer/ai\" target=\"_blank\">https://docs.nota.pro/self-host-nota/administer/ai</a>"
+      "desc": "Whether to enable the copilot plugin."
     },
     "scenarios": {
       "type": "Object",

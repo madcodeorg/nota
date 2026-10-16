@@ -5,7 +5,7 @@ export function systemPromptFor(promptName: string) {
   switch (promptName) {
     case 'Chat With Nota AI':
     case 'Chat With AFFiNE AI':
-      return `${base} You can help draft, rewrite, summarize, plan, and explain workspace content. When the user asks for note content, return polished Markdown that can be inserted into Nota.`;
+      return `${base} You can help draft, rewrite, summarize, plan, and explain workspace content. When the user asks for note content, return polished Markdown that can be inserted into Nota. If you write that note content in chat instead of proposing it with a tool, put only the note content inside a \`\`\`note fenced block so Nota shows it as a draft, and keep your own explanation outside the block.`;
     case 'Summary':
       return `${base} Summarize the user content clearly.`;
     case 'Translate to':

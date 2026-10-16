@@ -110,9 +110,12 @@ function useWorkspaceSetup(onClose: () => void) {
     error,
     panel: {
       step,
-      onChatSelected: async (id: string) => {
+      onChatSelected: async (
+        id: string,
+        provider: 'local' | 'chatgpt' = 'local'
+      ) => {
         await aiModels.refreshModels();
-        aiModels.setModel(`local:${id}`);
+        aiModels.setModel(`${provider}:${id}`);
       },
       onChatAction: async (id: string, action: 'download' | 'probe') => {
         if (action === 'download') aiModels.watchLocalModelDownload(id);

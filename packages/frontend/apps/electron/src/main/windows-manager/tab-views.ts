@@ -707,7 +707,13 @@ export class WebContentViewsManager {
     disposables.push(
       windowReadyToShow$.subscribe(w => {
         handleWebContentsResize().catch(err => logger.error(err));
-        const screenSizeChangeEvents = ['resize', 'maximize', 'unmaximize'];
+        const screenSizeChangeEvents = [
+          'resize',
+          'maximize',
+          'unmaximize',
+          'enter-full-screen',
+          'leave-full-screen',
+        ];
         const onResize = () => {
           if (this.activeWorkbenchView) {
             this.resizeView(this.activeWorkbenchView);

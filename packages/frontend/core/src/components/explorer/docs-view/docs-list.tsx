@@ -250,7 +250,7 @@ export const DocsExplorer = ({
       <Masonry
         className={className}
         items={masonryItems}
-        gapY={BUILD_CONFIG.isMobileEdition ? 12 : view === 'list' ? 10 : 24}
+        gapY={BUILD_CONFIG.isMobileEdition ? 12 : view === 'list' ? 2 : 24}
         gapX={BUILD_CONFIG.isMobileEdition ? 12 : 24}
         groupsGap={16}
         groupHeaderGapWithItems={10}

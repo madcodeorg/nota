@@ -370,12 +370,14 @@ export const AppTabsHeader = ({
   ready = true,
   className,
   left,
+  right,
 }: {
   style?: React.CSSProperties;
   mode?: 'app' | 'shell';
   ready?: boolean;
   className?: string;
   left?: ReactNode;
+  right?: ReactNode;
 }) => {
   const t = useI18n();
   const appSidebarService = useService(AppSidebarService).sidebar;
@@ -549,6 +551,7 @@ export const AppTabsHeader = ({
           icon={<PlusIcon />}
         />
       </div>
+      {right}
       {isWindowsDesktop && (
         <div className={styles.windowsAppControlsPlaceholder} />
       )}

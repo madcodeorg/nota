@@ -1,10 +1,8 @@
-import { sentry, tracker } from '@nota/track';
+import { tracker } from '@nota/track';
 
 tracker.init();
-sentry.init();
 
 // No Nota Cloud / telemetry server exists, so there is nowhere to send events.
 // Opt out unconditionally to avoid failing /api/telemetry/collect requests at
-// launch. (The tracker/sentry APIs stay usable as no-ops.)
-sentry.disable();
+// launch. (The tracker API stays usable as a no-op.)
 tracker.opt_out_tracking();

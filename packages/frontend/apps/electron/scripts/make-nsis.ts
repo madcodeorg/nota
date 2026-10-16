@@ -33,7 +33,9 @@ async function make() {
   await fs.emptyDir(outPath);
 
   // create tmp dir
-  const tmpPath = await fs.mkdtemp(appName);
+  // Keep staging under the ignored build output directory. A cancelled build
+  // must not leave an app inside the source tree for the next package to copy.
+  const tmpPath = await fs.mkdtemp(path.join(makeDir, 'nsis-temp-'));
 
   // copy app to tmp dir
   log(`Copying app to ${tmpPath}`);
@@ -50,6 +52,7 @@ async function make() {
         appId: appIdMap[buildType],
         productName,
         executableName: productName,
+        directories: { output: path.join(makeDir, 'nsis-output') },
         icon: iconPngPath,
         extraMetadata: {
           // do not use package.json's name
@@ -91,4 +94,5 @@ async function make() {
 
 make().catch(e => {
   console.error(e);
+  process.exitCode = 1;
 });

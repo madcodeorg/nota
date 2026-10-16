@@ -1,4 +1,5 @@
 import type { WorkspaceService } from '@nota/core/modules/workspace';
+import { DebugLogger } from '@nota/debug';
 import {
   catchErrorInto,
   effect,
@@ -9,11 +10,12 @@ import {
   onStart,
   smartRetry,
 } from '@nota/infra';
-import { logger } from '@sentry/react';
 import { EMPTY } from 'rxjs';
 import { exhaustMap, mergeMap } from 'rxjs/operators';
 
 import type { EmbeddingStore } from '../stores/embedding';
+
+const logger = new DebugLogger('nota:embedding-enabled');
 
 export class EmbeddingEnabled extends Entity {
   enabled$ = new LiveData<boolean | null>(null);

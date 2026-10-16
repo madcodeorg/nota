@@ -91,12 +91,7 @@ export class AuthStore extends Store {
     );
   }
 
-  async signInPassword(credential: {
-    email: string;
-    password: string;
-    verifyToken?: string;
-    challenge?: string;
-  }) {
+  async signInPassword(credential: { email: string; password: string }) {
     await this.authProvider.signInPassword(credential);
   }
 

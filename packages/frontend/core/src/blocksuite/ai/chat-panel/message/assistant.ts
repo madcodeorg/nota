@@ -30,6 +30,7 @@ import {
 import type { AgentActionProposalHandler } from '../../components/ai-tools/agent-action-proposal-card';
 import { AIChatErrorRenderer } from '../../messages/error';
 import { type AIError } from '../../provider';
+import { formatSourceCitations } from '../../utils/source-citations';
 import { mergeStreamContent } from '../../utils/stream-objects';
 
 export class ChatMessageAssistant extends WithDisposable(ShadowlessElement) {
@@ -201,7 +202,7 @@ export class ChatMessageAssistant extends WithDisposable(ShadowlessElement) {
 
   private renderRichText(text: string) {
     return html`<chat-content-rich-text
-      .text=${text}
+      .text=${formatSourceCitations(text, this.docDisplayService)}
       .state=${this.state}
       .extensions=${this.extensions}
       .affineFeatureFlagService=${this.affineFeatureFlagService}
@@ -223,9 +224,10 @@ export class ChatMessageAssistant extends WithDisposable(ShadowlessElement) {
       return nothing;
 
     const { content, streamObjects, id: messageId } = item;
-    const markdown = streamObjects?.length
-      ? mergeStreamContent(streamObjects)
-      : content;
+    const markdown = formatSourceCitations(
+      streamObjects?.length ? mergeStreamContent(streamObjects) : content,
+      this.docDisplayService
+    );
 
     const actions = host
       ? isInsidePageEditor(host)

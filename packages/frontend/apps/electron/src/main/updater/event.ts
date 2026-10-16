@@ -1,4 +1,4 @@
-import { BehaviorSubject, ReplaySubject, Subject } from 'rxjs';
+import { BehaviorSubject, ReplaySubject } from 'rxjs';
 
 import type { MainEventRegister } from '../type';
 
@@ -10,7 +10,8 @@ export interface UpdateMeta {
 export const updaterSubjects = {
   // means it is ready for restart and install the new version
   updateAvailable$: new ReplaySubject<UpdateMeta>(1),
-  updateReady$: new Subject<UpdateMeta>(),
+  // Replayed so tabs and windows opened after the download still offer restart.
+  updateReady$: new ReplaySubject<UpdateMeta>(1),
   downloadProgress$: new BehaviorSubject<number>(0),
 };
 

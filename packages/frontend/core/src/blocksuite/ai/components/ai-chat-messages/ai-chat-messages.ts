@@ -22,18 +22,13 @@ import { debounce } from 'lodash-es';
 
 import { AffineIcon } from '../../_common/icons';
 import { type AIError, AIProvider, UnauthorizedError } from '../../provider';
-import { mergeStreamObjects } from '../../utils/stream-objects';
+import { appendStreamChunk } from '../../utils/stream-objects';
 import type { DocDisplayConfig } from '../ai-chat-chips';
 import { type ChatContextValue } from '../ai-chat-content/type';
 import type { AIReasoningConfig } from '../ai-chat-input';
 import type { AgentActionProposalHandler } from '../ai-tools/agent-action-proposal-card';
 import { AIPreloadConfig } from './preload-config';
-import {
-  type HistoryMessage,
-  isChatAction,
-  isChatMessage,
-  StreamObjectSchema,
-} from './type';
+import { type HistoryMessage, isChatAction, isChatMessage } from './type';
 
 export class AIChatMessages extends WithDisposable(ShadowlessElement) {
   static override styles = css`
@@ -488,22 +483,10 @@ export class AIChatMessages extends WithDisposable(ShadowlessElement) {
         const messages = this.chatContextValue.messages.slice(0);
         const last = messages.at(-1);
         if (last && isChatMessage(last)) {
-          try {
-            const parsed = StreamObjectSchema.parse(JSON.parse(text));
-            const streamObjects = mergeStreamObjects([
-              ...(last.streamObjects ?? []),
-              parsed,
-            ]);
-            messages[messages.length - 1] = {
-              ...last,
-              streamObjects,
-            };
-          } catch {
-            messages[messages.length - 1] = {
-              ...last,
-              content: last.content + text,
-            };
-          }
+          messages[messages.length - 1] = {
+            ...last,
+            ...appendStreamChunk(last, text),
+          };
           this.updateContext({ messages, status: 'transmitting' });
         }
       }

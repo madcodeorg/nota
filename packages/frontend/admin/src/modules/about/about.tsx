@@ -6,7 +6,6 @@ import {
   ChevronRightIcon,
   GithubIcon,
   MailWarningIcon,
-  UploadCloudIcon,
 } from 'lucide-react';
 
 type Channel = 'stable' | 'canary' | 'beta' | 'internal';
@@ -31,14 +30,9 @@ const links = [
     label: 'Report an Issue',
   },
   {
-    href: 'https://docs.nota.pro/docs/self-host-nota',
+    href: 'https://github.com/madcodeorg/nota/blob/main/README.md',
     icon: <AlbumIcon size={20} />,
-    label: 'Self-host Document',
-  },
-  {
-    href: 'https://nota.pro/pricing/?type=selfhost#table',
-    icon: <UploadCloudIcon size={20} />,
-    label: 'Upgrade to Team',
+    label: 'Documentation',
   },
 ];
 

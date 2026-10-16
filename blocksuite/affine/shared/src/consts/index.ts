@@ -70,7 +70,9 @@ export const EMBED_BLOCK_MODEL_LIST = [
   EmbedLoomModel,
 ] as const;
 
-export const DEFAULT_IMAGE_PROXY_ENDPOINT = '/api/worker/image-proxy';
+// Empty means images load from their original URL. Nota has no hosted image
+// proxy.
+export const DEFAULT_IMAGE_PROXY_ENDPOINT = '';
 
 // Use a configured local/self-hosted endpoint; never send workspace URLs to an
 // inherited upstream metadata service.

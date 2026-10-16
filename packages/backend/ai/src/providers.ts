@@ -7,6 +7,8 @@ import { createOpenAI } from '@ai-sdk/openai';
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import type { ImageModel, LanguageModel } from 'ai';
 
+import { getChatGPTAuth } from './chatgpt-auth';
+import { createChatGPTLanguageModel } from './chatgpt-provider';
 import {
   type AiBackendConfig,
   type ImageProviderName,
@@ -23,7 +25,17 @@ import {
   modelRegistry,
   requiredFilesFor,
 } from './model-registry';
-import { type ReasoningLevel, reasoningLevelsForSelection } from './reasoning';
+import {
+  createNativeTextProvider,
+  discoverGatewayModels,
+  PROVIDER_LABELS,
+  providerConfigurationError,
+} from './native-providers';
+import {
+  modelIdForCapabilities,
+  type ReasoningLevel,
+  reasoningLevelsForSelection,
+} from './reasoning';
 
 export type TextModelRuntime =
   | 'local-onnx'
@@ -78,13 +90,48 @@ export interface LocalModelCatalogHealth {
   type: 'embedding' | 'stt' | 'text';
 }
 
-type DiscoverableProviderName = 'custom' | 'local';
+type DiscoverableProviderName = 'custom' | 'local' | 'ai-gateway';
 
 interface EndpointDiscoveryState {
   available: boolean;
   expiresAt: number;
   models: string[];
   promise: Promise<void> | null;
+}
+
+function supportsImageAttachments(provider: ProviderName, modelId: string) {
+  const id = modelIdForCapabilities(provider, modelId);
+  const proxy = ['openrouter', 'ai-gateway', 'custom'].includes(provider);
+  const namespace = modelId.toLowerCase().split('/')[0];
+  const openai =
+    !/^o1-(?:mini|preview)(?:-|$)/.test(id) &&
+    /^(gpt-(?:4o|4[.-]1|[56])|o[134])(?:[-.]|$)/.test(id);
+  const google = /^gemini-(?:1[.-]5|[234])(?:[-.]|$)/.test(id);
+  const anthropic = /^claude-(?:3(?:[-.]|$)|sonnet-|opus-|haiku-|fable-)/.test(
+    id
+  );
+  const xai =
+    !/^grok-4[.-]1(?:$|-(?!fast(?:-|$)))/.test(id) &&
+    /^grok-(?:vision|2-vision|4)(?:[-.]|$)/.test(id);
+  if (proxy) {
+    if (modelId.includes('/')) {
+      return (
+        (namespace === 'openai' && openai) ||
+        (namespace === 'google' && google) ||
+        (namespace === 'anthropic' && anthropic) ||
+        (namespace === 'xai' && xai)
+      );
+    }
+    return openai || google || anthropic || xai;
+  }
+  if (['openai', 'chatgpt', 'azure'].includes(provider)) return openai;
+  if (['google', 'google-vertex'].includes(provider)) return google;
+  if (
+    ['anthropic', 'google-vertex-anthropic', 'anthropic-aws'].includes(provider)
+  )
+    return anthropic;
+  if (['xai', 'google-vertex-xai'].includes(provider)) return xai;
+  return false;
 }
 
 export class AiModelRouter {
@@ -94,7 +141,7 @@ export class AiModelRouter {
   private openaiProvider!: ReturnType<typeof createOpenAI>;
   private compatibleProviders = new Map<
     OpenAICompatibleProviderName,
-    ReturnType<typeof createOpenAICompatible>
+    (modelId: string) => LanguageModel
   >();
   private discoveryGeneration = 0;
   private readonly endpointDiscovery = new Map<
@@ -133,12 +180,13 @@ export class AiModelRouter {
         const providerConfig = this.config.compatibleProviders[provider];
         return [
           provider,
-          createOpenAICompatible({
-            name: provider,
-            baseURL: providerConfig.baseUrl,
-            apiKey: providerConfig.apiKey || undefined,
-            includeUsage: true,
-          }),
+          createNativeTextProvider(provider, providerConfig) ??
+            createOpenAICompatible({
+              name: provider,
+              baseURL: providerConfig.baseUrl,
+              apiKey: providerConfig.apiKey || undefined,
+              includeUsage: true,
+            }),
         ];
       })
     );
@@ -172,7 +220,31 @@ export class AiModelRouter {
     }
     this.assertModelSelectable(provider, modelId);
 
+    if (provider === 'chatgpt') {
+      const status = getChatGPTAuth(this.config).status();
+      if (!status.connected || !status.planEnabled)
+        throw new Error('Connect an eligible ChatGPT account in AI Settings.');
+      if (
+        !getChatGPTAuth(this.config)
+          .getCachedModels()
+          .some(model => model.id === modelId)
+      )
+        throw new Error(
+          'Refresh the ChatGPT model catalog and select an available model.'
+        );
+      return {
+        provider,
+        modelId,
+        model: createChatGPTLanguageModel(this.config, modelId),
+        runtime: 'hosted',
+      };
+    }
     if (isOpenAICompatibleProvider(provider)) {
+      const error = providerConfigurationError(
+        provider,
+        this.config.compatibleProviders[provider]
+      );
+      if (error) throw new Error(`${PROVIDER_LABELS[provider]}: ${error}`);
       const compatibleProvider = this.compatibleProviders.get(provider);
       if (!compatibleProvider) {
         throw new Error(
@@ -262,12 +334,24 @@ export class AiModelRouter {
       const normalizedModelId = modelId.trim();
       if (!normalizedModelId) return;
       const runtime = this.runtimeForModel(provider, normalizedModelId);
-      const readiness =
-        runtime === 'local-onnx'
+      const chatgptAvailable =
+        provider !== 'chatgpt' ||
+        getChatGPTAuth(this.config)
+          .getCachedModels()
+          .some(model => model.id === normalizedModelId);
+      const readiness = !chatgptAvailable
+        ? {
+            readiness: 'unavailable' as const,
+            readinessMessage:
+              'Refresh the ChatGPT model catalog and select an available model.',
+            selectable: false,
+          }
+        : runtime === 'local-onnx'
           ? this.localOnnxReadiness(normalizedModelId)
           : {
-              readiness: 'ready' as const,
-              readinessMessage: null,
+              readiness: 'unverified' as const,
+              readinessMessage:
+                'Configured; model access and capabilities have not been checked.',
               selectable: true,
             };
       models.push({
@@ -279,7 +363,9 @@ export class AiModelRouter {
           provider,
           runtime,
         }),
-        supportsImageAttachments: runtime !== 'local-onnx',
+        supportsImageAttachments:
+          runtime !== 'local-onnx' &&
+          supportsImageAttachments(provider, normalizedModelId),
       });
     };
 
@@ -293,22 +379,26 @@ export class AiModelRouter {
       addModel('google', this.config.googleModel, 'Google');
     }
 
+    if (this.isProviderConfigured('chatgpt')) {
+      addModel('chatgpt', this.config.chatgptModel, 'ChatGPT');
+      for (const entry of getChatGPTAuth(this.config).getCachedModels())
+        addModel('chatgpt', entry.id, 'ChatGPT');
+    }
     for (const provider of OPENAI_COMPATIBLE_PROVIDER_NAMES) {
-      if (provider === 'custom') continue;
       const providerConfig = this.config.compatibleProviders[provider];
-      if (!providerConfig.apiKey.trim() || !providerConfig.baseUrl.trim()) {
+      if (providerConfigurationError(provider, providerConfig)) {
         continue;
       }
       addModel(provider, providerConfig.model, this.providerName(provider));
     }
 
-    for (const provider of ['local', 'custom'] as const) {
+    for (const provider of ['local', 'custom', 'ai-gateway'] as const) {
       const discovery = this.endpointDiscovery.get(provider);
       if (!discovery?.available) continue;
       const configuredModel =
         provider === 'local'
           ? this.config.localModel
-          : this.config.compatibleProviders.custom.model;
+          : this.config.compatibleProviders[provider].model;
       addModel(
         provider,
         configuredModel,
@@ -373,6 +463,18 @@ export class AiModelRouter {
     modelId: string
   ): boolean | undefined {
     if (!modelId.trim()) return false;
+    if (provider === 'chatgpt')
+      return (
+        this.isProviderConfigured(provider) &&
+        getChatGPTAuth(this.config)
+          .getCachedModels()
+          .some(model => model.id === modelId)
+      );
+    if (isOpenAICompatibleProvider(provider) && provider !== 'custom')
+      return !providerConfigurationError(
+        provider,
+        this.config.compatibleProviders[provider]
+      );
     switch (provider) {
       case 'openai':
         return !!this.config.openaiApiKey.trim();
@@ -386,16 +488,7 @@ export class AiModelRouter {
               this.localOnnxReadiness(modelId).selectable
           : this.endpointDiscovery.get('local')?.available;
       case 'custom':
-        return this.endpointDiscovery.get('custom')?.available;
-      case 'openrouter':
-      case 'deepseek':
-      case 'xai':
-      case 'mistral':
-      case 'groq':
-      case 'perplexity': {
-        const config = this.config.compatibleProviders[provider];
-        return !!config.apiKey.trim() && !!config.baseUrl.trim();
-      }
+        return this.isProviderConfigured('custom');
     }
   }
 
@@ -406,7 +499,96 @@ export class AiModelRouter {
       this.discoverEndpointModels('local'),
       this.discoverEndpointModels('custom'),
     ]);
+    if (
+      this.config.defaultProvider === 'ai-gateway' &&
+      this.isProviderConfigured('ai-gateway')
+    ) {
+      await this.discoverGateway();
+    }
     return this.models(localModelHealth);
+  }
+
+  isProviderConfigured(provider: ProviderName): boolean {
+    if (provider === 'chatgpt') {
+      const status = getChatGPTAuth(this.config).status();
+      return status.connected && status.planEnabled;
+    }
+    if (isOpenAICompatibleProvider(provider))
+      return !providerConfigurationError(
+        provider,
+        this.config.compatibleProviders[provider]
+      );
+    if (provider === 'local') return true;
+    return !!(
+      provider === 'openai'
+        ? this.config.openaiApiKey
+        : provider === 'google'
+          ? this.config.googleApiKey
+          : this.config.anthropicApiKey
+    ).trim();
+  }
+
+  async discoverModels(
+    provider: ProviderName
+  ): Promise<Array<{ id: string; name: string }>> {
+    if (provider === 'chatgpt') {
+      const auth = getChatGPTAuth(this.config);
+      if (!this.isProviderConfigured(provider))
+        throw new Error('Connect an eligible ChatGPT account first.');
+      await auth.refreshCatalog();
+      return auth.getCachedModels();
+    }
+    if (provider === 'ai-gateway') {
+      if (!this.isProviderConfigured(provider))
+        throw new Error('Configure a Gateway API key first.');
+      await this.discoverGateway(true);
+    } else if (provider === 'local' || provider === 'custom') {
+      const state = this.endpointDiscovery.get(provider);
+      if (state) state.expiresAt = 0;
+      await this.discoverEndpointModels(provider);
+    } else {
+      throw new Error(
+        'Model discovery is unavailable for this provider. Enter the model or deployment ID supplied by your provider.'
+      );
+    }
+    const state = this.endpointDiscovery.get(
+      provider as DiscoverableProviderName
+    );
+    if (!state?.available)
+      throw new Error(
+        'Model discovery failed. Your configured model can still be used.'
+      );
+    return state.models.map(id => ({ id, name: id }));
+  }
+
+  private async discoverGateway(force = false) {
+    const old = this.endpointDiscovery.get('ai-gateway');
+    if (!force && old && Date.now() < old.expiresAt) return;
+    if (old?.promise) return old.promise;
+    const generation = this.discoveryGeneration;
+    const state: EndpointDiscoveryState = {
+      available: false,
+      expiresAt: 0,
+      models: [],
+      promise: null,
+    };
+    this.endpointDiscovery.set('ai-gateway', state);
+    state.promise = (async () => {
+      try {
+        state.models = await discoverGatewayModels(
+          this.config.compatibleProviders['ai-gateway']
+        );
+        state.available = true;
+      } catch {
+        /* Keep manual model selection usable when listing fails. */
+      } finally {
+        if (generation === this.discoveryGeneration) {
+          state.expiresAt = Date.now() + 30_000;
+          state.promise = null;
+        }
+      }
+    })();
+    return state.promise;
   }
 
   private assertModelSelectable(provider: ProviderName, modelId: string) {
@@ -607,22 +789,7 @@ export class AiModelRouter {
   }
 
   private providerName(provider: OpenAICompatibleProviderName) {
-    switch (provider) {
-      case 'openrouter':
-        return 'OpenRouter';
-      case 'deepseek':
-        return 'DeepSeek';
-      case 'xai':
-        return 'xAI';
-      case 'mistral':
-        return 'Mistral';
-      case 'groq':
-        return 'Groq';
-      case 'perplexity':
-        return 'Perplexity';
-      case 'custom':
-        return 'Custom';
-    }
+    return PROVIDER_LABELS[provider];
   }
 
   private providerNameForCatalog(provider: DiscoverableProviderName) {
@@ -648,6 +815,7 @@ export class AiModelRouter {
       provider === 'anthropic' ||
       provider === 'google' ||
       provider === 'local' ||
+      provider === 'chatgpt' ||
       isOpenAICompatibleProvider(provider)
     ) {
       return {
@@ -731,7 +899,11 @@ export class AiModelRouter {
   }
 
   private modelForProvider(provider: ProviderName) {
+    if (isOpenAICompatibleProvider(provider))
+      return this.config.compatibleProviders[provider].model;
     switch (provider) {
+      case 'chatgpt':
+        return this.config.chatgptModel;
       case 'anthropic':
         return this.config.anthropicModel;
       case 'google':
@@ -740,14 +912,6 @@ export class AiModelRouter {
         return this.config.openaiModel;
       case 'local':
         return this.config.localModel;
-      case 'openrouter':
-      case 'deepseek':
-      case 'xai':
-      case 'mistral':
-      case 'groq':
-      case 'perplexity':
-      case 'custom':
-        return this.config.compatibleProviders[provider].model;
     }
   }
 
