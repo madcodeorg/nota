@@ -46,6 +46,7 @@
     "multer": "^2.0.2",
     "onnxruntime-node": "1.24.3",
     "sherpa-onnx-node": "1.13.8",
+    "undici": "^7.29.0",
     "zod": "^3.25.76"
   },
   "devDependencies": {

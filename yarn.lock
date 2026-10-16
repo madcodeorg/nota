@@ -8557,6 +8557,7 @@ __metadata:
     sherpa-onnx-node: "npm:1.13.8"
     tsx: "npm:^4.21.0"
     typescript: "npm:^5.9.3"
+    undici: "npm:^7.29.0"
     vitest: "npm:^4.1.11"
     zod: "npm:^3.25.76"
   languageName: unknown

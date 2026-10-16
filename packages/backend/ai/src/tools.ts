@@ -1,12 +1,15 @@
 import { execFile } from 'node:child_process';
+import type { LookupAddress, LookupOptions } from 'node:dns';
 import { lookup } from 'node:dns/promises';
 import { constants } from 'node:fs';
 import { access, realpath } from 'node:fs/promises';
+import type { TcpNetConnectOpts } from 'node:net';
 import { isIP } from 'node:net';
 import path from 'node:path';
 import { promisify } from 'node:util';
 
 import { tool, type ToolSet } from 'ai';
+import { Agent, fetch } from 'undici';
 import { z } from 'zod';
 
 import { createActionProposal } from './actions';
@@ -233,7 +236,7 @@ function parseIpv4Address(address: string) {
 function isForbiddenIpv4Address(address: string) {
   const octets = parseIpv4Address(address);
   if (!octets) return false;
-  const [first, second, third, fourth] = octets;
+  const [first, second, third] = octets;
 
   return (
     first === 0 ||
@@ -242,7 +245,13 @@ function isForbiddenIpv4Address(address: string) {
     (first === 169 && second === 254) ||
     (first === 172 && second >= 16 && second <= 31) ||
     (first === 192 && second === 168) ||
-    (first === 169 && second === 254 && third === 169 && fourth === 254)
+    (first === 100 && second >= 64 && second <= 127) ||
+    (first === 192 && second === 0 && (third === 0 || third === 2)) ||
+    (first === 192 && second === 88 && third === 99) ||
+    (first === 198 && (second === 18 || second === 19)) ||
+    (first === 198 && second === 51 && third === 100) ||
+    (first === 203 && second === 0 && third === 113) ||
+    first >= 224
   );
 }
 
@@ -292,15 +301,6 @@ function parseIpv6Address(address: string) {
     : null;
 }
 
-function ipv4FromLast32Bits(hextets: [number, number]) {
-  return [
-    hextets[0] >> 8,
-    hextets[0] & 255,
-    hextets[1] >> 8,
-    hextets[1] & 255,
-  ].join('.');
-}
-
 export function isForbiddenWebCrawlAddress(address: string) {
   const normalized = address.toLowerCase();
   const ipVersion = isIP(normalized);
@@ -308,40 +308,27 @@ export function isForbiddenWebCrawlAddress(address: string) {
     return isForbiddenIpv4Address(normalized);
   }
 
-  if (ipVersion !== 6) {
-    return false;
-  }
+  if (ipVersion !== 6) return true;
 
   const hextets = parseIpv6Address(normalized);
-  if (!hextets) {
-    return false;
-  }
+  if (!hextets) return true;
 
-  const isAllZero = hextets.every(hextet => hextet === 0);
-  const isLoopback =
-    hextets.slice(0, 7).every(hextet => hextet === 0) && hextets[7] === 1;
-  if (isAllZero || isLoopback) {
-    return true;
-  }
-
-  const isIpv4Mapped =
-    hextets.slice(0, 5).every(hextet => hextet === 0) && hextets[5] === 0xffff;
-  const isIpv4Compatible = hextets.slice(0, 6).every(hextet => hextet === 0);
-  if (
-    (isIpv4Mapped || isIpv4Compatible) &&
-    isForbiddenIpv4Address(ipv4FromLast32Bits([hextets[6], hextets[7]]))
-  ) {
-    return true;
-  }
-
-  return (hextets[0] & 0xfe00) === 0xfc00 || (hextets[0] & 0xffc0) === 0xfe80;
+  // Only accept global-unicast addresses; reject documentation and the
+  // embedded-IPv4 transition ranges 6to4 and Teredo.
+  const isGlobalUnicast = (hextets[0] & 0xe000) === 0x2000;
+  const isDocumentation = hextets[0] === 0x2001 && hextets[1] === 0x0db8;
+  const isTeredo = hextets[0] === 0x2001 && hextets[1] === 0x0000;
+  const isSixToFour = hextets[0] === 0x2002;
+  return !isGlobalUnicast || isDocumentation || isTeredo || isSixToFour;
 }
 
 function normalizedUrlHostname(url: URL) {
   return url.hostname.replace(/^\[(.*)\]$/, '$1');
 }
 
-export async function assertPublicWebCrawlUrl(url: URL) {
+export async function assertPublicWebCrawlUrl(
+  url: URL
+): Promise<LookupAddress[]> {
   if (!['http:', 'https:'].includes(url.protocol)) {
     throw new Error('Only http and https URLs are allowed.');
   }
@@ -358,8 +345,9 @@ export async function assertPublicWebCrawlUrl(url: URL) {
   }
 
   const hostname = normalizedUrlHostname(url);
+  const ipVersion = isIP(hostname);
   const addresses = isIP(hostname)
-    ? [{ address: hostname }]
+    ? [{ address: hostname, family: ipVersion }]
     : await lookup(hostname, { all: true, verbatim: true });
 
   if (!addresses.length) {
@@ -371,9 +359,41 @@ export async function assertPublicWebCrawlUrl(url: URL) {
   );
   if (blocked) {
     throw new Error(
-      `URL host resolves to a private address: ${blocked.address}`
+      `URL host resolves to a non-public address: ${blocked.address}`
     );
   }
+  return addresses;
+}
+
+/** Restricts Undici's connection lookup to the addresses already validated. */
+export function createPinnedWebCrawlLookup(
+  expectedHostname: string,
+  addresses: LookupAddress[]
+): NonNullable<TcpNetConnectOpts['lookup']> {
+  const hostname = expectedHostname.toLowerCase().replace(/\.$/, '');
+  return (requestedHostname, options, callback) => {
+    const requested = requestedHostname.toLowerCase().replace(/\.$/, '');
+    const family = (options as LookupOptions).family ?? 0;
+    const matches = addresses.filter(
+      address => !family || address.family === family
+    );
+    if (requested !== hostname || !matches.length) {
+      const error = Object.assign(
+        new Error('Web-crawl connection did not match its validated host.'),
+        { code: 'ENOTFOUND' }
+      );
+      if ((options as LookupOptions).all) callback(error, []);
+      else callback(error, '', 0);
+      return;
+    }
+
+    if ((options as LookupOptions).all) {
+      callback(null, matches);
+      return;
+    }
+    const [first] = matches;
+    callback(null, first.address, first.family);
+  };
 }
 
 async function workspaceRoot(config: AiBackendConfig) {
@@ -841,7 +861,15 @@ function createBuiltinNotaTools(
       }),
       execute: async ({ url }) => {
         const parsed = new URL(url);
-        await assertPublicWebCrawlUrl(parsed);
+        const addresses = await assertPublicWebCrawlUrl(parsed);
+        const dispatcher = new Agent({
+          connect: {
+            lookup: createPinnedWebCrawlLookup(
+              normalizedUrlHostname(parsed),
+              addresses
+            ),
+          },
+        });
 
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 12000);
@@ -850,6 +878,7 @@ function createBuiltinNotaTools(
             headers: {
               'User-Agent': 'NotaAI/0.26 local workspace crawler',
             },
+            dispatcher,
             redirect: 'manual',
             signal: controller.signal,
           });
@@ -867,6 +896,7 @@ function createBuiltinNotaTools(
           };
         } finally {
           clearTimeout(timeout);
+          await dispatcher.close();
         }
       },
     });

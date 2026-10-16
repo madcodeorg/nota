@@ -18,6 +18,7 @@ import { describe, expect, test } from 'vitest';
 import {
   assertPublicWebCrawlUrl,
   assertSafeShellArgs,
+  createPinnedWebCrawlLookup,
   executeSafeShellCommand,
   isForbiddenWebCrawlAddress,
   parseShellCommand,
@@ -224,12 +225,22 @@ describe('web crawl SSRF guard', () => {
       '169.254.169.254',
       '172.16.0.1',
       '192.168.1.1',
+      '100.64.0.1',
+      '100.100.100.200',
+      '192.0.2.1',
+      '198.18.0.1',
+      '224.0.0.1',
+      '240.0.0.1',
       '::',
       '::1',
       '::ffff:127.0.0.1',
       '::ffff:7f00:1',
       'fc00::1',
       'fe80::1',
+      'ff02::1',
+      '2001:0::1',
+      '2001:db8::1',
+      '2002:7f00:1::1',
     ]) {
       expect(isForbiddenWebCrawlAddress(address), address).toBe(true);
     }
@@ -238,6 +249,7 @@ describe('web crawl SSRF guard', () => {
     expect(
       isForbiddenWebCrawlAddress('2606:2800:220:1:248:1893:25c8:1946')
     ).toBe(false);
+    expect(isForbiddenWebCrawlAddress('2607:f8b0:4005:808::200e')).toBe(false);
   });
 
   test('rejects non-web protocols, non-default ports, and direct private IPs', async () => {
@@ -249,6 +261,40 @@ describe('web crawl SSRF guard', () => {
     ).rejects.toThrow(/default http and https ports/);
     await expect(
       assertPublicWebCrawlUrl(new URL('http://127.0.0.1'))
-    ).rejects.toThrow(/private address/);
+    ).rejects.toThrow(/non-public address/);
+    await expect(
+      assertPublicWebCrawlUrl(new URL('http://100.100.100.200'))
+    ).rejects.toThrow(/non-public address/);
+  });
+
+  test('uses only the DNS addresses that passed the public-address check', () => {
+    const addresses = [
+      { address: '93.184.216.34', family: 4 },
+      { address: '2606:2800:220:1:248:1893:25c8:1946', family: 6 },
+    ];
+    const lookup = createPinnedWebCrawlLookup('example.com', addresses);
+
+    let allAddresses: unknown;
+    lookup('example.com', { all: true }, (error, result) => {
+      expect(error).toBeNull();
+      allAddresses = result;
+    });
+    expect(allAddresses).toEqual(addresses);
+
+    let singleAddress: unknown;
+    lookup('example.com', { family: 6 }, (error, address, family) => {
+      expect(error).toBeNull();
+      singleAddress = { address, family };
+    });
+    expect(singleAddress).toEqual({
+      address: '2606:2800:220:1:248:1893:25c8:1946',
+      family: 6,
+    });
+
+    const captured: { error?: NodeJS.ErrnoException | null } = {};
+    lookup('other.example', { all: true }, error => {
+      captured.error = error;
+    });
+    expect(captured.error?.code).toBe('ENOTFOUND');
   });
 });
