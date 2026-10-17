@@ -3,9 +3,9 @@
 The website keeps the approved October 5 editorial/canvas design and uses three
 original, simple paper illustrations made with the built-in Image Gen tool.
 Sections share a continuous ivory surface with organic artwork and spacing,
-rather than rectangular color bands. Product images are illustrative previews
-generated from the selected designs and current Nota UI references; they are not
-screenshots that certify release behavior.
+rather than rectangular color bands. The launch page's product images are now
+real Nota desktop screenshots, not generated UI previews. They show actual app
+surfaces but do not certify every workflow or platform behavior.
 
 - `nota-mark.png`: existing Nota mark from `packages/frontend/core/public/imgs/`.
   `nota-mark-transparent.png` removes its background with Image Gen.
@@ -14,8 +14,8 @@ screenshots that certify release behavior.
 - `icons/`: unmodified [Feather icons](https://github.com/feathericons/feather),
   under the included MIT license.
 - `*-workspace.png` and `landscape-paper.png`: generated with the built-in
-  Image Gen tool for this website. Product UI, landscape collage, and transparent
-  backgrounds follow the approved three-part visual reference.
+  Image Gen tool for this website. These original product previews are retained
+  for reference and are no longer used in the launch page.
 - `forest-cutout.png` and `.webp`: an Image Gen edit of the landscape with the
   sage paper base removed, used where a transparent forest edge fits the section.
 - `paper-current.png` and `.webp`: original blank sheets and a pale sage ribbon
@@ -26,19 +26,31 @@ screenshots that certify release behavior.
 - `paper-idea.png` and `.webp`: original open paper loop for the final action,
   1280 × 1280. It shares the same ivory/sage palette and restrained paper texture.
 
-The three new assets have genuine alpha and were inspected on the actual page.
-WebP copies use cwebp `-q 85 -alpha_q 100`. The rejected copied Mad Code clouds
-and flowers have been removed. Earlier generated landscape source assets are
-retained for reference, but are no longer used as exterior page decoration.
+The three decorative paper assets have genuine alpha. Their WebP copies use
+cwebp `-q 85 -alpha_q 100`. The rejected copied Mad Code clouds and flowers have
+been removed. Earlier generated landscape source assets are retained for
+reference, but are no longer used as exterior page decoration.
 
-The page uses WebP versions encoded with cwebp, including a smaller responsive
-hero image, plus local fonts and the transparent logo. The PNG source assets are
-retained for future asset work. Download links lead to the project's GitHub
-Releases. At final verification the public Releases page was empty, so the
-website says “View releases” and states that public installers are not available
-yet. The desktop app is Mac-only for now; no other-platform links are shown.
-Replace release labels and installer availability copy when a Mac installer is
-published, preserving the current Mac-only scope.
+## Real desktop screenshots
+
+These user-approved screenshots are resized and compressed for the launch page:
+
+- `real-note.webp` and `real-note-small.webp`: hero note workspace, at 1600 ×
+  1040 and 800 × 520.
+- `real-canvas.webp`: canvas feature section.
+- `real-meeting.webp`: meeting transcript feature section.
+- `real-ai.webp`: AI feature section.
+- `real-calendar.webp`: calendar feature section.
+
+The feature screenshots are 1600 × 1040 WebP files encoded with cwebp `-q 86
+-m 6`; metadata is stripped. The original screenshot PNGs remain on the owner's
+Desktop and are not copied into the repository. The launch page's interactive
+capture card remains a labeled demo, not a screenshot.
+
+The page also uses local fonts, a transparent logo, and a smaller responsive
+hero image. `/download` and `/beta` populate their release lists from the
+generated `/releases.json`. The site workflow builds that data and the stable
+and beta update feeds from published GitHub Releases; drafts are not listed.
 
 ## Exact generation prompts
 
