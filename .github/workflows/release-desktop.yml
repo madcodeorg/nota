@@ -388,3 +388,10 @@ jobs:
           prerelease: ${{ inputs.build-type != 'stable' }}
           tag_name: v${{ env.RELEASE_VERSION}}
           files: ./release/*
+      # Releases created with GITHUB_TOKEN do not fire the Site workflow's
+      # release trigger, so start it here. Stable drafts deploy when published.
+      - name: Update thenota.app
+        if: ${{ inputs.build-type != 'stable' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run site.yml -R "$GITHUB_REPOSITORY" --ref main
