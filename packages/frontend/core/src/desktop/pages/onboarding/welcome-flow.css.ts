@@ -1,4 +1,5 @@
-import { cssVarV2 } from '@toeverything/theme/v2';
+import { darkCssVariables } from '@toeverything/theme';
+import { cssVarV2, darkCssVariablesV2 } from '@toeverything/theme/v2';
 import { globalStyle, keyframes, style } from '@vanilla-extract/css';
 
 import * as shared from './nota-welcome.css';
@@ -367,6 +368,10 @@ export const stage = style({
 });
 export const card = style({
   vars: {
+    // Shared ChatGPT controls use both token generations. Seed the complete
+    // dark palette before applying the welcome card's custom colors.
+    ...darkCssVariables,
+    ...darkCssVariablesV2,
     [token('text/primary')]: white,
     [token('text/secondary')]: dim,
     [token('text/tertiary')]: faint,
