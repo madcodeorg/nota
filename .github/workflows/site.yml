@@ -27,7 +27,10 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      # Release events default to the release tag, which can predate current site copy.
       - uses: actions/checkout@v7
+        with:
+          ref: main
 
       - name: Build site
         env:
