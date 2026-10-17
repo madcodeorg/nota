@@ -1,8 +1,8 @@
 name: Release on tag
 
-# Pushing a v* tag starts the macOS build. Stable tags (v0.1.1) make a draft
-# release; add a -beta suffix (v0.1.1-beta.1) to test without touching stable.
-# Beta tags also build Windows x64 (unsigned unless WINDOWS_SIGNING is set).
+# Pushing a v* tag builds macOS and Windows x64 (Windows is unsigned unless
+# WINDOWS_SIGNING is set). Stable tags (v0.1.1) make a draft release; add a
+# -beta suffix (v0.1.1-beta.1) to test without touching stable.
 on:
   push:
     tags: ['v*']
@@ -19,7 +19,5 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          windows=false
-          case "$GITHUB_REF_NAME" in *-beta*) windows=true ;; esac
           gh workflow run release.yml -R "$GITHUB_REPOSITORY" --ref "$GITHUB_REF_NAME" \
-            -f desktop_macos=true -f desktop_windows="$windows" -f desktop_linux=false
+            -f desktop_macos=true -f desktop_windows=true -f desktop_linux=false
