@@ -3,8 +3,8 @@
 ## Today
 
 - macOS (Apple silicon): built, signed, notarized and auto-updating. See RELEASING.md.
-- Windows (x64): beta tags build unsigned installers. The first run of this
-  pipeline has not been tested on a real PC yet. Windows ARM64 is not supported
+- Windows (x64): built for stable and beta, with Vulkan GPU support. Installers
+  are unsigned and trigger SmartScreen warnings. Windows ARM64 is not supported
   because `sherpa-onnx-node` has no ARM64 binding.
 - Linux: not built or released yet. The workflow has a `desktop_linux` switch,
   but it has not been run or tested for Nota.

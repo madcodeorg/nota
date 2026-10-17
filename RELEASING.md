@@ -10,15 +10,16 @@
 3. Wait about 25 minutes. `Release` builds, signs, notarizes and creates a **draft** release.
 4. Download the draft zip, install it, confirm it launches and the version is right.
 5. Publish: `gh release edit v0.1.4 --draft=false --latest`. The `Site` workflow then
-   updates thenota.app (download link and `updates/stable/latest-mac.yml`).
+   updates thenota.app (download link, `updates/stable/latest-mac.yml`, and
+   `updates/stable/latest.yml` for Windows).
 6. Installed apps find the update on launch, download it, verify it and restart.
 
 ## Beta
 
 Push a tag like `v0.1.4-beta.1`. It is published as a pre-release and feeds
-`updates/beta/latest-mac.yml`. Beta tags also build Windows x64 (NSIS and
-Squirrel installers plus a zip), which feeds `updates/beta/latest.yml` with the
-NSIS installer only.
+`updates/beta/latest-mac.yml`. Every tag also builds Windows x64 (NSIS and
+Squirrel installers), which feeds `updates/<channel>/latest.yml` with the NSIS
+installer only.
 
 Windows builds are unsigned until a certificate is set up. Signing runs only
 when the `WINDOWS_SIGNING` repo variable is `true` and a `win-signer`
@@ -31,5 +32,5 @@ one beta to the next installs.
 
 - Never publish a draft you have not installed.
 - `v*` tags are locked. Fix a bad release with a new version, never a moved tag.
-- Stable tags build macOS only. Windows is built for beta tags. See
-  docs/PLATFORMS.md for Windows and Linux status.
+- Every tag builds macOS and Windows x64. See docs/PLATFORMS.md for Windows
+  and Linux status.
