@@ -168,12 +168,23 @@ void test('download CTAs point to the download page for every platform', t => {
   }
 });
 
-void test('page anchors and local assets resolve, including CSS fonts and illustrations', t => {
+void test('page anchors and local assets resolve, including CSS fonts and screenshots', t => {
   const { document } = createPage(t, { runScript: false });
   const stylesheets = [];
 
   function assertLocalFile(url) {
-    const file = new URL(`.${decodeURIComponent(url.pathname)}`, publicRoot);
+    const pathname = decodeURIComponent(url.pathname);
+    const routeFiles = new Map([
+      ['/', '/launch.html'],
+      ['/download', '/download/index.html'],
+      ['/download/', '/download/index.html'],
+      ['/beta', '/beta/index.html'],
+      ['/beta/', '/beta/index.html'],
+    ]);
+    const file = new URL(
+      `.${routeFiles.get(pathname) ?? pathname}`,
+      publicRoot
+    );
     assert.equal(
       statSync(file).isFile(),
       true,
