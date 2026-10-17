@@ -19,7 +19,7 @@
       crossorigin
     />
     <link rel="stylesheet" href="/launch/site.css?rev=v010" />
-    <link rel="stylesheet" href="/launch/releases.css?rev=v1" />
+    <link rel="stylesheet" href="/launch/releases.css?rev=v2" />
     <script src="/launch/releases.js?rev=v1" defer></script>
   </head>
   <body>
@@ -81,6 +81,38 @@
           </p>
         </noscript>
       </section>
+      <section
+        class="rel-list rel-policy wrap"
+        id="code-signing"
+        aria-labelledby="code-signing-title"
+      >
+        <h2 id="code-signing-title">Code signing policy</h2>
+        <p>
+          Free code signing provided by
+          <a href="https://signpath.io">SignPath.io</a>, certificate by
+          <a href="https://signpath.org">SignPath Foundation</a>.
+        </p>
+        <p>
+          Signed Windows builds are produced only by GitHub Actions from the
+          public <a href="https://github.com/madcodeorg/nota">source code</a>,
+          and every release is approved by hand before it is signed. Bundled
+          third-party libraries keep their own signatures or ship unsigned.
+        </p>
+        <p>
+          Committers and reviewers:
+          <a href="https://github.com/orgs/madcodeorg/people"
+            >Mad Code AI Studio members</a
+          >. Approvers:
+          <a href="https://github.com/orgs/madcodeorg/people?query=role%3Aowner"
+            >Mad Code AI Studio owners</a
+          >.
+        </p>
+        <p>
+          Privacy: Nota does not send data to other networked systems unless
+          you turn on a feature that does, such as Google Drive sync or a cloud
+          AI provider. See the <a href="/privacy.html">privacy policy</a>.
+        </p>
+      </section>
     </main>
     <footer class="site-footer wrap">
       <div class="footer-brand">
@@ -97,7 +129,8 @@
       <nav aria-label="Footer navigation">
         <a href="https://github.com/madcodeorg/nota">GitHub</a
         ><a href="/beta/">Beta builds</a
-        ><a href="/privacy.html">Privacy</a><a href="/terms.html">Terms</a>
+        ><a href="/privacy.html">Privacy</a><a href="/terms.html">Terms</a
+        ><a href="#code-signing">Code signing policy</a>
       </nav>
       <p class="copyright">
         © 2026 Nota · Built and maintained by
