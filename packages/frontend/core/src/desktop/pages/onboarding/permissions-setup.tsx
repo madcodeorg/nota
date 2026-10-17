@@ -25,7 +25,12 @@ function permissionLabel(status: string | undefined) {
 function recordingMessage(report: MeetingPermissionReport | undefined) {
   if (!report)
     return 'Check access when you are ready. Nota will not ask on its own.';
-  if (report.ready) return 'Recording access is ready on this device.';
+  if (report.ready) {
+    return report.systemAudioAccessSource === 'platform-compatibility' &&
+      report.statuses.systemAudio === 'unknown'
+      ? 'Microphone access is ready. System audio is checked when recording starts.'
+      : 'Recording access is ready on this device.';
+  }
   if (report.runtime.available === false) {
     return (
       report.runtime.reason ??
@@ -62,6 +67,14 @@ export function NotaPermissionsSetup({
   const [error, setError] = useState<string | null>(null);
   const isWindows = globalThis.environment?.isWindows === true;
   const isMacOs = globalThis.environment?.isMacOs === true;
+  const systemAudioLabel =
+    report?.runtime.available === false
+      ? 'Unavailable'
+      : isWindows &&
+          report?.systemAudioAccessSource === 'platform-compatibility' &&
+          report.statuses.systemAudio === 'unknown'
+        ? 'Checked on start'
+        : permissionLabel(report?.statuses.systemAudio);
 
   useEffect(() => {
     if (!handler) {
@@ -148,8 +161,9 @@ export function NotaPermissionsSetup({
         <section className={styles.choice}>
           <h3 className={styles.choiceTitle}>Meetings</h3>
           <p className={styles.detail}>
-            Microphone and system audio are checked only when you press a
-            button.
+            {isWindows
+              ? 'Check microphone access now. System audio is checked when you start recording.'
+              : 'Microphone and system audio are checked only when you press a button.'}
           </p>
           <div className={styles.permissionGrid}>
             <div>
@@ -161,7 +175,7 @@ export function NotaPermissionsSetup({
             <div>
               <strong>System audio</strong>
               <span className={styles.permissionStatus}>
-                {permissionLabel(report?.statuses.systemAudio)}
+                {systemAudioLabel}
               </span>
             </div>
           </div>

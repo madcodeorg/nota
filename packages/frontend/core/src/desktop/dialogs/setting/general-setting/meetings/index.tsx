@@ -1885,6 +1885,25 @@ const MeetingsSettingsMain = () => {
                   }
                 />
               )}
+              {environment.isWindows && (
+                <SettingRow
+                  name="System audio"
+                  desc={
+                    permissions?.runtime.available === false
+                      ? (permissions.runtime.reason ??
+                        'System audio capture is unavailable in this build.')
+                      : 'Captures sound played through your default Windows output device. Access is checked when recording starts.'
+                  }
+                >
+                  <span role="status" className={styles.permissionGranted}>
+                    {permissions?.runtime.available === false
+                      ? 'Unavailable'
+                      : permissions
+                        ? 'Checked on start'
+                        : 'Not checked'}
+                  </span>
+                </SettingRow>
+              )}
               <PermissionSettingRow
                 nameKey="com.affine.settings.meetings.privacy.microphone"
                 descriptionKey="com.affine.settings.meetings.privacy.microphone.description"

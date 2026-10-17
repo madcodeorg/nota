@@ -569,6 +569,10 @@ describe('meeting permission settings', () => {
         screen.queryByRole('heading', { name: systemAudioName })
       ).toBeNull();
       expect(
+        screen.getByRole('heading', { name: 'System audio' })
+      ).toBeTruthy();
+      expect(screen.getByText('Checked on start')).toBeTruthy();
+      expect(
         screen.getByRole('heading', {
           name: 'com.affine.settings.meetings.privacy.microphone',
         })
@@ -600,6 +604,40 @@ describe('meeting permission settings', () => {
     expect(
       screen.queryByRole('button', { name: openSettingsLabel })
     ).toBeNull();
+  });
+
+  test('explains Windows system audio capture without a macOS permission action', async () => {
+    vi.stubGlobal('environment', { isMacOs: false, isWindows: true });
+    await mountSettings();
+    const heading = screen.getByRole('heading', { name: 'System audio' });
+    const row = heading.parentElement!;
+    expect(within(row).getByText('Checked on start')).toBeTruthy();
+    expect(
+      within(row).getByText(
+        'Captures sound played through your default Windows output device. Access is checked when recording starts.'
+      )
+    ).toBeTruthy();
+    expect(within(row).queryByRole('button')).toBeNull();
+    expect(mocks.meeting.askForMeetingPermission).not.toHaveBeenCalled();
+  });
+
+  test('shows a Windows system audio runtime failure instead of a deferred check', async () => {
+    vi.stubGlobal('environment', { isMacOs: false, isWindows: true });
+    const report = permissionReport();
+    report.runtime = {
+      available: false,
+      reason: 'Native capture binding could not load.',
+    };
+    mocks.meeting.checkMeetingPermissions.mockResolvedValue(report);
+    await mountSettings();
+    const heading = screen.getByRole('heading', { name: 'System audio' });
+    const row = heading.parentElement!;
+    expect(within(row).getByText('Unavailable')).toBeTruthy();
+    expect(
+      within(row).getByText('Native capture binding could not load.')
+    ).toBeTruthy();
+    expect(within(row).queryByText('Checked on start')).toBeNull();
+    expect(within(row).queryByRole('button')).toBeNull();
   });
 
   test.each(['false', 'undefined', 'rejected'] as const)(

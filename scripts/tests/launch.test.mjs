@@ -155,18 +155,16 @@ void test('capture block toggles its demo recording state without media access',
   assert.equal(label.textContent, 'Record');
 });
 
-void test('download CTAs point to GitHub Releases and use the Mac label', t => {
+void test('download CTAs point to the download page for every platform', t => {
   const { document } = createPage(t, { runScript: false });
-  const downloadLinks = [
-    ...document.querySelectorAll('a[href*="/releases"]'),
-  ].filter(link => link.textContent.trim() === 'Download for Mac');
+  const downloadLinks = [...document.querySelectorAll('a.button')].filter(
+    link => link.textContent.trim().startsWith('Download')
+  );
 
   assert.equal(downloadLinks.length, 3);
   for (const link of downloadLinks) {
-    assert.equal(
-      link.getAttribute('href'),
-      'https://github.com/madcodeorg/nota/releases'
-    );
+    assert.equal(link.getAttribute('href'), '/download');
+    assert.doesNotMatch(link.textContent, /for Mac/);
   }
 });
 
