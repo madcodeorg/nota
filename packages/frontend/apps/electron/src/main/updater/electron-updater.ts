@@ -23,7 +23,8 @@ export function getUpdateFeedUrl(
   return override || `${UPDATE_FEED_BASE}/${channel}`;
 }
 
-const disabled = isDev || !updateFeedEnabled;
+// Microsoft Store installs are updated by the Store, not by Nota.
+const disabled = isDev || !updateFeedEnabled || process.windowsStore;
 
 export const autoUpdater =
   process.platform === 'win32' ? new WindowsUpdater() : defaultAutoUpdater;

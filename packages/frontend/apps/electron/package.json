@@ -32,7 +32,8 @@
     "package": "electron-forge package",
     "make": "electron-forge make",
     "make-squirrel": "node ./scripts/make-squirrel.ts",
-    "make-nsis": "node ./scripts/make-nsis.ts"
+    "make-nsis": "node ./scripts/make-nsis.ts",
+    "make-appx": "node ./scripts/make-appx.ts"
   },
   "devDependencies": {
     "@electron-forge/cli": "^7.11.2",

@@ -221,8 +221,29 @@ jobs:
       - name: Make nsis.windows installer
         run: yarn nota @nota/electron make-nsis --platform=${{ matrix.spec.platform }} --arch=${{ matrix.spec.arch }}
 
+      # Store packages are built unsigned; Microsoft signs them on submission.
+      - name: Make Microsoft Store package
+        if: ${{ inputs.build-type == 'stable' && vars.MSSTORE_IDENTITY_NAME != '' }}
+        run: yarn nota @nota/electron make-appx --platform=${{ matrix.spec.platform }} --arch=${{ matrix.spec.arch }}
+        env:
+          NOTA_MSSTORE_IDENTITY_NAME: ${{ vars.MSSTORE_IDENTITY_NAME }}
+          NOTA_MSSTORE_PUBLISHER: ${{ vars.MSSTORE_PUBLISHER }}
+          NOTA_MSSTORE_PUBLISHER_DISPLAY_NAME: ${{ vars.MSSTORE_PUBLISHER_DISPLAY_NAME }}
+
+      - name: Save Microsoft Store package
+        if: ${{ inputs.build-type == 'stable' && vars.MSSTORE_IDENTITY_NAME != '' }}
+        uses: actions/upload-artifact@v6
+        with:
+          name: msstore-${{ matrix.spec.platform }}-${{ matrix.spec.arch }}
+          path: packages/frontend/apps/electron/out/${{ env.BUILD_TYPE }}/make/appx.windows/${{ matrix.spec.arch }}/*.appx
+          if-no-files-found: error
+
       - name: Zip artifacts for faster upload
-        run: Compress-Archive -CompressionLevel Fastest -Path packages/frontend/apps/electron/out/${{ env.BUILD_TYPE }}/make/* -DestinationPath archive.zip
+        shell: pwsh
+        run: |
+          # The Store package ships separately and is not part of the GitHub release.
+          Remove-Item -Recurse -Force -ErrorAction SilentlyContinue packages/frontend/apps/electron/out/${{ env.BUILD_TYPE }}/make/appx.windows
+          Compress-Archive -CompressionLevel Fastest -Path packages/frontend/apps/electron/out/${{ env.BUILD_TYPE }}/make/* -DestinationPath archive.zip
 
       - name: get all files to be signed
         id: get_files_to_be_signed
@@ -322,6 +343,40 @@ jobs:
         with:
           name: nota-${{ matrix.spec.platform }}-${{ matrix.spec.arch }}-builds
           path: builds
+
+  # Uploads the Store package as a Partner Center submission. It stays a draft
+  # unless MSSTORE_AUTO_COMMIT is 'true', so it can be installed and checked
+  # first, like the GitHub draft release.
+  publish-msstore:
+    if: ${{ !cancelled() && inputs.build-type == 'stable' && vars.MSSTORE_IDENTITY_NAME != '' && vars.MSSTORE_PRODUCT_ID != '' && needs.make-windows-installer.result == 'success' }}
+    needs: make-windows-installer
+    runs-on: windows-latest
+    steps:
+      - name: Download Microsoft Store package
+        uses: actions/download-artifact@v7
+        with:
+          name: msstore-win32-x64
+          path: msstore
+      - uses: microsoft/microsoft-store-apppublisher@v1.4
+      - name: Configure Microsoft Store CLI
+        shell: pwsh
+        env:
+          MSSTORE_TENANT_ID: ${{ secrets.MSSTORE_TENANT_ID }}
+          MSSTORE_SELLER_ID: ${{ secrets.MSSTORE_SELLER_ID }}
+          MSSTORE_CLIENT_ID: ${{ secrets.MSSTORE_CLIENT_ID }}
+          MSSTORE_CLIENT_SECRET: ${{ secrets.MSSTORE_CLIENT_SECRET }}
+        run: msstore reconfigure --tenantId $env:MSSTORE_TENANT_ID --sellerId $env:MSSTORE_SELLER_ID --clientId $env:MSSTORE_CLIENT_ID --clientSecret $env:MSSTORE_CLIENT_SECRET
+      - name: Submit to Microsoft Store
+        shell: pwsh
+        env:
+          MSSTORE_PRODUCT_ID: ${{ vars.MSSTORE_PRODUCT_ID }}
+          MSSTORE_AUTO_COMMIT: ${{ vars.MSSTORE_AUTO_COMMIT }}
+        run: |
+          $Package = Get-ChildItem -Path msstore -Filter *.appx -File | Select-Object -First 1
+          if (!$Package) { throw 'No Store package found.' }
+          $PublishArgs = @('publish', '-i', $Package.FullName, '-id', $env:MSSTORE_PRODUCT_ID)
+          if ($env:MSSTORE_AUTO_COMMIT -ne 'true') { $PublishArgs += '--noCommit' }
+          msstore @PublishArgs
 
   # Publish every platform that built, so one failed platform does not hold
   # back the others. The failed run stays red to flag the missing platform.
