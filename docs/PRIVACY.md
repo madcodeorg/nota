@@ -1,6 +1,6 @@
 # Nota privacy policy
 
-Updated October 16, 2026.
+Updated October 20, 2026.
 
 This page describes the current source implementation. A release's build configuration and enabled integrations affect its network behavior; read the release notes for the installer you use.
 
@@ -35,6 +35,25 @@ Release builds do not use a Nota-operated sign-in server. The source supports an
 Supported desktop builds persist the Google session using Electron's operating-system-backed encryption. The app refuses to persist the session if encryption is unavailable or uses the unprotected `basic_text` fallback. This protection applies to the Google session; it is not a claim that every local setting or hosted-provider key uses a keychain.
 
 Google can receive operational metadata, such as IP addresses, request times, and error information, and maintains its own logs. Google's policies govern that processing.
+
+### Who receives Google user data
+
+Google receives account authorization requests and the Calendar and Drive API requests needed for the features you enable. Drive sync sends your workspace content to Google Drive in your own account. Nota's operator does not receive a central copy of your Google account profile, calendars, or synced workspace through the standard desktop connection.
+
+Local AI processes its inputs on your device. Downloading a model does not send your prompts, Google Calendar data, or workspace contents to the model's author or download host. If you configure a separate local model server, that server receives the inputs; a remotely hosted endpoint is not on-device processing.
+
+When you choose hosted AI and ask it to work with Google-derived workspace or meeting content, the selected service receives the prompt and relevant context. This can include document text, search results, meeting details, transcripts, and derived summaries. The source supports these optional recipients; availability depends on your installed release and configuration:
+
+- Direct AI services: OpenAI (API and the separate ChatGPT account connection), Anthropic, Google Gemini, Alibaba, Baseten, Cerebras, Cohere, DeepInfra, DeepSeek, Fireworks AI, Groq, Hugging Face Inference Providers, MiniMax, Mistral AI, Moonshot AI, Perplexity, Together AI, xAI, and Z.AI.
+- Cloud AI services: Microsoft Azure OpenAI, Amazon Bedrock, Anthropic on AWS, and Google Vertex AI, including its Gemini, Anthropic Claude, Model Garden, and xAI adapters. The selected deployment, region, model, and service terms determine the processing route.
+- Model gateways: OpenRouter and Vercel AI Gateway. A gateway receives the request and can forward it to the model provider or hosting provider selected by the model ID and the gateway's routing configuration. Hosted inference platforms can also use downstream model hosts under their service terms. These services are additional recipients, not a claim that every listed service receives every request.
+- Custom connections: the operator of any OpenAI-compatible or Open Responses endpoint you configure, and any downstream services that operator uses. Open Responses is an API format, not a single service provider.
+
+Hosted connections use your own API credentials, cloud account, or eligible ChatGPT account. Nota does not supply a shared paid AI plan or select a universal Free, Pro, or Enterprise tier. Your account and the selected route determine the plan, retention, and training settings. Nota cannot inspect or certify every account's dashboard settings or downstream gateway route. A request's storage setting is not a guarantee of zero retention or exclusion from training.
+
+Configured external tools and MCP servers can receive the inputs sent to them during an AI task, including Google-derived content included in those inputs. The server operator and its downstream services are recipients. Exporting or sharing content also discloses it to the destination you select. Nota does not send Google authorization tokens to an AI provider as model context.
+
+Google-derived content must not be sent to a service that uses it to train generalized AI or machine-learning models. Use on-device processing when the chosen service's terms and settings do not establish the required restriction. The current source does not automatically identify every Google-derived passage or enforce provider-specific training settings; the recipient disclosures here are not a claim that all configurable integrations have been approved by Google.
 
 ### Google API Limited Use
 
@@ -80,4 +99,4 @@ You control your local workspace and optional exports/backups. Retention depends
 
 ## Contact
 
-For privacy questions or requests, email [kunjkariya@gmail.com](mailto:kunjkariya@gmail.com). For public product questions, use [GitHub Issues](https://github.com/madcodeorg/nota/issues). Do not post sensitive information in public issues, and do not email API keys or authorization tokens.
+For privacy questions or requests, email [privacy@madcode.ai](mailto:privacy@madcode.ai). For public product questions, use [GitHub Issues](https://github.com/madcodeorg/nota/issues). Do not post sensitive information in public issues, and do not email API keys or authorization tokens.
