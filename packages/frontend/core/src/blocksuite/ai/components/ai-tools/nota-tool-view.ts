@@ -99,6 +99,50 @@ export function notaToolView(
         items: documents.map(item => docItem(item, docTitle)),
       };
     }
+    case 'list_nota_tasks': {
+      const tasks = Array.isArray(result.tasks) ? result.tasks : [];
+      if (!done) return { name: 'Checking your tasks', items: [] };
+      if (failed)
+        return { name: "Couldn't check your tasks", failed, items: [] };
+      return {
+        name: tasks.length
+          ? `Found ${tasks.length} ${tasks.length === 1 ? 'task' : 'tasks'}`
+          : 'No matching tasks',
+        items: tasks.slice(0, 20).map(task => {
+          const item = record(task);
+          return {
+            ...docItem({ docId: item.docId, title: item.docTitle }, docTitle),
+            content: `${item.checked ? '[x]' : '[ ]'} ${text(item.text)}`,
+          };
+        }),
+      };
+    }
+    case 'get_nota_links': {
+      const document = record(result.document);
+      const docId = text(args.docId) || text(document.docId);
+      const title =
+        (docId && docTitle(docId)) || text(document.title) || 'a note';
+      if (!done) return { name: `Checking links for ${title}`, items: [] };
+      if (failed)
+        return { name: "Couldn't check that note's links", failed, items: [] };
+      const linked = [
+        ...(Array.isArray(result.outgoing) ? result.outgoing : []),
+        ...(Array.isArray(result.backlinks) ? result.backlinks : []),
+      ];
+      const items = new Map<string, NotaToolViewItem>();
+      for (const item of linked) {
+        const docItemId = text(record(item).docId);
+        if (docItemId && !items.has(docItemId)) {
+          items.set(docItemId, docItem(item, docTitle));
+        }
+      }
+      return {
+        name: items.size
+          ? `${title} connects to ${items.size} ${items.size === 1 ? 'note' : 'notes'}`
+          : `${title} has no links`,
+        items: [...items.values()],
+      };
+    }
     case 'web_crawl': {
       const url = text(args.url) || text(result.url);
       const host = hostOf(url);

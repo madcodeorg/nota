@@ -10,6 +10,7 @@ All notable changes to Nota are recorded here. The format follows [Keep a Change
 - Save a web page as a note from its URL.
 - Extract text from images and PDFs into your note (macOS).
 - Connect MCP servers to the AI assistant from Integrations.
+- The AI assistant can now list your tasks and note links, add to your journal, check off tasks and save web pages as notes (each change asks for approval and can be undone). AI edits now respect locked pages.
 - Import from Obsidian, Notion and Bear, and copy any note as Markdown.
 - Lock a page against accidental edits, focus mode, and word count with reading time.
 - Unlinked mentions and related notes under each page, and a simpler sidebar.

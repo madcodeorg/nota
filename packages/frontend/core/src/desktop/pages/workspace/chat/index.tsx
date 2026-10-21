@@ -33,6 +33,7 @@ import { WorkspaceDialogService } from '@nota/core/modules/dialogs';
 import { DocsService } from '@nota/core/modules/doc';
 import { EditorService } from '@nota/core/modules/editor';
 import { FeatureFlagService } from '@nota/core/modules/feature-flag';
+import { JournalService } from '@nota/core/modules/journal';
 import { PeekViewService } from '@nota/core/modules/peek-view';
 import { GuardService } from '@nota/core/modules/permissions';
 import { AppThemeService } from '@nota/core/modules/theme';
@@ -347,6 +348,7 @@ export const Component = () => {
     isLocalWorkspace: isUserOwnedWorkspaceFlavour(
       workspaceService.workspace.flavour
     ),
+    journalService: framework.getOptional(JournalService),
     mindmapProvider: mockStd?.store.provider,
     onOpenDoc,
     sessionId: currentSession?.sessionId,

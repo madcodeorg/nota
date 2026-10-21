@@ -47,6 +47,22 @@ export type AgentActionProposal =
       type: 'clear_doc';
     }
   | {
+      date?: string;
+      markdown: string;
+      type: 'add_to_journal';
+    }
+  | {
+      checked: boolean;
+      docId: string;
+      task: string;
+      type: 'set_task_checked';
+    }
+  | {
+      title?: string;
+      type: 'clip_web_page';
+      url: string;
+    }
+  | {
       args?: unknown;
       toolName: string;
       type: 'run_mcp_tool';
@@ -120,6 +136,13 @@ export type AgentActionUndo =
       docId: string;
       target: ActionUndoTarget;
       type: 'delete_surface_element';
+    }
+  | {
+      /** The checked state Undo restores. */
+      checked: boolean;
+      docId: string;
+      target: ActionUndoTarget;
+      type: 'set_task_checked';
     };
 
 export interface ActionApplyMutationResult {
@@ -139,6 +162,8 @@ export interface ActionApplyMutationResult {
   insertedSurfaceElementId?: string;
   insertedSurfaceDocumentFingerprint?: string;
   insertedSurfaceElementTarget?: ActionUndoTarget;
+  taskPreviousChecked?: boolean;
+  taskTarget?: ActionUndoTarget;
 }
 
 export interface AppliedActionProposalResult extends Record<string, unknown> {
@@ -231,6 +256,14 @@ export function proposalTitle(proposal: AgentActionProposal) {
       return `Insert into ${proposal.docId}`;
     case 'replace_selection':
       return `Replace selection in ${proposal.docId}`;
+    case 'add_to_journal':
+      return proposal.date
+        ? `Add to journal ${proposal.date}`
+        : "Add to today's journal";
+    case 'set_task_checked':
+      return `${proposal.checked ? 'Check off' : 'Reopen'} task: ${proposal.task}`;
+    case 'clip_web_page':
+      return `Save web page: ${proposal.title || proposal.url}`;
     case 'run_mcp_tool':
       return `Run ${proposal.toolName}`;
   }
@@ -245,6 +278,12 @@ export function proposalPreview(proposal: AgentActionProposal) {
   }
   if (proposal.type === 'clear_doc') {
     return 'Remove all body blocks from the target document.';
+  }
+  if (proposal.type === 'set_task_checked') {
+    return `${proposal.checked ? '- [x]' : '- [ ]'} ${proposal.task}`;
+  }
+  if (proposal.type === 'clip_web_page') {
+    return `Download ${proposal.url} on this device and save its readable content as a new note.`;
   }
   return proposal.markdown;
 }
@@ -296,6 +335,11 @@ export function canUndoAppliedProposal(stored: StoredActionProposal) {
       (record.type === 'delete_surface_element' &&
         typeof record.documentFingerprint === 'string' &&
         !!record.documentFingerprint &&
+        typeof record.docId === 'string' &&
+        !!record.docId &&
+        isUndoTarget(record.target)) ||
+      (record.type === 'set_task_checked' &&
+        typeof record.checked === 'boolean' &&
         typeof record.docId === 'string' &&
         !!record.docId &&
         isUndoTarget(record.target)))
@@ -411,6 +455,20 @@ export function undoInfo(stored: StoredActionProposal) {
       target: target as ActionUndoTarget,
     };
   }
+  if (
+    record.type === 'set_task_checked' &&
+    typeof record.checked === 'boolean' &&
+    typeof docId === 'string' &&
+    docId &&
+    isUndoTarget(target)
+  ) {
+    return {
+      type: 'set_task_checked' as const,
+      checked: record.checked,
+      docId,
+      target: target as ActionUndoTarget,
+    };
+  }
   return null;
 }
 
@@ -455,7 +513,11 @@ export function applyPermissionForActionProposal(
     case 'create_mindmap':
     case 'insert_markdown':
     case 'replace_selection':
+    case 'set_task_checked':
       return { action: 'Doc_Update', docId: proposal.docId };
+    case 'add_to_journal':
+    case 'clip_web_page':
+      return { action: 'Workspace_CreateDoc' };
     case 'create_task_list':
       return proposal.docId
         ? { action: 'Doc_Update', docId: proposal.docId }
@@ -614,12 +676,15 @@ export function buildAppliedActionProposalResult(options: {
     insertedBlockTargets,
     insertedSurfaceElementTarget,
     insertedSurfaceDocumentFingerprint,
+    taskPreviousChecked,
+    taskTarget,
   } = options.mutation;
   const undo =
     options.proposal.type === 'trash_doc'
       ? { type: 'restore_doc' as const, docId }
       : options.proposal.type === 'create_note' ||
           options.proposal.type === 'create_database' ||
+          options.proposal.type === 'clip_web_page' ||
           (options.proposal.type === 'create_task_list' &&
             !options.proposal.docId)
         ? createdDocFingerprint
@@ -683,7 +748,14 @@ export function buildAppliedActionProposalResult(options: {
                         target: insertedSurfaceElementTarget,
                       }
                     : undefined
-                  : undefined;
+                  : taskTarget && typeof taskPreviousChecked === 'boolean'
+                    ? {
+                        type: 'set_task_checked' as const,
+                        checked: taskPreviousChecked,
+                        docId,
+                        target: taskTarget,
+                      }
+                    : undefined;
 
   return {
     appliedAt: options.appliedAt ?? new Date().toISOString(),

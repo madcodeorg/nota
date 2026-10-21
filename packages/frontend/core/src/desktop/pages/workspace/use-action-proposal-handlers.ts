@@ -20,6 +20,7 @@ import {
 } from '@nota/core/blocksuite/ai/agent';
 import type { AffineEditorContainer } from '@nota/core/blocksuite/block-suite-editor';
 import type { DocsService } from '@nota/core/modules/doc';
+import type { JournalService } from '@nota/core/modules/journal';
 import type { GuardService } from '@nota/core/modules/permissions';
 import { useCallback, useState } from 'react';
 
@@ -47,6 +48,7 @@ export interface ActionProposalHandlersOptions {
   ) => AffineEditorContainer | null;
   guardService?: GuardService | null;
   isLocalWorkspace: boolean;
+  journalService?: JournalService | null;
   mindmapProvider?: ServiceProvider | null;
   onOpenDoc?: (docId: string) => void;
   sessionId?: string | null;
@@ -116,6 +118,7 @@ export function useActionProposalHandlers({
   getSelectionEditorContainer,
   guardService,
   isLocalWorkspace,
+  journalService,
   mindmapProvider,
   onOpenDoc,
   sessionId,
@@ -246,6 +249,7 @@ export function useActionProposalHandlers({
         try {
           mutation = await applyActionProposalToWorkspace({
             docsService,
+            journalService,
             mindmapProvider,
             proposal,
             replaceEditorContainer,
@@ -308,7 +312,9 @@ export function useActionProposalHandlers({
           workspaceId,
         }).catch(console.error);
         notify.success({ title: 'Nota AI action applied' });
-        onOpenDoc?.(mutation.docId);
+        if (proposal.type !== 'set_task_checked') {
+          onOpenDoc?.(mutation.docId);
+        }
         return applied;
       } catch (error) {
         notify.error({
@@ -328,6 +334,7 @@ export function useActionProposalHandlers({
       guardService,
       indexAccessForDocument,
       isLocalWorkspace,
+      journalService,
       mindmapProvider,
       onOpenDoc,
       scope,
