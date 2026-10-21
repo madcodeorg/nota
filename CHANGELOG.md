@@ -2,7 +2,7 @@
 
 All notable changes to Nota are recorded here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Installers and release notes are published on [GitHub Releases](https://github.com/madcodeorg/nota/releases).
 
-## Unreleased
+## 0.1.9
 
 - Graph view: see how your notes link together and jump to any note from the map.
 - Tasks view with due dates and daily reminders, plus a daily brief in your journal with due tasks and meeting notes.
