@@ -16,6 +16,7 @@ import { WorkspaceDialogService } from '@nota/core/modules/dialogs';
 import { DocsService } from '@nota/core/modules/doc';
 import { EditorService } from '@nota/core/modules/editor';
 import { FeatureFlagService } from '@nota/core/modules/feature-flag';
+import { JournalService } from '@nota/core/modules/journal';
 import { GuardService } from '@nota/core/modules/permissions';
 import { WorkbenchService } from '@nota/core/modules/workbench/services/workbench';
 import {
@@ -81,6 +82,7 @@ export const AIChatBlockPeekView = ({
     isLocalWorkspace: isUserOwnedWorkspaceFlavour(
       workspaceService.workspace.flavour
     ),
+    journalService: framework.getOptional(JournalService),
     mindmapProvider: host.std.store.provider,
     onOpenDoc,
     sessionId: model.props.sessionId,

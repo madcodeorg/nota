@@ -231,6 +231,50 @@ describe('action proposal scope and transitions', () => {
   });
 });
 
+describe('journal, task and web clip proposals', () => {
+  it('reads valid proposals', () => {
+    expect(
+      readActionProposal({ markdown: '- [ ] Call Sam', type: 'add_to_journal' })
+    ).toEqual({ markdown: '- [ ] Call Sam', type: 'add_to_journal' });
+    expect(
+      readActionProposal({
+        checked: true,
+        docId: 'doc-1',
+        task: 'Call Sam',
+        type: 'set_task_checked',
+      })
+    ).toEqual({
+      checked: true,
+      docId: 'doc-1',
+      task: 'Call Sam',
+      type: 'set_task_checked',
+    });
+    expect(
+      readActionProposal({ type: 'clip_web_page', url: 'https://example.com' })
+    ).toEqual({ type: 'clip_web_page', url: 'https://example.com' });
+  });
+
+  it('rejects malformed proposals', () => {
+    expect(() =>
+      readActionProposal({
+        date: 'tomorrow',
+        markdown: 'x',
+        type: 'add_to_journal',
+      })
+    ).toThrow(/YYYY-MM-DD/);
+    expect(() =>
+      readActionProposal({
+        docId: 'doc-1',
+        task: 'Call Sam',
+        type: 'set_task_checked',
+      })
+    ).toThrow(/checked/);
+    expect(() =>
+      readActionProposal({ type: 'clip_web_page', url: 'file:///etc/passwd' })
+    ).toThrow(/http and https/);
+  });
+});
+
 describe('propose_nota_action tool scope', () => {
   it('ignores a model-supplied workspace id and uses the trusted session scope', async () => {
     const config = {

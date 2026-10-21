@@ -1,8 +1,8 @@
+import type { Workspace as DocCollection } from '@blocksuite/affine/store';
 import { notify, usePromptModal } from '@nota/component';
 import { WorkbenchService } from '@nota/core/modules/workbench';
 import {
   getAFFiNEWorkspaceSchema,
-  type Workspace,
   WorkspaceService,
 } from '@nota/core/modules/workspace';
 import { useService } from '@nota/infra';
@@ -10,7 +10,7 @@ import { useCallback } from 'react';
 
 import { extractArticle } from './extract-article';
 
-async function saveWebPage(workspace: Workspace, rawUrl: string) {
+export async function saveWebPage(collection: DocCollection, rawUrl: string) {
   const input = /^[a-z][a-z\d+.-]*:\/\//i.test(rawUrl.trim())
     ? rawUrl.trim()
     : `https://${rawUrl.trim()}`;
@@ -39,7 +39,7 @@ async function saveWebPage(workspace: Workspace, rawUrl: string) {
     import('@nota/core/blocksuite/manager/store'),
   ]);
   const docId = await HtmlTransformer.importHTMLToDoc({
-    collection: workspace.docCollection,
+    collection,
     schema: getAFFiNEWorkspaceSchema(),
     extensions: getStoreManager().config.init().value.get('store'),
     html: article.html,
@@ -66,7 +66,7 @@ export function useSaveWebPage() {
       autoFocusConfirm: false,
       onConfirm: async url => {
         try {
-          const docId = await saveWebPage(workspace, url);
+          const docId = await saveWebPage(workspace.docCollection, url);
           workbench.openDoc(docId, { at: 'active' });
         } catch (error) {
           notify.error({

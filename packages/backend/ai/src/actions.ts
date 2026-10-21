@@ -57,6 +57,23 @@ export type AgentActionProposal =
       type: 'clear_doc';
     }
   | {
+      /** YYYY-MM-DD; today when omitted. */
+      date?: string;
+      markdown: string;
+      type: 'add_to_journal';
+    }
+  | {
+      checked: boolean;
+      docId: string;
+      task: string;
+      type: 'set_task_checked';
+    }
+  | {
+      title?: string;
+      type: 'clip_web_page';
+      url: string;
+    }
+  | {
       args?: unknown;
       toolName: string;
       type: 'run_mcp_tool';
@@ -403,6 +420,44 @@ export function readActionProposal(input: unknown): AgentActionProposal {
         docId: readString((body as { docId?: unknown }).docId, 'docId', 500),
         type,
       };
+    case 'add_to_journal': {
+      const date = readOptionalString(body.date, 10);
+      if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        throw new Error('date must use YYYY-MM-DD.');
+      }
+      return {
+        date,
+        markdown: readString(body.markdown, 'markdown'),
+        type,
+      };
+    }
+    case 'set_task_checked':
+      if (typeof body.checked !== 'boolean') {
+        throw new Error('checked must be true or false.');
+      }
+      return {
+        checked: body.checked,
+        docId: readString(body.docId, 'docId', 500),
+        task: readString(body.task, 'task', 1000),
+        type,
+      };
+    case 'clip_web_page': {
+      const url = readString(body.url, 'url', 2000);
+      let protocol = '';
+      try {
+        protocol = new URL(url).protocol;
+      } catch {
+        throw new Error('url must be a valid web address.');
+      }
+      if (protocol !== 'http:' && protocol !== 'https:') {
+        throw new Error('Only http and https pages can be clipped.');
+      }
+      return {
+        title: readOptionalString(body.title, 240),
+        type,
+        url,
+      };
+    }
     case 'run_mcp_tool':
       return {
         args: (body as { args?: unknown }).args ?? {},

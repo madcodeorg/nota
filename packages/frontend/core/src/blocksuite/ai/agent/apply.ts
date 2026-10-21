@@ -25,7 +25,9 @@ import { getSelections } from '@nota/core/blocksuite/ai/utils/selection-utils';
 import type { AffineEditorContainer } from '@nota/core/blocksuite/block-suite-editor';
 import { getStoreManager } from '@nota/core/blocksuite/manager/store';
 import type { DocsService } from '@nota/core/modules/doc';
+import type { JournalService } from '@nota/core/modules/journal';
 import { getAFFiNEWorkspaceSchema } from '@nota/core/modules/workspace';
+import dayjs from 'dayjs';
 import { encodeStateVector } from 'yjs';
 
 import {
@@ -750,8 +752,93 @@ export async function insertMarkdownAtActiveSelection(options: {
   };
 }
 
+function assertDocUnlocked(docsService: DocsService, docId: string) {
+  if (docsService.list.doc$(docId).value?.properties$.value.locked) {
+    throw new Error(
+      'This page is locked. Unlock it before letting AI edit it.'
+    );
+  }
+}
+
+/** Docs that were never opened this session may not have their content yet. */
+async function waitForDocReady(docsService: DocsService, docId: string) {
+  const { doc, release } = docsService.open(docId);
+  const disposePriorityLoad = doc.addPriorityLoad(10);
+  try {
+    await doc.waitForSyncReady();
+  } finally {
+    disposePriorityLoad();
+    release();
+  }
+}
+
+function normalizeTaskText(value: string) {
+  return value.replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
+export async function setTaskCheckedInDoc(options: {
+  checked: boolean;
+  docId: string;
+  docsService: DocsService;
+  task: string;
+  workspace: Workspace;
+}) {
+  await waitForDocReady(options.docsService, options.docId);
+  const store = options.workspace.getDoc(options.docId)?.getStore();
+  if (!store) {
+    throw new Error(`Doc not found: ${options.docId}`);
+  }
+  store.load();
+  if (store.readonly) {
+    throw new Error('This note is read-only.');
+  }
+  const { readDocTasks } = await import('@nota/core/modules/tasks');
+  const tasks = readDocTasks(store, options.docId, {
+    journalDate: () => undefined,
+    title: id =>
+      options.docsService.list.doc$(id).value?.title$.value || 'Untitled',
+  });
+  const wanted = normalizeTaskText(options.task);
+  const exact = tasks.filter(task => normalizeTaskText(task.text) === wanted);
+  const matches = exact.length
+    ? exact
+    : tasks.filter(task => normalizeTaskText(task.text).includes(wanted));
+  if (!matches.length) {
+    throw new Error(
+      `No task matching "${options.task}" was found in this note.`
+    );
+  }
+  if (matches.length > 1) {
+    throw new Error(
+      `Several tasks match "${options.task}". Use the exact task text.`
+    );
+  }
+  const [task] = matches;
+  if (task.checked === options.checked) {
+    throw new Error(
+      options.checked
+        ? 'This task is already checked off.'
+        : 'This task is already open.'
+    );
+  }
+  const model = store.getModelById(task.blockId);
+  if (!model) {
+    throw new Error('The task block is no longer available.');
+  }
+  store.updateBlock(model, { checked: options.checked });
+  return {
+    docId: options.docId,
+    taskPreviousChecked: task.checked,
+    taskTarget: {
+      fingerprint: blockUndoFingerprint(model),
+      id: model.id,
+    } satisfies ActionUndoTarget,
+  };
+}
+
 export async function applyActionProposalToWorkspace(options: {
   docsService: DocsService;
+  journalService?: JournalService | null;
   mindmapProvider?: ServiceProvider | null;
   proposal: Exclude<AgentActionProposal, { type: 'run_mcp_tool' }>;
   replaceEditorContainer?: AffineEditorContainer | null;
@@ -790,7 +877,60 @@ export async function applyActionProposalToWorkspace(options: {
     }
   };
 
+  const targetDocId =
+    proposal.type === 'create_task_list' ||
+    proposal.type === 'insert_markdown' ||
+    proposal.type === 'replace_selection' ||
+    proposal.type === 'create_mindmap' ||
+    proposal.type === 'append_database_rows' ||
+    proposal.type === 'set_task_checked'
+      ? proposal.docId
+      : undefined;
+  if (targetDocId) {
+    assertDocUnlocked(options.docsService, targetDocId);
+  }
+
   switch (proposal.type) {
+    case 'add_to_journal': {
+      if (!options.journalService) {
+        throw new Error('Journals are unavailable in this workspace.');
+      }
+      const journal = options.journalService.ensureJournalByDate(
+        proposal.date ?? dayjs().format('YYYY-MM-DD')
+      );
+      assertDocUnlocked(options.docsService, journal.id);
+      await waitForDocReady(options.docsService, journal.id);
+      const appended = await appendMarkdownToDoc({
+        docId: journal.id,
+        markdown: proposal.markdown,
+        workspace,
+      });
+      const undoCapture = requireInsertedBlockUndoTargets({
+        blockIds: [appended.blockId],
+        docId: appended.docId,
+        workspace,
+      });
+      return {
+        docId: appended.docId,
+        insertedBlockDocumentFingerprint: undoCapture.documentFingerprint,
+        insertedBlockId: appended.blockId,
+        insertedBlockTarget: undoCapture.targets[0],
+      };
+    }
+    case 'set_task_checked':
+      return setTaskCheckedInDoc({
+        checked: proposal.checked,
+        docId: proposal.docId,
+        docsService: options.docsService,
+        task: proposal.task,
+        workspace,
+      });
+    case 'clip_web_page': {
+      const { saveWebPage } =
+        await import('@nota/core/components/web-clip/use-save-web-page');
+      const docId = await saveWebPage(workspace, proposal.url);
+      return createdDocumentMutation(docId);
+    }
     case 'create_note': {
       const docId = await importMarkdownDoc({
         markdown: proposal.markdown,
@@ -997,6 +1137,18 @@ export function undoActionProposalInWorkspace(options: {
     throw new Error(`Doc not found: ${undo.docId}`);
   }
   doc.load();
+  assertDocUnlocked(options.docsService, undo.docId);
+
+  if (undo.type === 'set_task_checked') {
+    const block = doc.getBlock(undo.target.id)?.model;
+    if (!block || blockUndoFingerprint(block) !== undo.target.fingerprint) {
+      throw new Error(
+        'This task changed after the AI action. Review it before undoing.'
+      );
+    }
+    doc.updateBlock(block, { checked: undo.checked });
+    return;
+  }
 
   if (undo.type === 'editor_history') {
     const undoManager = doc.history.undoManager;

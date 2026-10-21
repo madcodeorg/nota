@@ -1,3 +1,4 @@
+/* eslint-disable rxjs/finnish -- stubs mirror the DocsService LiveData API */
 import { describe, expect, test, vi } from 'vitest';
 import * as Y from 'yjs';
 
@@ -112,10 +113,14 @@ vi.mock('@nota/core/blocksuite/manager/store', () => ({
 vi.mock('@nota/core/modules/workspace', () => ({
   getAFFiNEWorkspaceSchema: () => ({}),
 }));
+vi.mock('@nota/core/modules/tasks', () => ({
+  readDocTasks: vi.fn(() => []),
+}));
 
 import { MarkdownTransformer } from '@blocksuite/affine/widgets/linked-doc';
 import { replace as replaceEditorSelection } from '@nota/core/blocksuite/ai/utils/editor-actions';
 import { getSelections } from '@nota/core/blocksuite/ai/utils/selection-utils';
+import { readDocTasks } from '@nota/core/modules/tasks';
 
 import {
   type AgentActionProposal,
@@ -145,6 +150,10 @@ import {
   surfaceElementUndoFingerprint,
   undoActionProposalInWorkspace,
 } from '../apply.js';
+
+const unlockedDocsService = {
+  list: { doc$: () => ({ value: undefined }) },
+} as never;
 
 function stored(
   proposal: AgentActionProposal,
@@ -487,7 +496,7 @@ describe('agent action proposal helpers', () => {
   test('blocks whole-document clearing in the workspace mutation layer', async () => {
     await expect(
       applyActionProposalToWorkspace({
-        docsService: {} as never,
+        docsService: unlockedDocsService,
         proposal: { docId: 'doc-1', type: 'clear_doc' },
         workspace: {} as never,
       })
@@ -556,7 +565,7 @@ describe('agent action proposal helpers', () => {
 
     await expect(
       applyActionProposalToWorkspace({
-        docsService: {} as never,
+        docsService: unlockedDocsService,
         proposal: {
           docId: 'doc-1',
           markdown: 'AI insertion',
@@ -594,7 +603,7 @@ describe('agent action proposal helpers', () => {
 
     await expect(
       applyActionProposalToWorkspace({
-        docsService: {} as never,
+        docsService: unlockedDocsService,
         mindmapProvider: {} as never,
         proposal: {
           docId: 'doc-1',
@@ -631,7 +640,7 @@ describe('agent action proposal helpers', () => {
 
     await expect(
       applyActionProposalToWorkspace({
-        docsService: {} as never,
+        docsService: unlockedDocsService,
         proposal: {
           docId: 'doc-1',
           markdown: 'Replacement',
@@ -685,7 +694,7 @@ describe('agent action proposal helpers', () => {
     ]);
 
     undoActionProposalInWorkspace({
-      docsService: {} as never,
+      docsService: unlockedDocsService,
       undo: {
         docId: 'doc-1',
         fingerprint: fixture.fingerprint,
@@ -712,7 +721,7 @@ describe('agent action proposal helpers', () => {
 
     expect(() =>
       undoActionProposalInWorkspace({
-        docsService: {} as never,
+        docsService: unlockedDocsService,
         undo: {
           docId: 'doc-1',
           fingerprint: fixture.fingerprint,
@@ -737,7 +746,7 @@ describe('agent action proposal helpers', () => {
 
     expect(() =>
       undoActionProposalInWorkspace({
-        docsService: {} as never,
+        docsService: unlockedDocsService,
         undo: {
           docId: 'doc-1',
           fingerprint: fixture.fingerprint,
@@ -765,7 +774,7 @@ describe('agent action proposal helpers', () => {
 
     expect(() =>
       undoActionProposalInWorkspace({
-        docsService: {} as never,
+        docsService: unlockedDocsService,
         undo: {
           docId: 'doc-1',
           fingerprint: fixture.fingerprint,
@@ -882,7 +891,7 @@ describe('agent action proposal helpers', () => {
     const fixture = blockUndoFixture();
 
     undoActionProposalInWorkspace({
-      docsService: {} as never,
+      docsService: unlockedDocsService,
       undo: {
         documentFingerprint: fixture.documentFingerprint,
         docId: 'doc-1',
@@ -905,7 +914,7 @@ describe('agent action proposal helpers', () => {
 
     expect(() =>
       undoActionProposalInWorkspace({
-        docsService: {} as never,
+        docsService: unlockedDocsService,
         undo: {
           documentFingerprint: fixture.documentFingerprint,
           docId: 'doc-1',
@@ -929,7 +938,7 @@ describe('agent action proposal helpers', () => {
 
     expect(() =>
       undoActionProposalInWorkspace({
-        docsService: {} as never,
+        docsService: unlockedDocsService,
         undo: {
           documentFingerprint: fixture.documentFingerprint,
           docId: 'doc-1',
@@ -952,7 +961,7 @@ describe('agent action proposal helpers', () => {
 
     expect(() =>
       undoActionProposalInWorkspace({
-        docsService: {} as never,
+        docsService: unlockedDocsService,
         undo: {
           documentFingerprint: fixture.documentFingerprint,
           docId: 'doc-1',
@@ -974,7 +983,7 @@ describe('agent action proposal helpers', () => {
 
     expect(() =>
       undoActionProposalInWorkspace({
-        docsService: {} as never,
+        docsService: unlockedDocsService,
         undo: {
           documentFingerprint: fixture.documentFingerprint,
           docId: 'doc-1',
@@ -1117,7 +1126,7 @@ describe('agent action proposal helpers', () => {
     const fixture = surfaceUndoFixture();
 
     undoActionProposalInWorkspace({
-      docsService: {} as never,
+      docsService: unlockedDocsService,
       undo: {
         documentFingerprint: fixture.documentFingerprint,
         docId: 'doc-1',
@@ -1136,7 +1145,7 @@ describe('agent action proposal helpers', () => {
 
     expect(() =>
       undoActionProposalInWorkspace({
-        docsService: {} as never,
+        docsService: unlockedDocsService,
         undo: {
           documentFingerprint: fixture.documentFingerprint,
           docId: 'doc-1',
@@ -1155,7 +1164,7 @@ describe('agent action proposal helpers', () => {
 
     expect(() =>
       undoActionProposalInWorkspace({
-        docsService: {} as never,
+        docsService: unlockedDocsService,
         undo: {
           documentFingerprint: fixture.documentFingerprint,
           docId: 'doc-1',
@@ -1316,7 +1325,7 @@ describe('agent action proposal helpers', () => {
     const appended = fixture.append();
 
     undoActionProposalInWorkspace({
-      docsService: {} as never,
+      docsService: unlockedDocsService,
       undo: {
         columnTargets: appended.columnTargets,
         databaseBlockId: 'database-1',
@@ -1342,7 +1351,7 @@ describe('agent action proposal helpers', () => {
 
     expect(() =>
       undoActionProposalInWorkspace({
-        docsService: {} as never,
+        docsService: unlockedDocsService,
         undo: {
           columnTargets: appended.columnTargets,
           databaseBlockId: 'database-1',
@@ -1367,7 +1376,7 @@ describe('agent action proposal helpers', () => {
 
     expect(() =>
       undoActionProposalInWorkspace({
-        docsService: {} as never,
+        docsService: unlockedDocsService,
         undo: {
           columnTargets: appended.columnTargets,
           databaseBlockId: 'database-1',
@@ -1388,7 +1397,7 @@ describe('agent action proposal helpers', () => {
 
     expect(() =>
       undoActionProposalInWorkspace({
-        docsService: {} as never,
+        docsService: unlockedDocsService,
         undo: {
           columnTargets: appended.columnTargets,
           databaseBlockId: 'database-1',
@@ -1412,7 +1421,7 @@ describe('agent action proposal helpers', () => {
 
     expect(() =>
       undoActionProposalInWorkspace({
-        docsService: {} as never,
+        docsService: unlockedDocsService,
         undo: {
           columnTargets: appended.columnTargets,
           databaseBlockId: 'database-1',
@@ -1438,7 +1447,7 @@ describe('agent action proposal helpers', () => {
     ).toBe(false);
 
     undoActionProposalInWorkspace({
-      docsService: {} as never,
+      docsService: unlockedDocsService,
       undo: {
         columnTargets: appended.columnTargets,
         databaseBlockId: 'database-1',
@@ -1547,5 +1556,232 @@ describe('agent action proposal helpers', () => {
       style: 'four',
       type: 'mindmap',
     });
+  });
+});
+
+describe('journal, task and web clip actions', () => {
+  const readyDocsService = (locked = false) =>
+    ({
+      list: {
+        doc$: () => ({
+          value: locked ? { properties$: { value: { locked } } } : undefined,
+        }),
+      },
+      open: () => ({
+        doc: {
+          addPriorityLoad: () => () => {},
+          waitForSyncReady: async () => {},
+        },
+        release: vi.fn(),
+      }),
+    }) as never;
+
+  function taskFixture(tasks: { blockId: string; text: string }[]) {
+    const model = {
+      children: [],
+      flavour: 'affine:list',
+      id: 'task-1',
+      keys: ['checked', 'text'],
+      props: { checked: false, text: 'Call Sam' } as Record<string, unknown>,
+      store: { getParent: () => null },
+      version: 1,
+    };
+    const store = {
+      getBlock: (id: string) => (id === model.id ? { model } : null),
+      getModelById: (id: string) => (id === model.id ? model : null),
+      load: vi.fn(),
+      readonly: false,
+      spaceDoc: new Y.Doc(),
+      updateBlock: vi.fn(
+        (target: typeof model, props: Record<string, unknown>) => {
+          Object.assign(target.props, props);
+        }
+      ),
+    };
+    vi.mocked(readDocTasks).mockReturnValue(
+      tasks.map(task => ({
+        ...task,
+        checked: false,
+        docId: 'doc-1',
+        due: null,
+      }))
+    );
+    const workspace = { getDoc: () => ({ getStore: () => store }) };
+    return { model, store, workspace };
+  }
+
+  test('labels proposals and asks for the right permission', () => {
+    expect(
+      proposalTitle({ markdown: '- [ ] Call Sam', type: 'add_to_journal' })
+    ).toBe("Add to today's journal");
+    expect(
+      proposalPreview({
+        checked: true,
+        docId: 'doc-1',
+        task: 'Call Sam',
+        type: 'set_task_checked',
+      })
+    ).toBe('- [x] Call Sam');
+    expect(
+      applyPermissionForActionProposal({
+        checked: true,
+        docId: 'doc-1',
+        task: 'Call Sam',
+        type: 'set_task_checked',
+      })
+    ).toEqual({ action: 'Doc_Update', docId: 'doc-1' });
+    expect(
+      applyPermissionForActionProposal({
+        type: 'clip_web_page',
+        url: 'https://example.com',
+      })
+    ).toEqual({ action: 'Workspace_CreateDoc' });
+
+    const clipped = buildAppliedActionProposalResult({
+      mutation: { createdDocFingerprint: 'doc-fingerprint', docId: 'clip-1' },
+      proposal: { type: 'clip_web_page', url: 'https://example.com' },
+      workspaceId: 'workspace-1',
+    });
+    expect(clipped.undo).toEqual({
+      docId: 'clip-1',
+      fingerprint: 'doc-fingerprint',
+      type: 'trash_doc',
+    });
+  });
+
+  test('refuses to edit a locked page', async () => {
+    await expect(
+      applyActionProposalToWorkspace({
+        docsService: readyDocsService(true),
+        proposal: { docId: 'doc-1', markdown: 'Hi', type: 'insert_markdown' },
+        workspace: {} as never,
+      })
+    ).rejects.toThrow(/locked/);
+  });
+
+  test('appends to the journal for the requested date', async () => {
+    const note = {
+      children: [],
+      flavour: 'affine:note',
+      id: 'note-new',
+      keys: [],
+      props: {},
+      store: { getParent: () => null },
+      version: 1,
+    };
+    const doc = {
+      addBlock: vi.fn(() => 'note-new'),
+      getBlock: (id: string) => (id === note.id ? { model: note } : null),
+      getBlocksByFlavour: () => [{ id: 'page-1', model: { children: [] } }],
+      load: vi.fn(),
+      spaceDoc: new Y.Doc(),
+    };
+    const journalService = {
+      ensureJournalByDate: vi.fn(() => ({ id: 'journal-1' })),
+    };
+
+    const mutation = await applyActionProposalToWorkspace({
+      docsService: readyDocsService(),
+      journalService: journalService as never,
+      proposal: {
+        date: '2026-02-03',
+        markdown: '- [ ] Call Sam',
+        type: 'add_to_journal',
+      },
+      workspace: { getDoc: () => ({ getStore: () => doc }) } as never,
+    });
+
+    expect(journalService.ensureJournalByDate).toHaveBeenCalledWith(
+      '2026-02-03'
+    );
+    expect(mutation.docId).toBe('journal-1');
+    expect(mutation.insertedBlockTarget?.id).toBe('note-new');
+  });
+
+  test('checks off one task and undoes it while unchanged', async () => {
+    const fixture = taskFixture([
+      { blockId: 'task-1', text: 'Call Sam' },
+      { blockId: 'task-2', text: 'Call Sam later' },
+    ]);
+    const proposal = {
+      checked: true,
+      docId: 'doc-1',
+      task: 'call  sam',
+      type: 'set_task_checked' as const,
+    };
+
+    const mutation = await applyActionProposalToWorkspace({
+      docsService: readyDocsService(),
+      proposal,
+      workspace: fixture.workspace as never,
+    });
+    expect(fixture.model.props.checked).toBe(true);
+
+    const applied = stored(proposal, 'applied');
+    applied.result = buildAppliedActionProposalResult({
+      mutation,
+      proposal,
+      workspaceId: 'workspace-1',
+    });
+    const undo = undoInfo(applied);
+    expect(canUndoAppliedProposal(applied)).toBe(true);
+    expect(undo).toMatchObject({ checked: false, type: 'set_task_checked' });
+
+    undoActionProposalInWorkspace({
+      docsService: readyDocsService(),
+      undo: undo!,
+      workspace: fixture.workspace as never,
+    });
+    expect(fixture.model.props.checked).toBe(false);
+  });
+
+  test('keeps a task the user edited after the AI checked it', async () => {
+    const fixture = taskFixture([{ blockId: 'task-1', text: 'Call Sam' }]);
+    const proposal = {
+      checked: true,
+      docId: 'doc-1',
+      task: 'Call Sam',
+      type: 'set_task_checked' as const,
+    };
+    const mutation = await applyActionProposalToWorkspace({
+      docsService: readyDocsService(),
+      proposal,
+      workspace: fixture.workspace as never,
+    });
+    fixture.model.props.text = 'Call Sam on Friday';
+    const applied = stored(proposal, 'applied');
+    applied.result = buildAppliedActionProposalResult({
+      mutation,
+      proposal,
+      workspaceId: 'workspace-1',
+    });
+
+    expect(() =>
+      undoActionProposalInWorkspace({
+        docsService: readyDocsService(),
+        undo: undoInfo(applied)!,
+        workspace: fixture.workspace as never,
+      })
+    ).toThrow(/changed after the AI action/);
+  });
+
+  test('refuses an ambiguous task match', async () => {
+    const fixture = taskFixture([
+      { blockId: 'task-1', text: 'Email Sam' },
+      { blockId: 'task-2', text: 'Email Sam again' },
+    ]);
+    await expect(
+      applyActionProposalToWorkspace({
+        docsService: readyDocsService(),
+        proposal: {
+          checked: true,
+          docId: 'doc-1',
+          task: 'Sam',
+          type: 'set_task_checked',
+        },
+        workspace: fixture.workspace as never,
+      })
+    ).rejects.toThrow(/Several tasks match/);
+    expect(fixture.store.updateBlock).not.toHaveBeenCalled();
   });
 });

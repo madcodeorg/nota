@@ -329,6 +329,14 @@ export function createServer() {
           : 'move the note to trash';
       case 'clear_doc':
         return 'clear the note';
+      case 'add_to_journal':
+        return proposal.date
+          ? `add to the ${proposal.date} journal`
+          : "add to today's journal";
+      case 'set_task_checked':
+        return `${proposal.checked ? 'check off' : 'reopen'} the task "${proposal.task}"`;
+      case 'clip_web_page':
+        return `save the web page ${proposal.title ? `"${proposal.title}"` : proposal.url} as a note`;
       case 'run_mcp_tool':
         return `run MCP tool ${proposal.toolName}`;
     }

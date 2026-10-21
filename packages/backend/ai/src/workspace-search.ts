@@ -770,6 +770,19 @@ function readableWorkspaceDocuments(
   );
 }
 
+export async function listReadableWorkspaceContent(
+  config: AiBackendConfig,
+  input: WorkspaceDocumentAccessInput
+): Promise<WorkspaceDocument[]> {
+  return readableWorkspaceDocuments(
+    await readWorkspaceContent(config),
+    input
+  ).map(document => ({
+    ...toWorkspaceDocumentSummary(document),
+    markdown: document.markdown,
+  }));
+}
+
 export async function listWorkspaceDocuments(
   config: AiBackendConfig,
   input: WorkspaceDocumentListInput

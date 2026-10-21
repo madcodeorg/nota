@@ -15,6 +15,7 @@ import { z } from 'zod';
 import { createActionProposal } from './actions';
 import type { AiBackendConfig } from './config';
 import { loadMcpToolContext, type McpStatus } from './mcp';
+import { getWorkspaceDocLinks, listWorkspaceTasks } from './workspace-graph';
 import {
   listWorkspaceDocuments,
   readWorkspaceDocument,
@@ -686,7 +687,7 @@ function createBuiltinNotaTools(
 
   tools.propose_nota_action = tool({
     description:
-      'Create a pending Nota workspace action proposal for user approval. Use this when the user asks AI to create notes, insert text, replace selected content, create mindmaps, create task lists, create database/table documents, append rows to an existing database, or move a note to the trash (trash_doc; restorable, never a permanent delete). Whole-document clearing is unavailable. This tool does not apply changes directly.',
+      'Create a pending Nota workspace action proposal for user approval. Use this when the user asks AI to create notes, insert text, replace selected content, create mindmaps, create task lists, create database/table documents, append rows to an existing database, add to a daily journal (add_to_journal), check or uncheck an existing task (set_task_checked), save a web page as a note (clip_web_page), or move a note to the trash (trash_doc; restorable, never a permanent delete). Whole-document clearing is unavailable. This tool does not apply changes directly.',
     inputSchema: z.object({
       reason: z
         .string()
@@ -767,6 +768,52 @@ function createBuiltinNotaTools(
             .describe('Title of the note, shown to the user for approval.'),
         }),
         z.object({
+          type: z.literal('add_to_journal'),
+          markdown: z
+            .string()
+            .min(1)
+            .max(100000)
+            .describe(
+              'Markdown appended to the journal. Use "- [ ] task" lines for tasks.'
+            ),
+          date: z
+            .string()
+            .regex(/^\d{4}-\d{2}-\d{2}$/)
+            .optional()
+            .describe(
+              'Journal date as YYYY-MM-DD. Omit for today. Nota creates the journal if it does not exist.'
+            ),
+        }),
+        z.object({
+          type: z.literal('set_task_checked'),
+          docId: z
+            .string()
+            .min(1)
+            .max(500)
+            .describe('Document id from list_nota_tasks.'),
+          task: z
+            .string()
+            .min(1)
+            .max(1000)
+            .describe('Exact task text from list_nota_tasks.'),
+          checked: z
+            .boolean()
+            .describe('true marks the task done, false reopens it.'),
+        }),
+        z.object({
+          type: z.literal('clip_web_page'),
+          url: z
+            .string()
+            .url()
+            .max(2000)
+            .describe('Public http or https page to save as a note.'),
+          title: z
+            .string()
+            .max(240)
+            .optional()
+            .describe('Page title, shown to the user for approval.'),
+        }),
+        z.object({
           type: z.literal('run_mcp_tool'),
           toolName: z
             .string()
@@ -834,6 +881,56 @@ function createBuiltinNotaTools(
       }),
       execute: async ({ docId }) => {
         return readWorkspaceDocument(config, {
+          ...requireWorkspaceToolScope(context),
+          docId,
+        });
+      },
+    });
+
+    tools.list_nota_tasks = tool({
+      description:
+        'List checkbox tasks ("- [ ]" items) across readable notes in the current Nota workspace, the same tasks shown on the Tasks page. Each task has its note, text, checked state, due date (from a linked journal date or a YYYY-MM-DD in the text) and group: overdue, today, upcoming, someday or done.',
+      inputSchema: z.object({
+        status: z
+          .enum(['open', 'done', 'all'])
+          .optional()
+          .describe('Which tasks to return. Defaults to open.'),
+        docId: z
+          .string()
+          .min(1)
+          .max(500)
+          .optional()
+          .describe('Optional document id to list tasks from one note.'),
+        limit: z
+          .number()
+          .int()
+          .min(1)
+          .max(200)
+          .optional()
+          .describe('Maximum number of tasks to return. Defaults to 50.'),
+      }),
+      execute: async ({ docId, limit, status }) => {
+        return listWorkspaceTasks(config, {
+          ...requireWorkspaceToolScope(context),
+          docId,
+          limit,
+          status,
+        });
+      },
+    });
+
+    tools.get_nota_links = tool({
+      description:
+        'Show how one note connects to others in the current Nota workspace, the same links drawn on the Graph page: notes it links to (outgoing) and notes that link to it (backlinks). Only readable notes are returned.',
+      inputSchema: z.object({
+        docId: z
+          .string()
+          .min(1)
+          .max(500)
+          .describe('Exact Nota document id from list or search results.'),
+      }),
+      execute: async ({ docId }) => {
+        return getWorkspaceDocLinks(config, {
           ...requireWorkspaceToolScope(context),
           docId,
         });
