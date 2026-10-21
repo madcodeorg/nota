@@ -18,7 +18,11 @@ vi.mock('../../src/main/find-in-page', () => ({ findInPageHandlers: {} }));
 vi.mock('../../src/main/google-auth/handlers', () => ({
   googleAuthHandlers: {},
 }));
+vi.mock('../../src/main/quick-capture', () => ({ quickCaptureHandlers: {} }));
 vi.mock('../../src/main/recording', () => ({ recordingHandlers: {} }));
+vi.mock('../../src/main/security-restrictions', () => ({
+  checkSource: () => true,
+}));
 vi.mock('../../src/main/shared-storage', () => ({ sharedStorageHandlers: {} }));
 vi.mock('../../src/main/updater', () => ({ updaterHandlers: {} }));
 vi.mock('../../src/main/windows-manager/popup', () => ({ popupHandlers: {} }));

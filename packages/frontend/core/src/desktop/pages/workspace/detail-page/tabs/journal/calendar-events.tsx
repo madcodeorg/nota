@@ -18,6 +18,7 @@ import { assignInlineVars } from '@vanilla-extract/dynamic';
 import type { Dayjs } from 'dayjs';
 import { useMemo, useState } from 'react';
 
+import { getCalendarEventNotesPreview } from './calendar-event-notes';
 import * as styles from './calendar-events.css';
 
 function formatTime(start?: Dayjs, end?: Dayjs) {
@@ -76,6 +77,7 @@ const CalendarEventRenderer = ({ event }: { event: CalendarEvent }) => {
     : '';
   const joinUrl = meetingUrl ?? url;
   const detailText = [location, attendeeText].filter(Boolean).join(' · ');
+  const notesPreview = getCalendarEventNotesPreview(notes);
 
   const handleClick = useAsyncCallback(async () => {
     if (loading) return;
@@ -166,9 +168,9 @@ const CalendarEventRenderer = ({ event }: { event: CalendarEvent }) => {
             Join link
           </a>
         ) : null}
-        {notes ? (
-          <div className={styles.eventNotes} title={notes}>
-            {notes}
+        {notesPreview ? (
+          <div className={styles.eventNotes} title={notesPreview}>
+            {notesPreview}
           </div>
         ) : null}
       </div>

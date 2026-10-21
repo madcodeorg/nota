@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 import type { BlockComponent, EditorHost } from '@blocksuite/affine/std';
 import { type BlockModel, Text } from '@blocksuite/affine/store';
 import { WorkspaceImpl } from '@nota/core/modules/workspace/impls/workspace';

@@ -20,6 +20,7 @@ import {
   prepareAppleSpeechLanguage,
   pushAppleSpeechAudioFrame,
   pushAppleSpeechTranscriptEvent,
+  recognizeTextWithAppleVision,
   registerAppleSpeechBridge,
   setupAppleSpeechBridge,
   startAppleSpeechTranscription,
@@ -232,6 +233,10 @@ export const recordingHandlers = {
   },
   prepareAppleSpeechLanguage: async (_, locale: string) =>
     prepareAppleSpeechLanguage(locale),
+  recognizeText: async (
+    _,
+    input: { data: Uint8Array; kind: 'image' | 'pdf' }
+  ) => recognizeTextWithAppleVision(input),
   setupAppleSpeechBridge: async () => {
     return setupAppleSpeechBridge();
   },

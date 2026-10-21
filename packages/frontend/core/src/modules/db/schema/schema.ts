@@ -34,6 +34,7 @@ export const AFFiNE_WORKSPACE_DB_SCHEMA = {
     updatedBy: f.string().optional(),
     coverArtwork: f.json<Artwork>().optional(),
     coverHidden: f.boolean().optional(),
+    locked: f.boolean().optional(),
   }),
   docCustomPropertyInfo: {
     id: f.string().primaryKey().optional().default(nanoid),

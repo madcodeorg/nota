@@ -17,7 +17,7 @@ import { useI18n } from '@nota/i18n';
 import { useLiveData, useServices } from '@nota/infra';
 import { track } from '@nota/track';
 import { type MouseEventHandler, useCallback, useMemo } from 'react';
-import { RiAddFill } from 'react-icons/ri';
+import { RiAddFill, RiStarLine } from 'react-icons/ri';
 
 import { CollapsibleSection } from '../../layouts/collapsible-section';
 import { NavigationPanelCollectionNode } from '../../nodes/collection';
@@ -164,6 +164,7 @@ export const NavigationPanelFavorites = () => {
     <CollapsibleSection
       path={path}
       title={t['com.affine.rootAppSidebar.favorites']()}
+      icon={<RiStarLine />}
       headerRef={dropTargetRef}
       testId="navigation-panel-favorites"
       headerTestId="navigation-panel-favorite-category-divider"

@@ -11,7 +11,7 @@ import { useI18n } from '@nota/i18n';
 import { useLiveData, useServices } from '@nota/infra';
 import { track } from '@nota/track';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { RiFolderAddFill } from 'react-icons/ri';
+import { RiFolder3Line, RiFolderAddFill } from 'react-icons/ri';
 
 import { CollapsibleSection } from '../../layouts/collapsible-section';
 import { NavigationPanelFolderNode } from '../../nodes/folder';
@@ -102,7 +102,8 @@ export const NavigationPanelOrganize = () => {
   return (
     <CollapsibleSection
       path={path}
-      title={t['com.affine.rootAppSidebar.organize']()}
+      title={'Folders'}
+      icon={<RiFolder3Line />}
       actions={
         <IconButton
           data-testid="navigation-panel-bar-add-organize-button"

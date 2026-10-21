@@ -68,6 +68,7 @@ export class Doc extends Entity {
   readonly updatedAt$ = this.record.updatedAt$;
   readonly createdBy$ = this.record.createdBy$;
   readonly updatedBy$ = this.record.updatedBy$;
+  readonly locked$ = this.record.properties$.selector(p => !!p.locked);
 
   setCreatedAt(createdAt: number) {
     this.record.setMeta({ createDate: createdAt });
@@ -103,6 +104,10 @@ export class Doc extends Entity {
 
   setCustomProperty(propertyId: string, value: string) {
     return this.record.setCustomProperty(propertyId, value);
+  }
+
+  setLocked(locked: boolean) {
+    this.record.setProperty('locked', locked);
   }
 
   setPrimaryMode(mode: DocMode) {

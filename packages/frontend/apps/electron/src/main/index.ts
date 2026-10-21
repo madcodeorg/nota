@@ -1,5 +1,3 @@
-import './security-restrictions';
-
 import path from 'node:path';
 
 import { app, nativeImage, protocol } from 'electron';
@@ -15,8 +13,10 @@ import { registerEvents } from './events';
 import { registerHandlers } from './handlers';
 import { logger } from './logger';
 import { registerProtocol } from './protocol';
+import { setupQuickCapture } from './quick-capture';
 import { setupAppleSpeechBridge } from './recording/apple-speech-bridge';
 import { setupRecordingFeature } from './recording/feature';
+import { registerSecurityRestrictions } from './security-restrictions';
 import { setupTrayState } from './tray';
 import { registerUpdater } from './updater';
 import { launch } from './windows-manager/launcher';
@@ -130,6 +130,8 @@ function setMacDockIcon() {
   }
 }
 
+registerSecurityRestrictions();
+
 /**
  * Create app window when background process will be ready
  */
@@ -156,6 +158,7 @@ applicationInitialization = app
   .then(setupRecordingFeature)
   .then(setupAppleSpeechBridge)
   .then(setupTrayState)
+  .then(setupQuickCapture)
   .then(setupMeetingPopup);
 
 setupDeepLink(app, () => applicationInitialization);

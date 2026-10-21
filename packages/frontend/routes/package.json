@@ -1,6 +1,6 @@
 {
   "name": "@nota/routes",
-  "version": "0.26.3",
+  "version": "0.1.9",
   "private": true,
   "type": "module",
   "exports": {

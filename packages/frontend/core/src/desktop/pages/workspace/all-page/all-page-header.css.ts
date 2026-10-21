@@ -8,51 +8,35 @@ export const header = style({
   alignItems: 'center',
   justifyContent: 'space-between',
   gap: 16,
-  padding: '6px 8px',
-  borderRadius: 24,
-  background:
-    'linear-gradient(180deg, rgba(111, 127, 84, 0.1), rgba(111, 127, 84, 0.04)), ' +
-    cssVarV2('layer/background/secondary'),
-  border: '1px solid rgba(111, 127, 84, 0.16)',
-  boxShadow:
-    '0 14px 30px rgba(16, 24, 12, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.04)',
+  padding: '0 4px',
 });
 
 export const actions = style({
   display: 'flex',
   alignItems: 'center',
-  gap: 6,
-  padding: '4px 6px',
-  borderRadius: 22,
-  background:
-    'linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.025))',
-  border: '1px solid rgba(111, 127, 84, 0.18)',
+  gap: 4,
   flexShrink: 0,
 });
 
 export const viewModeGroup = style({
   display: 'flex',
   alignItems: 'center',
-  padding: '0 1px',
-  borderRadius: 20,
-  borderLeft: '1px solid rgba(111, 127, 84, 0.16)',
-  borderRight: '1px solid rgba(111, 127, 84, 0.16)',
 });
 
 export const viewToggle = style({
-  backgroundColor: 'rgba(111, 127, 84, 0.1)',
-  borderRadius: 18,
+  backgroundColor: 'transparent',
 });
 export const viewToggleItem = style({
   padding: 0,
   fontSize: 16,
   width: 32,
   height: 32,
-  borderRadius: 14,
+  borderRadius: 6,
   color: cssVarV2.icon.primary,
   selectors: {
     '&[data-state=checked]': {
-      color: '#b9c78c',
+      color: cssVarV2.text.primary,
+      backgroundColor: cssVarV2('layer/background/hoverOverlay'),
     },
   },
 });
@@ -73,19 +57,25 @@ export const newPageButtonLabel = style({
 });
 
 export const displayMenuButton = style({
-  width: 32,
-  minWidth: 32,
-  height: 32,
+  width: 28,
+  minWidth: 28,
+  height: 28,
+  border: 'none',
+  background: 'transparent',
+  boxShadow: 'none',
   padding: 0,
-  borderRadius: 15,
+  borderRadius: 6,
 });
 
 export const newPageButtonCompact = style({});
 
 globalStyle(`${newPageButtonCompact} button`, {
-  height: 32,
+  height: 28,
+  border: 'none',
+  background: 'transparent',
+  boxShadow: 'none',
   paddingLeft: 8,
-  borderRadius: 15,
+  borderRadius: 6,
 });
 
 globalStyle(`${newPageButtonCompact} button > span:nth-child(2)`, {

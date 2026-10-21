@@ -41,16 +41,7 @@ export const notifyChatHistoryChanged = () =>
 // active view's page panels (properties, outline, frames...) here.
 export const pagePanelSlot$ = new LiveData<HTMLElement | null>(null);
 
-export type SidebarSection =
-  | 'notes'
-  | 'chats'
-  | 'ai'
-  | 'meetings'
-  | 'favorites'
-  | 'organize'
-  | 'collections'
-  | 'tags'
-  | 'page';
+export type SidebarSection = 'notes' | 'chats' | 'ai' | 'meetings' | 'page';
 
 const SECTION_KEY = 'nota:sidebar-section';
 const SECTIONS = new Set<SidebarSection>([
@@ -58,10 +49,6 @@ const SECTIONS = new Set<SidebarSection>([
   'chats',
   'ai',
   'meetings',
-  'favorites',
-  'organize',
-  'collections',
-  'tags',
   'page',
 ]);
 

@@ -1,6 +1,6 @@
 {
   "name": "@nota/monorepo",
-  "version": "0.26.5",
+  "version": "0.1.9",
   "private": true,
   "author": "Mad Code",
   "license": "MIT",
@@ -31,7 +31,7 @@
     "affine": "r nota.ts",
     "af": "r nota.ts",
     "dev": "yarn nota dev",
-    "dev:ai": "sh -c 'yarn nota @nota/ai-backend dev & backend_pid=$!; trap \"kill $backend_pid\" EXIT INT TERM; NOTA_DEV_BACKEND_FALLBACK=false yarn nota dev'",
+    "dev:ai": "sh -c 'export NOTA_AI_BACKEND_TOKEN=\"${NOTA_AI_BACKEND_TOKEN:-$(openssl rand -hex 24)}\"; DEV_SERVER_URL=\"${DEV_SERVER_URL:-http://localhost:8080}\" yarn nota @nota/ai-backend dev & backend_pid=$!; trap \"kill $backend_pid\" EXIT INT TERM; NOTA_DEV_BACKEND_FALLBACK=false yarn nota dev'",
     "dev:ai-backend": "yarn nota @nota/ai-backend dev",
     "build": "yarn nota build",
     "lint:eslint": "cross-env NODE_OPTIONS=\"--max-old-space-size=16384\" eslint --report-unused-disable-directives-severity=off . --cache",
@@ -195,6 +195,7 @@
     "minimatch@^10.1.1": "^10.2.3",
     "immutable@~3.7.6": "^3.8.4",
     "katex@^0.16.0": "^0.18.2",
-    "katex@^0.16.47": "^0.18.2"
+    "katex@^0.16.47": "^0.18.2",
+    "@electron-forge/core@npm:7.11.2": "patch:@electron-forge/core@npm%3A7.11.2#~/.yarn/patches/@electron-forge-core-npm-7.11.2-b6ae130da1.patch"
   }
 }

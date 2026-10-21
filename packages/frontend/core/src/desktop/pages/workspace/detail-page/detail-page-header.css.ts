@@ -69,6 +69,30 @@ export const templateMark = style({
   lineHeight: '20px',
 });
 
+export const lockedMark = style({
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 4,
+  flexShrink: 0,
+  border: 'none',
+  borderRadius: 4,
+  padding: '2px 8px',
+  fontSize: 12,
+  fontWeight: 500,
+  lineHeight: '20px',
+  color: cssVarV2('text/secondary'),
+  backgroundColor: cssVarV2('layer/background/secondary'),
+  cursor: 'pointer',
+  selectors: {
+    '&:hover:not(:disabled)': {
+      backgroundColor: cssVarV2('layer/background/hoverOverlay'),
+    },
+    '&:disabled': {
+      cursor: 'default',
+    },
+  },
+});
+
 export const journalTemplateMark = style({
   '@container': {
     '(width <= 400px)': {

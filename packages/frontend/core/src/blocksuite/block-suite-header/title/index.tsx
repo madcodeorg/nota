@@ -37,13 +37,14 @@ export const BlocksuiteHeaderTitle = (props: BlockSuiteHeaderTitleProps) => {
   );
 
   const canEdit = useGuard('Doc_Update', docService.doc.id);
+  const locked = useLiveData(docService.doc.locked$);
 
   return (
     <InlineEdit
       className={clsx(styles.title, props.className)}
       value={docTitle}
       onChange={onChange}
-      editable={!isSharedMode && canEdit}
+      editable={!isSharedMode && canEdit && !locked}
       exitible={true}
       placeholder="Untitled"
       data-testid="title-edit-button"

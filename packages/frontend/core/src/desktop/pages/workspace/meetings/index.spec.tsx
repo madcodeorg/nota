@@ -277,6 +277,17 @@ vi.mock('@nota/core/desktop/components/navigation-panel', () => ({
   NavigationPanelCollections: () => null,
   NavigationPanelTags: () => null,
 }));
+vi.mock(
+  '@nota/core/desktop/components/navigation-panel/layouts/collapsible-section',
+  () => ({
+    CollapsibleSection: ({ children }: { children?: React.ReactNode }) => (
+      <div>{children}</div>
+    ),
+  })
+);
+vi.mock('@nota/core/components/web-clip/use-save-web-page', () => ({
+  useSaveWebPage: () => () => {},
+}));
 vi.mock('../ai-workspace-index', () => ({
   syncWorkspaceContentIndex: vi.fn(),
 }));

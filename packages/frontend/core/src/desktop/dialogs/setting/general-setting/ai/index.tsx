@@ -139,18 +139,6 @@ type AIBackendSettings = {
     workspaceSearch: boolean;
     maxSteps: number;
   };
-  mcp: {
-    enabled: boolean;
-    config: string;
-    toolNames?: string[];
-    servers?: Array<{
-      blockedToolNames?: string[];
-      error?: string;
-      name: string;
-      toolNames: string[];
-      transport: string;
-    }>;
-  };
   meetings: {
     device?: {
       arch: string;
@@ -353,12 +341,6 @@ const fallbackSettings: AIBackendSettings = {
     shell: false,
     workspaceSearch: true,
     maxSteps: 50,
-  },
-  mcp: {
-    enabled: false,
-    config: '{}',
-    toolNames: [],
-    servers: [],
   },
   meetings: {
     device: undefined,
@@ -565,8 +547,6 @@ export const AISettingsPanel = ({
   const [toolMaxSteps, setToolMaxSteps] = useState(
     String(fallbackSettings.tools.maxSteps)
   );
-  const [mcpEnabled, setMcpEnabled] = useState(fallbackSettings.mcp.enabled);
-  const [mcpConfig, setMcpConfig] = useState(fallbackSettings.mcp.config);
   const [activeTab, setActiveTab] = useState('models');
   const [localLibraryOpen, setLocalLibraryOpen] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -654,8 +634,6 @@ export const AISettingsPanel = ({
       setShellToolEnabled(next.tools.shell);
       setWorkspaceSearchToolEnabled(next.tools.workspaceSearch);
       setToolMaxSteps(String(next.tools.maxSteps));
-      setMcpEnabled(next.mcp.enabled);
-      setMcpConfig(next.mcp.config);
       await aiModelService.refreshModels().catch((error: unknown) => {
         console.error('Failed to refresh the chat model catalog', error);
       });
@@ -1251,8 +1229,6 @@ export const AISettingsPanel = ({
                 webCrawlToolEnabled,
                 shellToolEnabled,
                 toolMaxSteps: Number(toolMaxSteps),
-                mcpEnabled,
-                mcpConfig,
               }
             : {}),
           toolsEnabled,
@@ -1299,8 +1275,6 @@ export const AISettingsPanel = ({
     imageProvider,
     localBaseUrl,
     localTextModelSelectionInvalid,
-    mcpConfig,
-    mcpEnabled,
     model,
     provider,
     selectedLocalModelState?.reason,
@@ -2161,71 +2135,6 @@ export const AISettingsPanel = ({
                 onChange={setToolMaxSteps}
               />
             </SettingRow>
-          </SettingsSection>
-
-          <SettingsSection title="MCP">
-            <SettingRow name="Enable MCP config">
-              <Switch
-                checked={mcpEnabled}
-                aria-label="Enable MCP config"
-                disabled={controlsDisabled || !toolsEnabled}
-                onChange={setMcpEnabled}
-              />
-            </SettingRow>
-            <SettingRow
-              name="MCP config"
-              desc="JSON config for local MCP servers. Annotated read tools are exposed directly; write tools stay approval-gated."
-              spreadCol
-            >
-              <textarea
-                className={styles.textarea}
-                value={mcpConfig}
-                aria-label="MCP config"
-                disabled={controlsDisabled || !toolsEnabled || !mcpEnabled}
-                spellCheck={false}
-                onChange={event => setMcpConfig(event.currentTarget.value)}
-              />
-            </SettingRow>
-            {settings.mcp.toolNames?.length ? (
-              <SettingRow
-                name="Loaded MCP tools"
-                desc={settings.mcp.toolNames.slice(0, 8).join(', ')}
-              >
-                <div className={styles.capability}>
-                  <span className={styles.dot} />
-                  {settings.mcp.toolNames.length}
-                </div>
-              </SettingRow>
-            ) : null}
-            {settings.mcp.servers?.map(server => (
-              <SettingRow
-                key={server.name}
-                name={server.name}
-                desc={
-                  server.error ||
-                  `${server.transport} server, ${
-                    server.toolNames.length
-                  } read tools loaded${
-                    server.blockedToolNames?.length
-                      ? `, ${server.blockedToolNames.length} write tools blocked`
-                      : ''
-                  }`
-                }
-              >
-                <div className={styles.capability}>
-                  <span
-                    className={clsx(styles.dot, {
-                      [styles.pendingDot]: !!server.error,
-                    })}
-                  />
-                  {server.error
-                    ? 'Error'
-                    : server.blockedToolNames?.length
-                      ? 'Gated'
-                      : 'Ready'}
-                </div>
-              </SettingRow>
-            ))}
           </SettingsSection>
         </Tabs.Content>
       </Tabs.Root>

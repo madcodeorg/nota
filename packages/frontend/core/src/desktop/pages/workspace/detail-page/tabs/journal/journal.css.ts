@@ -51,16 +51,22 @@ export const journalPanel = style({
   display: 'flex',
   flexDirection: 'column',
   alignItems: 'stretch',
-  overflow: 'hidden',
+  minHeight: 0,
+  overflowX: 'hidden',
+  overflowY: 'auto',
+});
+export const journalOverview = style({
+  flexShrink: 0,
 });
 export const dailyCount = style({
-  height: 0,
-  flexGrow: 1,
+  minHeight: 180,
+  flex: '1 0 180px',
   display: 'flex',
   flexDirection: 'column',
   gap: 8,
 });
 export const dailyCountHeader = style({
+  flexShrink: 0,
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'space-between',
@@ -92,16 +98,12 @@ export const dailyCountNav = style([
   },
 ]);
 export const dailyCountContainer = style({
-  height: 0,
-  flexGrow: 1,
-  display: 'flex',
-  width: `calc(var(--item-count) * 100%)`,
-  transition: 'transform .15s ease',
-  transform:
-    'translateX(calc(var(--active-index) * 100% / var(--item-count) * -1))',
+  minHeight: 0,
+  flex: 1,
+  overflow: 'hidden',
 });
 export const dailyCountItem = style({
-  width: 'calc(100% / var(--item-count))',
+  width: '100%',
   height: '100%',
 });
 export const dailyCountContent = style({
@@ -122,7 +124,7 @@ export const dailyCountEmpty = style({
   fontSize: 15,
   color: cssVar('textSecondaryColor'),
   textAlign: 'center',
-  padding: '0 70px',
+  padding: '16px 24px',
   fontWeight: 400,
 });
 

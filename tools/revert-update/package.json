@@ -1,6 +1,6 @@
 {
   "name": "@nota/revert-update",
-  "version": "0.26.3",
+  "version": "0.1.9",
   "private": true,
   "type": "module",
   "description": "Generate a revert update from two Yjs snapshot binaries",

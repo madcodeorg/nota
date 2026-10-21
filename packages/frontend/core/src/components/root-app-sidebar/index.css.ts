@@ -127,9 +127,16 @@ export const aiPanelFallback = style({
 export const workspaceWrapper = style({
   display: 'flex',
   alignItems: 'center',
+  gap: 4,
   width: 'calc(100% + 12px)',
   height: 42,
+  paddingRight: 14,
   alignSelf: 'center',
+});
+
+globalStyle(`${workspaceWrapper} > :first-child`, {
+  flex: 1,
+  minWidth: 0,
 });
 
 export const historyNewButton = style({
@@ -259,4 +266,55 @@ export const historyMoreButton = style({
       background: cssVar('hoverColor'),
     },
   },
+});
+
+export const searchBar = style({
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+  width: '100%',
+  height: 32,
+  margin: '2px 0 6px',
+  padding: '0 6px 0 10px',
+  border: `1px solid ${cssVarV2('layer/insideBorder/border')}`,
+  borderRadius: 8,
+  background: cssVarV2('layer/background/primary'),
+  color: cssVarV2('text/tertiary'),
+  fontSize: 13,
+  cursor: 'pointer',
+  transition: 'border-color .12s ease, color .12s ease',
+  selectors: {
+    '&:hover': {
+      color: cssVarV2('text/secondary'),
+      borderColor: cssVarV2('layer/insideBorder/blackBorder'),
+    },
+    '&:focus-visible': {
+      outline: `2px solid ${cssVarV2('layer/insideBorder/primaryBorder')}`,
+      outlineOffset: 1,
+    },
+  },
+});
+
+export const searchBarIcon = style({
+  flexShrink: 0,
+  color: cssVarV2('icon/secondary'),
+});
+
+export const searchBarLabel = style({
+  flex: 1,
+  textAlign: 'left',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+});
+
+export const searchBarShortcut = style({
+  flexShrink: 0,
+  padding: '1px 5px',
+  borderRadius: 4,
+  border: `1px solid ${cssVarV2('layer/insideBorder/border')}`,
+  color: cssVarV2('text/tertiary'),
+  fontFamily: 'inherit',
+  fontSize: 11,
+  lineHeight: '16px',
 });

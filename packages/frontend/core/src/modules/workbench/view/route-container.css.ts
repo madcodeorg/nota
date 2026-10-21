@@ -1,5 +1,5 @@
 import { cssVar } from '@toeverything/theme';
-import { style } from '@vanilla-extract/css';
+import { globalStyle, style } from '@vanilla-extract/css';
 
 export const root = style({
   display: 'flex',
@@ -31,6 +31,10 @@ export const header = style({
       paddingLeft: 8,
     },
   },
+});
+
+globalStyle(`[data-focus-mode="true"] ${header}`, {
+  display: 'none',
 });
 
 export const viewBodyContainer = style({

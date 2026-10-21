@@ -3,7 +3,9 @@ import { type IconData, IconRenderer, IconType } from '@nota/component';
 import { html } from 'lit';
 
 export const getDocIconComponent = (icon: IconData) => {
-  const Icon = () => <IconRenderer data={icon} />;
+  const Icon = (props: React.SVGProps<SVGSVGElement>) => (
+    <IconRenderer data={icon} {...props} />
+  );
   Icon.displayName = 'DocIcon';
   return Icon;
 };

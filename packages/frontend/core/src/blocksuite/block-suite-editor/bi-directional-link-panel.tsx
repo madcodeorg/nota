@@ -48,6 +48,7 @@ import {
 } from '../../components/affine/reference-link';
 import { LitTextRenderer } from '../ai/components/text-renderer';
 import * as styles from './bi-directional-link-panel.css';
+import { RelatedNotes, UnlinkedMentions } from './doc-mentions';
 
 const PREFIX = 'bi-directional-link-panel-collapse:';
 
@@ -457,6 +458,8 @@ export const BiDirectionalLinkPanel = () => {
               </div>
             ))}
           </div>
+          <UnlinkedMentions />
+          <RelatedNotes />
         </>
       )}
     </div>

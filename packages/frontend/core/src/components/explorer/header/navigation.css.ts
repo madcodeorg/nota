@@ -6,39 +6,26 @@ export const container = style({
   gap: 2,
   alignItems: 'center',
   fontSize: 13,
-  lineHeight: '22px',
-  fontWeight: 600,
-  padding: 3,
-  borderRadius: 20,
-  background: 'rgba(111, 127, 84, 0.08)',
-  border: '1px solid rgba(111, 127, 84, 0.16)',
-  boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.04)',
+  lineHeight: '20px',
+  fontWeight: 500,
 });
 
 export const item = style({
-  color: cssVarV2.text.secondary,
-  minHeight: 32,
-  padding: '5px 10px',
-  borderRadius: 16,
+  color: cssVarV2.text.tertiary,
+  height: 28,
+  padding: '0 10px',
+  borderRadius: 6,
   display: 'inline-flex',
   alignItems: 'center',
-  justifyContent: 'center',
-  transition:
-    'background-color .16s ease, color .16s ease, box-shadow .16s ease, transform .16s ease',
+  transition: 'background-color .12s ease, color .12s ease',
   selectors: {
     '&:hover': {
       color: cssVarV2.text.primary,
-      background: 'rgba(111, 127, 84, 0.12)',
-    },
-    '&:active': {
-      transform: 'translateY(1px)',
+      background: cssVarV2('layer/background/hoverOverlay'),
     },
     '&[data-active="true"]': {
       color: cssVarV2.text.primary,
-      background:
-        'linear-gradient(180deg, rgba(111, 127, 84, 0.24), rgba(111, 127, 84, 0.12))',
-      boxShadow:
-        '0 8px 18px rgba(16, 24, 12, 0.12), inset 0 0 0 1px rgba(185, 199, 140, 0.22)',
+      background: cssVarV2('layer/background/hoverOverlay'),
     },
   },
 });

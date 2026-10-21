@@ -31,6 +31,7 @@ interface ExportProps {
       | 'html'
       | 'png'
       | 'markdown'
+      | 'copy-markdown'
       | 'snapshot'
       | 'pdf-export'
       | 'csv'
@@ -112,6 +113,13 @@ export const ExportMenuItems = ({
         type="markdown"
         icon={<ExportToMarkdownIcon />}
         label={t['Export to Markdown']()}
+      />
+      <ExportMenuItem
+        onSelect={() => exportHandler('copy-markdown')}
+        className={className}
+        type="copy-markdown"
+        icon={<ExportToMarkdownIcon />}
+        label={t['com.affine.export.copy-markdown']()}
       />
       {hasDatabases && (
         <ExportMenuItem

@@ -1,5 +1,6 @@
 import { SmileSolidIcon } from '@blocksuite/icons/rc';
 import { IconEditor, IconRenderer } from '@nota/component';
+import { EditorSettingService } from '@nota/core/modules/editor-setting';
 import { ExplorerIconService } from '@nota/core/modules/explorer-icon/services/explorer-icon';
 import { useI18n } from '@nota/i18n';
 import { useLiveData, useService } from '@nota/infra';
@@ -35,10 +36,13 @@ export const DocIconPicker = ({
 }) => {
   const t = useI18n();
   const explorerIconService = useService(ExplorerIconService);
+  const editorSetting = useService(EditorSettingService).editorSetting;
 
   const icon = useLiveData(explorerIconService.icon$('doc', docId));
+  const settings = useLiveData(editorSetting.settings$);
 
   const isPlaceholder = !icon?.icon;
+  const shouldShowAddIconOption = settings.displayAddIconOption;
 
   if (readonly) {
     return isPlaceholder ? null : (
@@ -49,6 +53,10 @@ export const DocIconPicker = ({
         <IconRenderer data={icon.icon} />
       </div>
     );
+  }
+
+  if (isPlaceholder && !shouldShowAddIconOption) {
+    return null;
   }
 
   return (

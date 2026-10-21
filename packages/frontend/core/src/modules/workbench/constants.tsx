@@ -7,10 +7,12 @@ import {
   RiFileList3Fill,
   RiFilePdf2Fill,
   RiFileTextFill,
+  RiMindMap,
   RiPencilFill,
   RiPriceTag3Fill,
   RiShapesFill,
   RiSparkling2Fill,
+  RiTaskFill,
   RiVoiceprintFill,
 } from 'react-icons/ri';
 
@@ -27,6 +29,8 @@ export const iconNameToIcon = {
   pdf: <RiFilePdf2Fill size={19} />,
   ai: <RiSparkling2Fill size={19} />,
   meetings: <RiVoiceprintFill size={19} />,
+  tasks: <RiTaskFill size={19} />,
+  graph: <RiMindMap size={19} />,
 } satisfies Record<string, ReactNode>;
 
 export type ViewIconName = keyof typeof iconNameToIcon;

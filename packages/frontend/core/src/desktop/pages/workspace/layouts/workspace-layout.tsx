@@ -22,6 +22,7 @@ import { WorkspaceSetup } from '../../onboarding/workspace-setup';
 import { LocalBackupSideEffect } from '../local-backup-side-effect';
 import { LocalPersistenceStatus } from '../local-persistence-status';
 import { MeetingSaveSideEffect } from '../meetings/meeting-save-side-effect';
+import { TaskReminderSideEffect } from '../tasks/task-reminder-side-effect';
 
 export const WorkspaceLayout = function WorkspaceLayout({
   children,
@@ -41,6 +42,7 @@ export const WorkspaceLayout = function WorkspaceLayout({
       <WorkspaceSideEffects />
       <MeetingSaveSideEffect />
       <LocalBackupSideEffect />
+      <TaskReminderSideEffect />
       <LocalPersistenceStatus />
       <PeekViewManagerModal />
       <DocumentTitle />

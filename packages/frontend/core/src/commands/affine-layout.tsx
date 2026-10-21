@@ -1,4 +1,4 @@
-import { SidebarIcon } from '@blocksuite/icons/rc';
+import { ExpandFullIcon, SidebarIcon } from '@blocksuite/icons/rc';
 import type { useI18n } from '@nota/i18n';
 import { track } from '@nota/track';
 
@@ -31,6 +31,23 @@ export function registerAffineLayoutCommands({
           type: appSidebarService.sidebar.open$.value ? 'collapse' : 'expand',
         });
         appSidebarService.sidebar.toggleSidebar();
+      },
+    })
+  );
+  unsubs.push(
+    registerAffineCommand({
+      id: 'nota:toggle-focus-mode',
+      category: 'nota:layout',
+      icon: <ExpandFullIcon />,
+      label: () =>
+        appSidebarService.sidebar.focusMode$.value
+          ? 'Exit focus mode'
+          : 'Enter focus mode',
+      keyBinding: {
+        binding: '$mod+Shift+KeyF',
+      },
+      run() {
+        appSidebarService.sidebar.toggleFocusMode();
       },
     })
   );

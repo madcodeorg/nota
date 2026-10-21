@@ -1,12 +1,29 @@
+import { homedir } from 'node:os';
+import path from 'node:path';
+
 import {
   createMCPClient,
   type ListToolsResult,
   type MCPClient,
+  type OAuthClientProvider,
+  UnauthorizedError,
 } from '@ai-sdk/mcp';
 import { Experimental_StdioMCPTransport } from '@ai-sdk/mcp/mcp-stdio';
 import type { ToolSet } from 'ai';
 
 import type { AiBackendConfig } from './config';
+import { createMcpOAuthProvider } from './mcp-oauth';
+
+export type McpAuthConfig =
+  | { type: 'none' }
+  | { type: 'bearer'; token: string }
+  | { type: 'header'; headerName: string; value: string }
+  | {
+      clientId?: string;
+      clientSecret?: string;
+      scopes?: string;
+      type: 'oauth';
+    };
 
 type McpServerConfig =
   | {
@@ -14,20 +31,32 @@ type McpServerConfig =
       command: string;
       cwd?: string;
       env?: Record<string, string>;
-      type?: 'stdio';
+      type: 'stdio';
     }
   | {
+      auth: McpAuthConfig;
       headers?: Record<string, string>;
       type: 'http' | 'sse';
       url: string;
     };
 
-type ParsedMcpServer = McpServerConfig & { name: string };
+export type ParsedMcpServer = McpServerConfig & {
+  enabled: boolean;
+  name: string;
+};
+
+export type McpServerState =
+  | 'auth-required'
+  | 'disabled'
+  | 'error'
+  | 'gated'
+  | 'ready';
 
 export interface McpStatus {
   blockedToolNames?: string[];
   error?: string;
   name: string;
+  state?: McpServerState;
   toolNames: string[];
   transport: 'http' | 'sse' | 'stdio' | 'unknown';
 }
@@ -144,9 +173,45 @@ function readStringRecord(value: unknown) {
   return Object.fromEntries(entries);
 }
 
-function parseMcpConfig(rawConfig: string): ParsedMcpServer[] {
+function readOptionalString(value: unknown) {
+  return typeof value === 'string' && value ? value : undefined;
+}
+
+export function readMcpAuthConfig(value: unknown): McpAuthConfig {
+  if (!isRecord(value)) {
+    return { type: 'none' };
+  }
+  switch (value.type) {
+    case 'bearer':
+      return {
+        token: typeof value.token === 'string' ? value.token : '',
+        type: 'bearer',
+      };
+    case 'header':
+      return {
+        headerName:
+          typeof value.headerName === 'string' ? value.headerName : '',
+        type: 'header',
+        value: typeof value.value === 'string' ? value.value : '',
+      };
+    case 'oauth':
+      return {
+        clientId: readOptionalString(value.clientId),
+        clientSecret: readOptionalString(value.clientSecret),
+        scopes: readOptionalString(value.scopes),
+        type: 'oauth',
+      };
+    default:
+      return { type: 'none' };
+  }
+}
+
+/** Raw server entries keyed by name, including UI metadata the loader ignores. */
+export function readMcpServerEntries(
+  rawConfig: string
+): Record<string, Record<string, unknown>> {
   if (!rawConfig.trim()) {
-    return [];
+    return {};
   }
 
   const parsed = JSON.parse(rawConfig) as unknown;
@@ -159,61 +224,96 @@ function parseMcpConfig(rawConfig: string): ParsedMcpServer[] {
       ? ((parsed.mcpServers ?? parsed.servers) as Record<string, unknown>)
       : parsed;
 
-  const servers: ParsedMcpServer[] = [];
-
-  for (const [name, rawServer] of Object.entries(serverRoot)) {
-    if (!isRecord(rawServer)) {
-      continue;
-    }
-
-    if (typeof rawServer.command === 'string') {
-      servers.push({
-        args: readStringArray(rawServer.args),
-        command: rawServer.command,
-        cwd: typeof rawServer.cwd === 'string' ? rawServer.cwd : undefined,
-        env: readStringRecord(rawServer.env),
-        name,
-        type: 'stdio',
-      });
-      continue;
-    }
-
-    if (
-      typeof rawServer.url === 'string' &&
-      (rawServer.type === 'http' || rawServer.type === 'sse')
-    ) {
-      servers.push({
-        headers: readStringRecord(rawServer.headers),
-        name,
-        type: rawServer.type,
-        url: rawServer.url,
-      });
-    }
-  }
-
-  return servers;
+  return Object.fromEntries(
+    Object.entries(serverRoot).filter(
+      (entry): entry is [string, Record<string, unknown>] => isRecord(entry[1])
+    )
+  );
 }
 
-function createTransport(config: McpServerConfig) {
-  if (config.type === 'http' || config.type === 'sse') {
+export function parseMcpServerEntry(
+  name: string,
+  rawServer: Record<string, unknown>
+): ParsedMcpServer | null {
+  const enabled = rawServer.enabled !== false;
+
+  if (typeof rawServer.command === 'string') {
     return {
-      headers: config.headers,
+      args: readStringArray(rawServer.args),
+      command: rawServer.command,
+      cwd: typeof rawServer.cwd === 'string' ? rawServer.cwd : undefined,
+      enabled,
+      env: readStringRecord(rawServer.env),
+      name,
+      type: 'stdio',
+    };
+  }
+
+  if (
+    typeof rawServer.url === 'string' &&
+    (rawServer.type === 'http' || rawServer.type === 'sse')
+  ) {
+    return {
+      auth: readMcpAuthConfig(rawServer.auth),
+      enabled,
+      headers: readStringRecord(rawServer.headers),
+      name,
+      type: rawServer.type,
+      url: rawServer.url,
+    };
+  }
+
+  return null;
+}
+
+function parseMcpConfig(rawConfig: string): ParsedMcpServer[] {
+  return Object.entries(readMcpServerEntries(rawConfig)).flatMap(
+    ([name, rawServer]) => parseMcpServerEntry(name, rawServer) ?? []
+  );
+}
+
+function remoteHeaders(
+  config: Extract<McpServerConfig, { type: 'http' | 'sse' }>
+) {
+  const headers = { ...config.headers };
+  if (config.auth.type === 'bearer' && config.auth.token) {
+    headers.Authorization = `Bearer ${config.auth.token}`;
+  }
+  if (config.auth.type === 'header' && config.auth.headerName) {
+    headers[config.auth.headerName] = config.auth.value;
+  }
+  return headers;
+}
+
+function createTransport(
+  config: McpServerConfig,
+  authProvider?: OAuthClientProvider
+) {
+  if (config.type !== 'stdio') {
+    return {
+      authProvider,
+      headers: remoteHeaders(config),
       type: config.type,
       url: config.url,
     } as const;
   }
 
-  if (config.type && config.type !== 'stdio') {
-    throw new Error(`Unsupported MCP transport: ${config.type}`);
-  }
-
   return new Experimental_StdioMCPTransport({
-    args: config.args,
+    args: config.args?.map(expandHomePath),
     command: config.command,
-    cwd: config.cwd,
+    cwd: config.cwd && expandHomePath(config.cwd),
     env: config.env,
   });
 }
+
+/** Child processes are spawned without a shell, so `~` is never expanded. */
+export function expandHomePath(value: string) {
+  if (value === '~') return homedir();
+  if (value.startsWith('~/')) return path.join(homedir(), value.slice(2));
+  return value;
+}
+
+const MCP_CONNECT_TIMEOUT_MS = 30_000;
 
 function mcpPoolSignature(config: AiBackendConfig) {
   return JSON.stringify({
@@ -263,6 +363,7 @@ async function buildMcpPool(
         {
           error: error instanceof Error ? error.message : String(error),
           name: 'mcp-config',
+          state: 'error',
           toolNames: [],
           transport: 'unknown',
         },
@@ -271,61 +372,168 @@ async function buildMcpPool(
   }
 
   const pool = emptyPool(signature);
+  // Servers connect in parallel so one slow or hung server cannot hold up the
+  // others, and each gets a time limit.
+  const parts = await Promise.all(
+    servers.map(server => connectMcpServerWithTimeout(config, server))
+  );
+  for (const part of parts) {
+    pool.clients.push(...part.clients);
+    Object.assign(pool.readTools, part.readTools);
+    pool.status.push(...part.status);
+    for (const [name, tool] of part.writeTools) pool.writeTools.set(name, tool);
+    for (const [name, meta] of part.writeToolMeta) {
+      pool.writeToolMeta.set(name, meta);
+    }
+  }
+  return pool;
+}
 
-  for (const server of servers) {
-    try {
-      const client = await createMCPClient({
-        clientName: 'nota-ai-backend',
-        transport: createTransport(server),
-      });
-      pool.clients.push(client);
+async function connectMcpServer(
+  config: AiBackendConfig,
+  server: ParsedMcpServer,
+  onTransport: (transport: ReturnType<typeof createTransport>) => void
+): Promise<McpPoolState> {
+  const pool = emptyPool('');
+  if (!server.enabled) {
+    pool.status.push({
+      blockedToolNames: [],
+      name: server.name,
+      state: 'disabled',
+      toolNames: [],
+      transport: server.type,
+    });
+    return pool;
+  }
 
-      const definitions = await client.listTools();
-      const toolDefinitions = definitionsByName(definitions);
-      const serverTools = client.toolsFromDefinitions(definitions);
-      const exposedToolNames: string[] = [];
-      const blockedToolNames: string[] = [];
+  const authProvider =
+    server.type !== 'stdio' && server.auth.type === 'oauth'
+      ? createMcpOAuthProvider({
+          auth: server.auth,
+          name: server.name,
+          settingsPath: config.settingsPath,
+        })
+      : undefined;
 
-      for (const [toolName, toolDefinition] of toolDefinitions) {
-        const namespaced = namespacedToolName(server.name, toolName);
-        const serverTool = serverTools[toolName];
-        if (!serverTool) {
-          continue;
-        }
-        const executable = serverTool as unknown as ExecutableTool;
+  try {
+    if (authProvider && !(await authProvider.tokens())) {
+      pool.status.push(authRequiredStatus(server));
+      return pool;
+    }
 
-        if (isGatedMcpWriteTool(toolName, toolDefinition)) {
-          blockedToolNames.push(namespaced);
-          pool.writeTools.set(namespaced, executable);
-          pool.writeToolMeta.set(namespaced, {
-            namespacedToolName: namespaced,
-            serverName: server.name,
-            toolName,
-          });
-          continue;
-        }
+    const transport = createTransport(server, authProvider);
+    onTransport(transport);
+    const client = await createMCPClient({
+      clientName: 'nota-ai-backend',
+      transport,
+    });
+    pool.clients.push(client);
 
-        pool.readTools[namespaced] = serverTool;
-        exposedToolNames.push(namespaced);
+    const definitions = await client.listTools();
+    const toolDefinitions = definitionsByName(definitions);
+    const serverTools = client.toolsFromDefinitions(definitions);
+    const exposedToolNames: string[] = [];
+    const blockedToolNames: string[] = [];
+
+    for (const [toolName, toolDefinition] of toolDefinitions) {
+      const namespaced = namespacedToolName(server.name, toolName);
+      const serverTool = serverTools[toolName];
+      if (!serverTool) {
+        continue;
+      }
+      const executable = serverTool as unknown as ExecutableTool;
+
+      if (isGatedMcpWriteTool(toolName, toolDefinition)) {
+        blockedToolNames.push(namespaced);
+        pool.writeTools.set(namespaced, executable);
+        pool.writeToolMeta.set(namespaced, {
+          namespacedToolName: namespaced,
+          serverName: server.name,
+          toolName,
+        });
+        continue;
       }
 
-      pool.status.push({
-        blockedToolNames,
-        name: server.name,
-        toolNames: exposedToolNames,
-        transport: server.type ?? 'stdio',
-      });
-    } catch (error) {
-      pool.status.push({
-        error: error instanceof Error ? error.message : String(error),
-        name: server.name,
-        toolNames: [],
-        transport: server.type ?? 'stdio',
-      });
+      pool.readTools[namespaced] = serverTool;
+      exposedToolNames.push(namespaced);
     }
+
+    pool.status.push({
+      blockedToolNames,
+      name: server.name,
+      state: blockedToolNames.length > 0 ? 'gated' : 'ready',
+      toolNames: exposedToolNames,
+      transport: server.type,
+    });
+  } catch (error) {
+    if (
+      authProvider &&
+      (error instanceof UnauthorizedError ||
+        !(await Promise.resolve(authProvider.tokens()).catch(() => null)))
+    ) {
+      pool.status.push(authRequiredStatus(server));
+      return pool;
+    }
+    pool.status.push({
+      blockedToolNames: [],
+      error: error instanceof Error ? error.message : String(error),
+      name: server.name,
+      state: 'error',
+      toolNames: [],
+      transport: server.type,
+    });
   }
 
   return pool;
+}
+
+async function connectMcpServerWithTimeout(
+  config: AiBackendConfig,
+  server: ParsedMcpServer
+): Promise<McpPoolState> {
+  let transport: ReturnType<typeof createTransport> | undefined;
+  const attempt = connectMcpServer(config, server, created => {
+    transport = created;
+  });
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timedOut = new Promise<null>(resolve => {
+    timer = setTimeout(() => resolve(null), MCP_CONNECT_TIMEOUT_MS);
+  });
+  const result = await Promise.race([attempt, timedOut]);
+  clearTimeout(timer);
+  if (result) {
+    return result;
+  }
+  // A hung stdio server never finishes connecting, so stop its process here;
+  // a connection that finishes after the deadline is closed as well.
+  if (transport && 'close' in transport) {
+    void transport.close().catch(() => {});
+  }
+  void attempt.then(closeMcpPool).catch(() => {});
+  return {
+    ...emptyPool(''),
+    status: [
+      {
+        blockedToolNames: [],
+        error: `Timed out after ${MCP_CONNECT_TIMEOUT_MS / 1000} seconds while connecting. Turn the server off and on to retry.`,
+        name: server.name,
+        state: 'error',
+        toolNames: [],
+        transport: server.type,
+      },
+    ],
+  };
+}
+
+function authRequiredStatus(server: ParsedMcpServer): McpStatus {
+  return {
+    blockedToolNames: [],
+    error: 'Sign in to connect this server.',
+    name: server.name,
+    state: 'auth-required',
+    toolNames: [],
+    transport: server.type,
+  };
 }
 
 let activeMcpPool: {
@@ -368,7 +576,7 @@ export function getConfiguredMcpServers(config: AiBackendConfig): McpStatus[] {
     return parseMcpConfig(config.mcpConfig).map(server => ({
       name: server.name,
       toolNames: [],
-      transport: server.type ?? 'stdio',
+      transport: server.type,
     }));
   } catch (error) {
     return [

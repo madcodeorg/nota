@@ -2,9 +2,9 @@ import { join } from 'node:path';
 
 import { BrowserWindow, screen } from 'electron';
 
+import { onboardingViewUrl } from '../../shared/internal-origin';
 import { isDev } from '../config';
 import { persistentConfig } from '../config-storage/persist';
-import { onboardingViewUrl } from '../constants';
 import { logger } from '../logger';
 import { buildWebPreferences } from '../web-preferences';
 import { getMainWindow, initAndShowMainWindow } from './main-window';

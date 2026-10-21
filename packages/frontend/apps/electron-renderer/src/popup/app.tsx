@@ -9,6 +9,7 @@ import { Framework, FrameworkRoot } from '@nota/infra';
 
 import * as styles from './app.css';
 import { MeetingPopup } from './meeting';
+import { QuickCapture } from './quick-capture';
 import { Recording } from './recording';
 
 const framework = new Framework();
@@ -19,7 +20,11 @@ configureElectronStateStorageImpls(framework);
 configureDesktopApiModule(framework);
 const frameworkProvider = framework.provider();
 
-const mode = appInfo?.windowName as 'meeting' | 'notification' | 'recording';
+const mode = appInfo?.windowName as
+  | 'meeting'
+  | 'notification'
+  | 'recording'
+  | 'quick-capture';
 
 export function App() {
   return (
@@ -29,6 +34,7 @@ export function App() {
           <div className={styles.root} data-is-windows={environment.isWindows}>
             {mode === 'meeting' && <MeetingPopup />}
             {mode === 'recording' && <Recording />}
+            {mode === 'quick-capture' && <QuickCapture />}
           </div>
         </I18nProvider>
       </ThemeProvider>

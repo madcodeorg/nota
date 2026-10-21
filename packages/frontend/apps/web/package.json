@@ -1,6 +1,6 @@
 {
   "name": "@nota/web",
-  "version": "0.26.3",
+  "version": "0.1.9",
   "description": "Nota Web application",
   "private": true,
   "browser": "src/index.tsx",

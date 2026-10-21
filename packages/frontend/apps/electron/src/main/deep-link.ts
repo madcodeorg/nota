@@ -7,7 +7,6 @@ import { logger } from './logger';
 import { uiSubjects } from './ui';
 import {
   addTabWithUrl,
-  getMainWindow,
   loadUrlInActiveTab,
   openUrlInHiddenWindow,
   showMainWindow,
@@ -47,13 +46,8 @@ export function setupDeepLink(
   // on windows & linux, we need to listen for the second-instance event
   app.on('second-instance', (event, commandLine) => {
     beforeOpen()
-      .then(() => getMainWindow())
-      .then(window => {
-        if (!window) {
-          logger.error('main window is not ready');
-          return;
-        }
-        window.show();
+      .then(() => showMainWindow())
+      .then(() => {
         const url = commandLine.pop();
         if (url?.startsWith(`${protocol}://`)) {
           event.preventDefault();
@@ -119,11 +113,12 @@ async function handleNotaUrl(url: string) {
       ? await openUrlInHiddenWindow(urlObj)
       : await loadUrlInActiveTab(url);
 
-    const main = await getMainWindow();
-    if (main && hiddenWindow) {
+    if (hiddenWindow) {
       // when hidden window closed, the main window will be hidden somehow
       hiddenWindow.on('close', () => {
-        main.show();
+        void showMainWindow().catch(e => {
+          logger.error('Failed to restore main window:', e);
+        });
       });
     }
   }

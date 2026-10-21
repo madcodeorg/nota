@@ -31,7 +31,7 @@ import {
   MeetingSettingsSchema,
 } from '../shared-state-schema';
 import { globalStateStorage } from '../shared-storage/storage';
-import { getMainWindow } from '../windows-manager';
+import { showMainWindow } from '../windows-manager';
 import { popupManager } from '../windows-manager/popup';
 import { isAppNameAllowed } from './allow-list';
 import {
@@ -1062,15 +1062,9 @@ export async function readyRecording(id: number, buffer: Buffer) {
   });
 
   // bring up the window
-  getMainWindow()
-    .then(mainWindow => {
-      if (mainWindow) {
-        mainWindow.show();
-      }
-    })
-    .catch(err => {
-      logger.error('failed to bring up the window', err);
-    });
+  void showMainWindow().catch(err => {
+    logger.error('failed to bring up the window', err);
+  });
   return filepath;
 }
 

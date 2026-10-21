@@ -13,6 +13,7 @@ import { isMacOS } from '../../shared/utils';
 import { applicationMenuSubjects } from '../application-menu';
 import { beforeAppQuit } from '../cleanup';
 import { logger } from '../logger';
+import { showQuickCapture } from '../quick-capture';
 import {
   checkRecordingAvailable,
   MeetingsSettingsState,
@@ -20,7 +21,7 @@ import {
 } from '../recording/feature';
 import { MenubarStateKey, MenubarStateSchema } from '../shared-state-schema';
 import { globalStateStorage } from '../shared-storage/storage';
-import { getMainWindow } from '../windows-manager';
+import { showMainWindow } from '../windows-manager';
 import { icons } from './icons';
 
 function isActiveRecordingStatus(
@@ -45,18 +46,15 @@ interface TrayMenuProvider {
   getConfig(): TrayMenuConfig;
 }
 
-function showMainWindow() {
-  getMainWindow()
-    .then(w => {
-      w.show();
-    })
-    .catch(err => logger.error('Failed to show main window:', err));
+function activateMainWindow() {
+  void showMainWindow().catch(err => {
+    logger.error('Failed to show main window:', err);
+  });
 }
 
 function openMeetingsPage(intent: { start?: boolean; stop?: boolean } = {}) {
-  getMainWindow()
-    .then(w => {
-      w.show();
+  showMainWindow()
+    .then(() => {
       applicationMenuSubjects.openMeetingsPage$.next(intent);
     })
     .catch(err => logger.error('Failed to open meetings page:', err));
@@ -140,11 +138,21 @@ class TrayState implements Disposable {
       key: 'primary',
       getConfig: () => [
         {
+          label: 'Quick Note',
+          icon: icons.page,
+          click: () => {
+            logger.info('User action: Quick Note');
+            showQuickCapture().catch(err =>
+              logger.error('Failed to show quick capture:', err)
+            );
+          },
+        },
+        {
           label: 'Open Journal',
           icon: icons.journal,
           click: () => {
             logger.info('User action: Open Journal');
-            showMainWindow();
+            activateMainWindow();
             applicationMenuSubjects.openJournal$.next();
           },
         },
@@ -153,7 +161,7 @@ class TrayState implements Disposable {
           icon: icons.page,
           click: () => {
             logger.info('User action: New Page');
-            showMainWindow();
+            activateMainWindow();
             applicationMenuSubjects.newPageAction$.next('page');
           },
         },
@@ -162,7 +170,7 @@ class TrayState implements Disposable {
           icon: icons.edgeless,
           click: () => {
             logger.info('User action: New Edgeless');
-            showMainWindow();
+            activateMainWindow();
             applicationMenuSubjects.newPageAction$.next('edgeless');
           },
         },
@@ -230,7 +238,7 @@ class TrayState implements Disposable {
         items.push({
           label: `Meetings Settings...`,
           click: () => {
-            showMainWindow();
+            activateMainWindow();
             applicationMenuSubjects.openInSettingModal$.next({
               activeTab: 'meetings',
             });
@@ -255,19 +263,13 @@ class TrayState implements Disposable {
           label: 'Open Nota',
           click: () => {
             logger.info('User action: Open Nota');
-            getMainWindow()
-              .then(w => {
-                w.show();
-              })
-              .catch(err => {
-                logger.error('Failed to open Nota:', err);
-              });
+            activateMainWindow();
           },
         },
         {
           label: 'Menubar settings...',
           click: () => {
-            showMainWindow();
+            activateMainWindow();
             applicationMenuSubjects.openInSettingModal$.next({
               activeTab: 'appearance',
               scrollAnchor: 'menubar',
@@ -277,7 +279,7 @@ class TrayState implements Disposable {
         {
           label: `About ${app.getName()}`,
           click: () => {
-            showMainWindow();
+            activateMainWindow();
             applicationMenuSubjects.openInSettingModal$.next({
               activeTab: 'about',
             });
@@ -349,7 +351,7 @@ class TrayState implements Disposable {
             TraySettingsState.value.enabled &&
             TraySettingsState.value.openOnLeftClick
           ) {
-            showMainWindow();
+            activateMainWindow();
           } else {
             this.tray?.popUpContextMenu();
           }

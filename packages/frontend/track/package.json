@@ -2,7 +2,7 @@
   "name": "@nota/track",
   "type": "module",
   "private": true,
-  "version": "0.26.3",
+  "version": "0.1.9",
   "exports": {
     ".": "./src/index.ts"
   },

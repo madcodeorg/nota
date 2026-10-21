@@ -25,6 +25,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 import * as styles from './info-modal.css';
 import { LinksRow } from './links-row';
+import { WordCountRow } from './word-count-row';
 
 export const InfoTable = ({
   onClose,
@@ -161,6 +162,7 @@ export const InfoTable = ({
           )}
         </PropertyCollapsibleContent>
       </PropertyCollapsibleSection>
+      <WordCountRow />
       <Divider size="thinner" />
       <DocDatabaseBacklinkInfo onChange={onBacklinkPropertyChange} />
       {backlinks && backlinks.length > 0 ? (
