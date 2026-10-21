@@ -1,6 +1,6 @@
 {
   "name": "@nota/ios",
-  "version": "0.26.3",
+  "version": "0.1.9",
   "description": "Nota iOS application",
   "type": "module",
   "private": true,

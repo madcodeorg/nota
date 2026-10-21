@@ -2,7 +2,7 @@
   "name": "@nota/media-capture-playground",
   "private": true,
   "type": "module",
-  "version": "0.26.3",
+  "version": "0.1.9",
   "scripts": {
     "dev:web": "vite",
     "dev:server": "node --env-file-if-exists=.env --watch server/main.ts"

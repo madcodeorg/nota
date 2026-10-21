@@ -1,6 +1,6 @@
 {
   "name": "@nota/mobile-shared",
-  "version": "0.26.3",
+  "version": "0.1.9",
   "type": "module",
   "private": true,
   "sideEffects": false,

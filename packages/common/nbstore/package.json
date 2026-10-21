@@ -1,7 +1,7 @@
 {
   "name": "@nota/nbstore",
   "type": "module",
-  "version": "0.26.3",
+  "version": "0.1.9",
   "private": true,
   "sideEffects": false,
   "exports": {

@@ -7,5 +7,5 @@
     "@blocksuite/affine": "workspace:*",
     "@nota/env": "workspace:*"
   },
-  "version": "0.26.3"
+  "version": "0.1.9"
 }
