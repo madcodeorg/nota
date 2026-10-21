@@ -13,6 +13,8 @@ export const workbenchViewIconNameSchema = z.enum([
   'pdf',
   'ai',
   'meetings',
+  'tasks',
+  'graph',
 ]);
 
 export const workbenchViewMetaSchema = z.object({
@@ -66,6 +68,14 @@ export const MenubarStateSchema = z.object({
 });
 
 export type MenubarStateSchema = z.infer<typeof MenubarStateSchema>;
+
+export const QuickCaptureStateKey = 'quickCapture' as const;
+export const QuickCaptureStateSchema = z.object({
+  enabled: z.boolean().default(true),
+  shortcut: z.string().default('CommandOrControl+Shift+Space'),
+});
+
+export type QuickCaptureStateSchema = z.infer<typeof QuickCaptureStateSchema>;
 
 export const MeetingSettingsKey = 'meetingSettings' as const;
 export const MeetingSettingsSchema = z.object({

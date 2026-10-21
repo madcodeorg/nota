@@ -14,7 +14,11 @@ describe('workspace integration availability', () => {
   test.each(['local', 'google-drive'])(
     'does not offer server-token MCP for %s workspaces',
     flavour => {
-      expect(integrationIdsFor(flavour)).toEqual(['readwise', 'calendar']);
+      expect(integrationIdsFor(flavour)).toEqual([
+        'readwise',
+        'calendar',
+        'mcp-servers',
+      ]);
     }
   );
 
@@ -22,6 +26,7 @@ describe('workspace integration availability', () => {
     expect(integrationIdsFor('nota-cloud')).toEqual([
       'readwise',
       'calendar',
+      'mcp-servers',
       'mcp-server',
     ]);
   });

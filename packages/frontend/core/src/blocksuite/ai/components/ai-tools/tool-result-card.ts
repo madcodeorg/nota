@@ -7,6 +7,8 @@ import { css, html, nothing, type TemplateResult } from 'lit';
 import { property, state } from 'lit/decorators.js';
 import { ifDefined } from 'lit/directives/if-defined.js';
 
+import { AI_CHAT_AUTO_SCROLL_PAUSE_EVENT } from '../ai-chat-messages/auto-scroll';
+
 export interface ToolResult {
   title: string | TemplateResult<1>;
   icon?: string | TemplateResult<1>;
@@ -344,6 +346,12 @@ export class ToolResultCard extends SignalWatcher(
   }
 
   private toggleCard() {
+    this.dispatchEvent(
+      new CustomEvent(AI_CHAT_AUTO_SCROLL_PAUSE_EVENT, {
+        bubbles: true,
+        composed: true,
+      })
+    );
     this.isCollapsed = !this.isCollapsed;
   }
 }

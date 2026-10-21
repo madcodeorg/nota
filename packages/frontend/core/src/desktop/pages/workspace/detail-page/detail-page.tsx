@@ -332,7 +332,9 @@ const DetailPageImpl = memo(function DetailPageImpl() {
 
   const canEdit = useGuard('Doc_Update', doc.id);
 
-  const readonly = !canEdit || isInTrash;
+  const locked = useLiveData(doc.locked$);
+
+  const readonly = !canEdit || isInTrash || locked;
 
   return (
     <FrameworkScope scope={editor.scope}>

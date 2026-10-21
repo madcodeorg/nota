@@ -4,6 +4,7 @@ import { pathToFileURL } from 'node:url';
 import { app, net, protocol, session } from 'electron';
 import cookieParser from 'set-cookie-parser';
 
+import { anotherHost, mainHost } from '../shared/internal-origin';
 import { isWindows, resourcesPath } from '../shared/utils';
 import {
   getAiBackendBaseUrl,
@@ -12,7 +13,6 @@ import {
   withAiBackendAuth,
 } from './ai-backend';
 import { isDev } from './config';
-import { anotherHost, mainHost } from './constants';
 import { logger } from './logger';
 import { fetchProtocolResponse } from './protocol-proxy';
 

@@ -1,4 +1,10 @@
-import { MarkdownTransformer } from '@blocksuite/affine/widgets/linked-doc';
+import { readFileSync } from 'node:fs';
+import { basename, resolve } from 'node:path';
+
+import {
+  MarkdownTransformer,
+  ObsidianTransformer,
+} from '@blocksuite/affine/widgets/linked-doc';
 import {
   DefaultTheme,
   NoteDisplayMode,
@@ -8,17 +14,23 @@ import {
   CalloutAdmonitionType,
   CalloutExportStyle,
   calloutMarkdownExportMiddleware,
+  docLinkBaseURLMiddleware,
   embedSyncedDocMiddleware,
   MarkdownAdapter,
+  titleMiddleware,
 } from '@blocksuite/affine-shared/adapters';
+import type { AffineTextAttributes } from '@blocksuite/affine-shared/types';
 import type {
   BlockSnapshot,
+  DeltaInsert,
   DocSnapshot,
   SliceSnapshot,
+  Store,
   TransformerMiddleware,
 } from '@blocksuite/store';
 import { AssetsManager, MemoryBlobCRUD, Schema } from '@blocksuite/store';
 import { TestWorkspace } from '@blocksuite/store/test';
+import * as fflate from 'fflate';
 import { describe, expect, test } from 'vitest';
 
 import { AffineSchemas } from '../../schemas.js';
@@ -28,6 +40,183 @@ import { nanoidReplacement } from '../utils/nanoid-replacement.js';
 import { testStoreExtensions } from '../utils/store.js';
 
 const provider = getProvider();
+
+function withRelativePath(file: File, relativePath: string): File {
+  Object.defineProperty(file, 'webkitRelativePath', {
+    value: relativePath,
+    writable: false,
+  });
+  return file;
+}
+
+function markdownFixture(relativePath: string): File {
+  return withRelativePath(
+    new File(
+      [
+        readFileSync(
+          resolve(import.meta.dirname, 'fixtures/obsidian', relativePath),
+          'utf8'
+        ),
+      ],
+      basename(relativePath),
+      { type: 'text/markdown' }
+    ),
+    `vault/${relativePath}`
+  );
+}
+
+function zipBytes(entries: Record<string, string | Uint8Array>) {
+  return fflate.zipSync(
+    Object.fromEntries(
+      Object.entries(entries).map(([path, content]) => [
+        path,
+        typeof content === 'string' ? fflate.strToU8(content) : content,
+      ])
+    )
+  );
+}
+
+function zipFixture(entries: Record<string, string | Uint8Array>) {
+  const zipped = zipBytes(entries);
+  const buffer = new ArrayBuffer(zipped.byteLength);
+  new Uint8Array(buffer).set(zipped);
+
+  return new Blob([buffer], { type: 'application/zip' });
+}
+
+function exportSnapshot(doc: Store): DocSnapshot {
+  const job = doc.getTransformer([
+    docLinkBaseURLMiddleware(doc.workspace.id),
+    titleMiddleware(doc.workspace.meta.docMetas),
+  ]);
+  const snapshot = job.docToSnapshot(doc);
+  expect(snapshot).toBeTruthy();
+  return snapshot!;
+}
+
+function noteSnapshotByTitle(collection: TestWorkspace, title: string) {
+  const meta = collection.meta.docMetas.find(meta => meta.title === title);
+  expect(meta).toBeTruthy();
+  const doc = collection.getDoc(meta!.id)?.getStore({ id: meta!.id });
+  expect(doc).toBeTruthy();
+  const snapshot = exportSnapshot(doc!);
+  return snapshot.blocks.children.find(
+    block => block.flavour === 'affine:note'
+  );
+}
+
+function normalizeDeltaForSnapshot(
+  delta: DeltaInsert<AffineTextAttributes>[],
+  titleById: ReadonlyMap<string, string>
+) {
+  return delta.map(item => {
+    const normalized: Record<string, unknown> = {
+      insert: item.insert,
+    };
+
+    if (item.attributes?.link) {
+      normalized.link = item.attributes.link;
+    }
+
+    if (item.attributes?.reference?.type === 'LinkedPage') {
+      normalized.reference = {
+        type: 'LinkedPage',
+        page: titleById.get(item.attributes.reference.pageId) ?? '<missing>',
+        ...(item.attributes.reference.title
+          ? { title: item.attributes.reference.title }
+          : {}),
+      };
+    }
+
+    if (item.attributes?.footnote) {
+      const reference = item.attributes.footnote.reference;
+      normalized.footnote = {
+        label: item.attributes.footnote.label,
+        reference:
+          reference.type === 'doc'
+            ? {
+                type: 'doc',
+                page: reference.docId
+                  ? (titleById.get(reference.docId) ?? '<missing>')
+                  : '<missing>',
+              }
+            : {
+                type: reference.type,
+                ...(reference.title ? { title: reference.title } : {}),
+                ...(reference.fileName ? { fileName: reference.fileName } : {}),
+              },
+      };
+    }
+
+    return normalized;
+  });
+}
+
+function simplifyBlockForSnapshot(
+  block: BlockSnapshot,
+  titleById: ReadonlyMap<string, string>
+): Record<string, unknown> {
+  const simplified: Record<string, unknown> = {
+    flavour: block.flavour,
+  };
+
+  if (block.flavour === 'affine:paragraph' || block.flavour === 'affine:list') {
+    simplified.type = block.props.type;
+    const text = block.props.text as
+      | { delta?: DeltaInsert<AffineTextAttributes>[] }
+      | undefined;
+    simplified.delta = normalizeDeltaForSnapshot(text?.delta ?? [], titleById);
+  }
+
+  if (block.flavour === 'affine:callout') {
+    simplified.emoji = block.props.emoji;
+  }
+
+  if (block.flavour === 'affine:attachment') {
+    simplified.name = block.props.name;
+    simplified.style = block.props.style;
+  }
+
+  if (block.flavour === 'affine:image') {
+    simplified.sourceId = '<asset>';
+  }
+
+  const children = (block.children ?? [])
+    .filter(child => child.flavour !== 'affine:surface')
+    .map(child => simplifyBlockForSnapshot(child, titleById));
+  if (children.length) {
+    simplified.children = children;
+  }
+
+  return simplified;
+}
+
+function snapshotDocByTitle(
+  collection: TestWorkspace,
+  title: string,
+  titleById: ReadonlyMap<string, string>
+) {
+  const meta = collection.meta.docMetas.find(meta => meta.title === title);
+  expect(meta).toBeTruthy();
+  const doc = collection.getDoc(meta!.id)?.getStore({ id: meta!.id });
+  expect(doc).toBeTruthy();
+  return simplifyBlockForSnapshot(exportSnapshot(doc!).blocks, titleById);
+}
+
+function collectSimplifiedDeltas(
+  block: Record<string, unknown>
+): Record<string, unknown>[] {
+  const deltas = Array.isArray(block.delta)
+    ? (block.delta as Record<string, unknown>[])
+    : [];
+  const childDeltas = Array.isArray(block.children)
+    ? (block.children as Record<string, unknown>[]).flatMap(child =>
+        collectSimplifiedDeltas(child)
+      )
+    : [];
+
+  return [...deltas, ...childDeltas];
+}
 
 describe('snapshot to markdown', () => {
   test('code', async () => {
@@ -125,6 +314,363 @@ Hello world
     expect(meta?.updatedDate).toBe(Date.parse('2018-04-12T10:00:00'));
     expect(meta?.favorite).toBe(true);
     expect(meta?.tags).toEqual(['a', 'b']);
+  });
+
+  test('preserves list text inside blockquotes without list blocks', async () => {
+    const markdown = `> **Shopping List:**
+> - Apples
+> - Bananas
+> - Oranges
+`;
+    const mdAdapter = new MarkdownAdapter(createJob(), provider);
+    const snapshot = await mdAdapter.toDocSnapshot({
+      file: markdown,
+      assets: new AssetsManager({ blob: new MemoryBlobCRUD() }),
+    });
+
+    expect(simplifyBlockForSnapshot(snapshot.blocks, new Map())).toMatchObject({
+      children: [
+        {
+          flavour: 'affine:note',
+          children: [
+            {
+              flavour: 'affine:paragraph',
+              type: 'quote',
+              delta: [
+                { insert: 'Shopping List:' },
+                { insert: '\n' },
+                { insert: '- ' },
+                { insert: 'Apples' },
+                { insert: '\n' },
+                { insert: '- ' },
+                { insert: 'Bananas' },
+                { insert: '\n' },
+                { insert: '- ' },
+                { insert: 'Oranges' },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+
+    const exported = await mdAdapter.fromDocSnapshot({
+      snapshot,
+      assets: new AssetsManager({ blob: new MemoryBlobCRUD() }),
+    });
+    expect(exported.file).toContain('> **Shopping List:**');
+    expect(exported.file).toContain('> \\- Apples');
+    expect(exported.file).toContain('> \\- Bananas');
+    expect(exported.file).toContain('> \\- Oranges');
+  });
+
+  test('imports notion markdown zip titles and folder names', async () => {
+    const schema = new Schema().register(AffineSchemas);
+    const collection = new TestWorkspace();
+    collection.storeExtensions = testStoreExtensions;
+    collection.meta.initialize();
+
+    const imported = zipFixture({
+      'Notion Export/Workspace 11111111111111111111111111111111.md':
+        '# Workspace\nRoot body',
+      'Notion Export/Workspace 11111111111111111111111111111111/Nested Page 22222222222222222222222222222222.md':
+        '# Nested Page\nNested body',
+    });
+
+    const { docIds, folderHierarchy } =
+      await MarkdownTransformer.importNotionMarkdownZip({
+        collection,
+        schema,
+        imported,
+        extensions: testStoreExtensions,
+      });
+
+    expect(docIds).toHaveLength(2);
+    expect(
+      collection.meta.docMetas
+        .map(meta => meta.title)
+        .sort((a, b) => (a ?? '').localeCompare(b ?? ''))
+    ).toEqual(['Nested Page', 'Workspace']);
+
+    const nestedNote = noteSnapshotByTitle(collection, 'Nested Page');
+    expect(JSON.stringify(nestedNote)).toContain('Nested body');
+    expect(JSON.stringify(nestedNote)).not.toContain('Nested Page');
+
+    const [folder] = [...(folderHierarchy?.children.values() ?? [])];
+    expect(folder?.name).toBe('Notion Export');
+    const workspaceMeta = collection.meta.docMetas.find(
+      meta => meta.title === 'Workspace'
+    );
+    expect([...folder!.children.values()]).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ pageId: workspaceMeta?.id }),
+      ])
+    );
+    const workspaceFolder = [...folder!.children.values()].find(
+      child => child.name === 'Workspace'
+    );
+    const nestedMeta = collection.meta.docMetas.find(
+      meta => meta.title === 'Nested Page'
+    );
+    expect([...workspaceFolder!.children.values()]).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ pageId: nestedMeta?.id }),
+      ])
+    );
+  });
+
+  test('imports notion markdown zip folders with CJK names', async () => {
+    const schema = new Schema().register(AffineSchemas);
+    const collection = new TestWorkspace();
+    collection.storeExtensions = testStoreExtensions;
+    collection.meta.initialize();
+
+    const imported = zipFixture({
+      'Export/工作 11111111111111111111111111111111.md': '# 工作\nRoot body',
+      'Export/工作 11111111111111111111111111111111/SDK架构 22222222222222222222222222222222.md':
+        '# SDK架构\nNested body',
+    });
+
+    const { folderHierarchy } =
+      await MarkdownTransformer.importNotionMarkdownZip({
+        collection,
+        schema,
+        imported,
+        extensions: testStoreExtensions,
+      });
+
+    const [rootFolder] = [...(folderHierarchy?.children.values() ?? [])];
+    expect(rootFolder?.name).toBe('Export');
+    const workFolder = [...(rootFolder?.children.values() ?? [])].find(
+      child => child.name === '工作'
+    );
+    expect(workFolder?.name).toBe('工作');
+    expect([...workFolder!.children.values()]).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ pageId: expect.any(String) }),
+      ])
+    );
+  });
+
+  test('imports notion markdown zip title from frontmatter when heading is absent', async () => {
+    const schema = new Schema().register(AffineSchemas);
+    const collection = new TestWorkspace();
+    collection.storeExtensions = testStoreExtensions;
+    collection.meta.initialize();
+
+    const imported = zipFixture({
+      'Export/Fallback 11111111111111111111111111111111.md':
+        '---\ntitle: Frontmatter Title\n---\nBody',
+    });
+
+    const { docIds } = await MarkdownTransformer.importNotionMarkdownZip({
+      collection,
+      schema,
+      imported,
+      extensions: testStoreExtensions,
+    });
+
+    expect(docIds).toHaveLength(1);
+    expect(collection.meta.getDocMeta(docIds[0])?.title).toBe(
+      'Frontmatter Title'
+    );
+  });
+
+  test('imports markdown zip relative doc links as linked pages', async () => {
+    const schema = new Schema().register(AffineSchemas);
+    const collection = new TestWorkspace();
+    collection.storeExtensions = testStoreExtensions;
+    collection.meta.initialize();
+
+    const imported = zipFixture({
+      'entry.md': [
+        '[引用](./test/2.md)',
+        '[missing](./missing.md)',
+        '[external](https://example.com/test.md)',
+      ].join('\n\n'),
+      'test/2.md': 'target page',
+    });
+
+    const { docIds } = await MarkdownTransformer.importMarkdownZip({
+      collection,
+      schema,
+      imported,
+      extensions: testStoreExtensions,
+    });
+    expect(docIds).toHaveLength(2);
+
+    const titleById = new Map(
+      collection.meta.docMetas.map(meta => [
+        meta.id,
+        meta.title ?? '<untitled>',
+      ])
+    );
+    const entryDeltas = collectSimplifiedDeltas(
+      snapshotDocByTitle(collection, 'entry', titleById)
+    );
+
+    expect(entryDeltas).toContainEqual({
+      insert: ' ',
+      reference: {
+        type: 'LinkedPage',
+        page: '2',
+        title: '引用',
+      },
+    });
+    expect(entryDeltas).toContainEqual({
+      insert: 'missing',
+      link: './missing.md',
+    });
+    expect(entryDeltas).toContainEqual({
+      insert: 'external',
+      link: 'https://example.com/test.md',
+    });
+  });
+
+  test('imports notion markdown zip relative doc links as linked pages', async () => {
+    const schema = new Schema().register(AffineSchemas);
+    const collection = new TestWorkspace();
+    collection.storeExtensions = testStoreExtensions;
+    collection.meta.initialize();
+
+    const imported = zipFixture({
+      'Workspace 11111111111111111111111111111111/Entry 22222222222222222222222222222222.md':
+        '# Entry\n[引用](./test/Target%2033333333333333333333333333333333.md)',
+      'Workspace 11111111111111111111111111111111/test/Target 33333333333333333333333333333333.md':
+        '# Target\ntarget page',
+    });
+
+    const { docIds } = await MarkdownTransformer.importNotionMarkdownZip({
+      collection,
+      schema,
+      imported,
+      extensions: testStoreExtensions,
+    });
+    expect(docIds).toHaveLength(2);
+
+    const titleById = new Map(
+      collection.meta.docMetas.map(meta => [
+        meta.id,
+        meta.title ?? '<untitled>',
+      ])
+    );
+    const entryDeltas = collectSimplifiedDeltas(
+      snapshotDocByTitle(collection, 'Entry', titleById)
+    );
+
+    expect(entryDeltas).toContainEqual({
+      insert: ' ',
+      reference: {
+        type: 'LinkedPage',
+        page: 'Target',
+        title: '引用',
+      },
+    });
+  });
+
+  test('imports nested notion markdown zips with isolated relative links', async () => {
+    const schema = new Schema().register(AffineSchemas);
+    const collection = new TestWorkspace();
+    collection.storeExtensions = testStoreExtensions;
+    collection.meta.initialize();
+
+    const imported = zipFixture({
+      'Export/Part A.zip': zipBytes({
+        'Entry 11111111111111111111111111111111.md':
+          '# Entry A\n[go](./Target%2022222222222222222222222222222222.md)',
+        'Target 22222222222222222222222222222222.md': '# Target A\nA body',
+      }),
+      'Export/Part B.zip': zipBytes({
+        'Entry 11111111111111111111111111111111.md':
+          '# Entry B\n[go](./Target%2022222222222222222222222222222222.md)',
+        'Target 22222222222222222222222222222222.md': '# Target B\nB body',
+      }),
+    });
+
+    const { docIds, folderHierarchy } =
+      await MarkdownTransformer.importNotionMarkdownZip({
+        collection,
+        schema,
+        imported,
+        extensions: testStoreExtensions,
+      });
+    expect(docIds).toHaveLength(4);
+
+    const titleById = new Map(
+      collection.meta.docMetas.map(meta => [
+        meta.id,
+        meta.title ?? '<untitled>',
+      ])
+    );
+    const entryADeltas = collectSimplifiedDeltas(
+      snapshotDocByTitle(collection, 'Entry A', titleById)
+    );
+    const entryBDeltas = collectSimplifiedDeltas(
+      snapshotDocByTitle(collection, 'Entry B', titleById)
+    );
+
+    expect(entryADeltas).toContainEqual({
+      insert: ' ',
+      reference: {
+        type: 'LinkedPage',
+        page: 'Target A',
+        title: 'go',
+      },
+    });
+    expect(entryBDeltas).toContainEqual({
+      insert: ' ',
+      reference: {
+        type: 'LinkedPage',
+        page: 'Target B',
+        title: 'go',
+      },
+    });
+
+    const [rootFolder] = [...(folderHierarchy?.children.values() ?? [])];
+    expect(rootFolder?.name).toBe('Export');
+    expect(
+      [...(rootFolder?.children.values() ?? [])].map(node => node.name)
+    ).toEqual(expect.arrayContaining(['Part A', 'Part B']));
+  });
+
+  test('imports obsidian vault fixtures', async () => {
+    const schema = new Schema().register(AffineSchemas);
+    const collection = new TestWorkspace();
+    collection.storeExtensions = testStoreExtensions;
+    collection.meta.initialize();
+
+    const attachment = withRelativePath(
+      new File([new Uint8Array([80, 75, 3, 4])], 'archive.zip', {
+        type: 'application/zip',
+      }),
+      'vault/archive.zip'
+    );
+
+    const { docIds } = await ObsidianTransformer.importObsidianVault({
+      collection,
+      schema,
+      importedFiles: [
+        markdownFixture('entry.md'),
+        markdownFixture('linked.md'),
+        attachment,
+      ],
+      extensions: testStoreExtensions,
+    });
+    expect(docIds).toHaveLength(2);
+
+    const titleById = new Map(
+      collection.meta.docMetas.map(meta => [
+        meta.id,
+        meta.title ?? '<untitled>',
+      ])
+    );
+
+    expect({
+      titles: collection.meta.docMetas
+        .map(meta => meta.title)
+        .sort((a, b) => (a ?? '').localeCompare(b ?? '')),
+      entry: snapshotDocByTitle(collection, 'entry', titleById),
+    }).toMatchSnapshot();
   });
 
   test('paragraph', async () => {
@@ -3033,48 +3579,40 @@ describe('markdown to snapshot', () => {
     });
   });
 
-  test('html inline color span imports to nearest supported text color', async () => {
-    const markdown = `<span style="color: #00afde;">Hello</span>`;
-    const blockSnapshot: BlockSnapshot = {
-      type: 'block',
-      id: 'matchesReplaceMap[0]',
-      flavour: 'affine:note',
-      props: {
-        xywh: '[0,0,800,95]',
-        background: DefaultTheme.noteBackgrounColor,
-        index: 'a0',
-        hidden: false,
-        displayMode: NoteDisplayMode.DocAndEdgeless,
-      },
-      children: [
-        {
-          type: 'block',
-          id: 'matchesReplaceMap[1]',
-          flavour: 'affine:paragraph',
-          props: {
-            type: 'text',
-            text: {
-              '$blocksuite:internal:text$': true,
-              delta: [
-                {
-                  insert: 'Hello',
-                  attributes: {
-                    color: 'var(--affine-v2-text-highlight-fg-blue)',
-                  },
-                },
-              ],
-            },
-          },
-          children: [],
-        },
-      ],
-    };
-
+  test.each([
+    ['#00afde', 'blue'],
+    ['rgb(0 175 222 / 100%)', 'blue'],
+    ['#c83030', 'red'],
+    ['red', 'red'],
+    ['hsl(0, 100%, 50%)', 'red'],
+    ['#db7123', 'orange'],
+    ['#ac7400', 'yellow'],
+    ['#04b745', 'green'],
+    ['#0e4841', 'teal'],
+    ['#7c3aed', 'purple'],
+    ['#7a7a7a', 'grey'],
+    ['rgb(26, 26, 26)', null],
+    ['#333', null],
+    ['#fff', null],
+    ['rgba(0, 175, 222, 0.5)', null],
+  ])('maps supported HTML color %s conservatively', async (color, mapped) => {
     const mdAdapter = new MarkdownAdapter(createJob(), provider);
     const rawBlockSnapshot = await mdAdapter.toBlockSnapshot({
-      file: markdown,
+      file: `<span style="color: ${color};">Hello</span>`,
     });
-    expect(nanoidReplacement(rawBlockSnapshot)).toEqual(blockSnapshot);
+    expect(rawBlockSnapshot.children[0]?.props.text).toEqual({
+      '$blocksuite:internal:text$': true,
+      delta: [
+        mapped
+          ? {
+              insert: 'Hello',
+              attributes: {
+                color: `var(--affine-v2-text-highlight-fg-${mapped})`,
+              },
+            }
+          : { insert: 'Hello' },
+      ],
+    });
   });
 
   test('paragraph', async () => {

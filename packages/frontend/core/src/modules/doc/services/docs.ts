@@ -291,7 +291,7 @@ export class DocsService extends Service {
 
     // duplicate doc properties
     const properties = sourceDoc.getProperties();
-    const removedProperties = ['id', 'isTemplate', 'journal'];
+    const removedProperties = ['id', 'isTemplate', 'journal', 'locked'];
     removedProperties.forEach(key => {
       delete properties[key];
     });
@@ -377,7 +377,7 @@ export class DocsService extends Service {
 
     // duplicate doc properties
     const properties = sourceDoc.getProperties();
-    const removedProperties = ['id', 'isTemplate', 'journal'];
+    const removedProperties = ['id', 'isTemplate', 'journal', 'locked'];
     removedProperties.forEach(key => {
       delete properties[key];
     });

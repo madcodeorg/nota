@@ -12,8 +12,8 @@ test('Markdown ZIP imports surface adapter failures with the file path', async (
   collection.storeExtensions = testStoreExtensions;
   collection.meta.initialize();
   const adapter = vi
-    .spyOn(MarkdownAdapter.prototype, 'toDoc')
-    .mockResolvedValue(undefined);
+    .spyOn(MarkdownAdapter.prototype, 'toDocSnapshot')
+    .mockRejectedValue(new Error('adapter failed'));
   try {
     const zip = new Zip();
     await zip.file('Team/failed.md', '# Failed');

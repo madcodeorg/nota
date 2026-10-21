@@ -54,8 +54,13 @@ async function saveRecordingBlob(blobEngine: BlobEngine, filepath: string) {
 
 export function setupRecordingEvents(frameworkProvider: FrameworkProvider) {
   events?.recording.onRecordingStatusChanged(status => {
+    // Meetings saves its transcript and recordings together. The standalone
+    // recorder must not create a second page or start another transcription.
+    if (status?.status !== 'ready' || status.meetingId) {
+      return;
+    }
     (async () => {
-      if ((await apis?.ui.isActiveTab()) && status?.status === 'ready') {
+      if (await apis?.ui.isActiveTab()) {
         using currentWorkspace = getCurrentWorkspace(frameworkProvider);
         if (!currentWorkspace) {
           // maybe the workspace is not ready yet, eg. for shared workspace view

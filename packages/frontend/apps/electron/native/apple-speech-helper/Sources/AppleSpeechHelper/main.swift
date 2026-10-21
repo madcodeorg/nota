@@ -1,6 +1,10 @@
+import AppKit
 @preconcurrency import AVFoundation
 import Foundation
+import ImageIO
+import PDFKit
 import Speech
+import Vision
 
 struct JsonOutput: Encodable {
   let ok: Bool
@@ -422,6 +426,59 @@ func transcribeStdinStream(
   }
 }
 
+func cgImage(from nsImage: NSImage) -> CGImage? {
+  var rect = CGRect(origin: .zero, size: nsImage.size)
+  return nsImage.cgImage(forProposedRect: &rect, context: nil, hints: nil)
+}
+
+func recognizeText(in image: CGImage) throws -> String {
+  let request = VNRecognizeTextRequest()
+  request.recognitionLevel = .accurate
+  request.usesLanguageCorrection = true
+  request.automaticallyDetectsLanguage = true
+  try VNImageRequestHandler(cgImage: image, options: [:]).perform([request])
+  return (request.results ?? [])
+    .compactMap { $0.topCandidates(1).first?.string }
+    .joined(separator: "\n")
+    .trimmingCharacters(in: .whitespacesAndNewlines)
+}
+
+func recognizePdfText(url: URL, maxPages: Int) throws -> String {
+  guard let document = PDFDocument(url: url) else {
+    throw NSError(domain: "nota.ocr", code: 1, userInfo: [NSLocalizedDescriptionKey: "The PDF could not be opened."])
+  }
+  var pages: [String] = []
+  for index in 0..<min(document.pageCount, maxPages) {
+    guard let page = document.page(at: index) else { continue }
+    // Digital PDFs already carry a text layer; only scanned pages need OCR.
+    let embedded = (page.string ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    if !embedded.isEmpty {
+      pages.append(embedded)
+      continue
+    }
+    let bounds = page.bounds(for: .mediaBox)
+    let scale = min(3, 2400 / max(bounds.width, bounds.height, 1))
+    let size = CGSize(width: bounds.width * scale, height: bounds.height * scale)
+    guard let image = cgImage(from: page.thumbnail(of: size, for: .mediaBox)) else { continue }
+    let text = try recognizeText(in: image)
+    if !text.isEmpty { pages.append(text) }
+  }
+  return pages.joined(separator: "\n\n")
+}
+
+func recognizeTextFile(path: String) throws -> String {
+  let url = URL(fileURLWithPath: path)
+  if url.pathExtension.lowercased() == "pdf" {
+    return try recognizePdfText(url: url, maxPages: 50)
+  }
+  guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+        let image = CGImageSourceCreateImageAtIndex(source, 0, nil)
+  else {
+    throw NSError(domain: "nota.ocr", code: 2, userInfo: [NSLocalizedDescriptionKey: "The image could not be read."])
+  }
+  return try recognizeText(in: image)
+}
+
 @main
 struct AppleSpeechHelper {
   static func main() async {
@@ -519,6 +576,26 @@ struct AppleSpeechHelper {
           )
         )
         exit(1)
+      }
+
+    case "recognize-text":
+      guard arguments.count >= 2 else {
+        fail(command: command, "Usage: nota-apple-speech-helper recognize-text <path>")
+      }
+      do {
+        let text = try recognizeTextFile(path: arguments[1])
+        writeJson(
+          JsonOutput(
+            ok: true,
+            command: command,
+            available: true,
+            locale: nil,
+            text: text,
+            error: nil
+          )
+        )
+      } catch {
+        fail(command: command, error.localizedDescription)
       }
 
     default:

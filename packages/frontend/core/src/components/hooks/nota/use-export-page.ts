@@ -1,9 +1,14 @@
 import { DatabaseBlockDataSource } from '@blocksuite/affine/blocks/database';
 import { ExportManager } from '@blocksuite/affine/blocks/surface';
 import type { DatabaseBlockModel } from '@blocksuite/affine/model';
+import {
+  docLinkBaseURLMiddleware,
+  MarkdownAdapter,
+  titleMiddleware,
+} from '@blocksuite/affine/shared/adapters';
 import { printToPdf } from '@blocksuite/affine/shared/utils';
 import type { BlockStdScope } from '@blocksuite/affine/std';
-import { type Store } from '@blocksuite/affine/store';
+import { type Store, Transformer } from '@blocksuite/affine/store';
 import {
   createAssetsArchive,
   download,
@@ -36,6 +41,7 @@ type ExportType =
   | 'html'
   | 'png'
   | 'markdown'
+  | 'copy-markdown'
   | 'snapshot'
   | 'pdf-export';
 
@@ -59,6 +65,39 @@ export async function exportToMarkdown(
   signal?: AbortSignal
 ) {
   await exportReadablePages([doc], 'markdown', signal, std);
+}
+
+export async function copyAsMarkdown(doc: Store, std?: BlockStdScope) {
+  const workspace = doc.workspace;
+  const job = new Transformer({
+    schema: getAFFiNEWorkspaceSchema(),
+    blobCRUD: workspace.blobSync,
+    docCRUD: {
+      create: () => {
+        throw new Error('Copy as Markdown cannot create documents.');
+      },
+      get: id => workspace.getDoc(id)?.getStore({ id }) ?? null,
+      delete: () => {
+        throw new Error('Copy as Markdown cannot delete documents.');
+      },
+    },
+    middlewares: [
+      docLinkBaseURLMiddleware(workspace.id),
+      titleMiddleware(workspace.meta.docMetas),
+    ],
+  });
+  try {
+    const adapter = new MarkdownAdapter(
+      job,
+      std?.store.provider ?? doc.provider
+    );
+    const result = await adapter.fromDoc(doc);
+    if (result?.file === undefined)
+      throw new Error('This page produced no Markdown content.');
+    await navigator.clipboard.writeText(result.file);
+  } finally {
+    job[Symbol.dispose]();
+  }
 }
 
 export async function exportToCsv(
@@ -175,6 +214,9 @@ async function exportHandler({
     case 'markdown':
       await exportToMarkdown(page, editorRoot?.std);
       return;
+    case 'copy-markdown':
+      await copyAsMarkdown(page, editorRoot?.std);
+      return;
     case 'snapshot':
       await ZipTransformer.exportDocs(
         page.workspace,
@@ -222,10 +264,14 @@ export const useExportPage = () => {
           type,
           editorContainer: originEditorContainer,
         });
-        notify.success({
-          title: t['com.affine.export.success.title'](),
-          message: t['com.affine.export.success.message'](),
-        });
+        notify.success(
+          type === 'copy-markdown'
+            ? { title: t['com.affine.export.copied-as-markdown']() }
+            : {
+                title: t['com.affine.export.success.title'](),
+                message: t['com.affine.export.success.message'](),
+              }
+        );
       } catch (err) {
         console.error(err);
         notify.error({

@@ -7,6 +7,7 @@ import { WorkbenchService } from '@nota/core/modules/workbench';
 import { apis, events } from '@nota/electron-api';
 import type { FrameworkProvider } from '@nota/infra';
 
+import { setupQuickCaptureEvents } from './quick-capture';
 import { setupRecordingEvents } from './recording';
 import { getCurrentWorkspace } from './utils';
 
@@ -90,7 +91,10 @@ export function setupEvents(frameworkProvider: FrameworkProvider) {
         const { workspace } = currentWorkspace;
         const docsService = workspace.scope.get(DocsService);
 
-        const page = docsService.createDoc({ primaryMode: type });
+        const page =
+          type === 'default'
+            ? docsService.createDoc()
+            : docsService.createDoc({ primaryMode: type });
         workspace.scope.get(WorkbenchService).workbench.openDoc(page.id);
       })
       .catch(err => {
@@ -122,4 +126,5 @@ export function setupEvents(frameworkProvider: FrameworkProvider) {
   });
 
   setupRecordingEvents(frameworkProvider);
+  setupQuickCaptureEvents(frameworkProvider);
 }

@@ -42,6 +42,21 @@ import {
   resetMcpPool,
 } from './mcp';
 import {
+  clearMcpOAuthTokens,
+  deleteMcpAuth,
+  renameMcpAuth,
+  startMcpOAuthSignIn,
+} from './mcp-oauth';
+import { fetchRegistryServers } from './mcp-registry';
+import {
+  applyMcpServerInput,
+  getMcpServer,
+  getMcpServerView,
+  listMcpServerViews,
+  McpServerRequestError,
+  removeMcpServer,
+} from './mcp-servers';
+import {
   getLocalModelHealth,
   getSttProviderManifests,
   registerMeetingRoutes,
@@ -58,6 +73,7 @@ import {
   toModelMessages,
 } from './stream';
 import { generateBackendText } from './text-runtime';
+import { fetchPublicWebPage } from './web-page';
 import {
   deleteWorkspaceContentDocuments,
   readWorkspaceContentManifest,
@@ -666,7 +682,6 @@ export function createServer() {
         },
         mcp: {
           enabled: config.mcpEnabled,
-          config: config.mcpConfig,
           servers:
             mcpContext.status.length > 0
               ? mcpContext.status
@@ -780,6 +795,123 @@ export function createServer() {
     }
   });
 
+  function sendMcpServerError(res: express.Response, error: unknown) {
+    res
+      .status(error instanceof McpServerRequestError ? error.statusCode : 500)
+      .json({ error: error instanceof Error ? error.message : String(error) });
+  }
+
+  // Server views expose only secret presence; values never leave the backend.
+  app.get('/api/ai/mcp/servers', async (_req, res) => {
+    const context = await loadMcpToolContext(config);
+    const { error, servers } = listMcpServerViews(config, context.status);
+    res.json({
+      enabled: config.mcpEnabled,
+      ...(error ? { error } : {}),
+      servers,
+      toolsEnabled: config.toolsEnabled,
+    });
+  });
+
+  app.post('/api/ai/mcp/servers', async (req, res) => {
+    try {
+      const { keepAuth, mcpConfig, name, originalName } = applyMcpServerInput(
+        config.mcpConfig,
+        req.body
+      );
+      saveConfig({ ...config, mcpConfig });
+      config.mcpConfig = mcpConfig;
+      if (originalName !== undefined && originalName !== name) {
+        if (keepAuth) {
+          renameMcpAuth(config.settingsPath, originalName, name);
+        } else {
+          deleteMcpAuth(config.settingsPath, originalName);
+        }
+      }
+      if (!keepAuth) {
+        deleteMcpAuth(config.settingsPath, name);
+      }
+      resetMcpPool();
+      const context = await loadMcpToolContext(config);
+      res.json({ server: getMcpServerView(config, name, context.status) });
+    } catch (error) {
+      sendMcpServerError(res, error);
+    }
+  });
+
+  app.delete('/api/ai/mcp/servers/:name', (req, res) => {
+    try {
+      const mcpConfig = removeMcpServer(config.mcpConfig, req.params.name);
+      saveConfig({ ...config, mcpConfig });
+      config.mcpConfig = mcpConfig;
+      deleteMcpAuth(config.settingsPath, req.params.name);
+      resetMcpPool();
+      res.status(204).end();
+    } catch (error) {
+      sendMcpServerError(res, error);
+    }
+  });
+
+  app.post('/api/ai/mcp/servers/:name/oauth/start', async (req, res) => {
+    try {
+      const server = getMcpServer(config, req.params.name);
+      if (server.type === 'stdio' || server.auth.type !== 'oauth') {
+        res
+          .status(400)
+          .json({ error: 'This MCP server does not use OAuth sign-in.' });
+        return;
+      }
+      res.json(
+        await startMcpOAuthSignIn({
+          auth: server.auth,
+          name: server.name,
+          onComplete: resetMcpPool,
+          serverUrl: server.url,
+          settingsPath: config.settingsPath,
+        })
+      );
+    } catch (error) {
+      if (error instanceof McpServerRequestError) {
+        sendMcpServerError(res, error);
+        return;
+      }
+      res.status(400).json({
+        error:
+          error instanceof Error
+            ? `MCP sign-in failed: ${error.message}`
+            : 'MCP sign-in failed.',
+      });
+    }
+  });
+
+  app.post('/api/ai/mcp/servers/:name/oauth/disconnect', (req, res) => {
+    try {
+      getMcpServer(config, req.params.name);
+      clearMcpOAuthTokens(config.settingsPath, req.params.name);
+      resetMcpPool();
+      res.status(204).end();
+    } catch (error) {
+      sendMcpServerError(res, error);
+    }
+  });
+
+  app.get('/api/ai/mcp/registry', async (req, res) => {
+    const search =
+      typeof req.query.search === 'string'
+        ? req.query.search.trim().slice(0, 200)
+        : '';
+    const cursor = typeof req.query.cursor === 'string' ? req.query.cursor : '';
+    try {
+      res.json(await fetchRegistryServers({ cursor, search }));
+    } catch (error) {
+      res.status(502).json({
+        error: `The MCP Registry is unavailable: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      });
+    }
+  });
+
   app.get('/api/auth/session', (_req, res) => {
     res.json({
       user: {
@@ -810,6 +942,21 @@ export function createServer() {
           searchError instanceof Error
             ? searchError.message
             : String(searchError),
+      });
+    }
+  });
+
+  app.post('/v1/web/page', async (req, res) => {
+    try {
+      res.json(
+        await fetchPublicWebPage(
+          typeof req.body?.url === 'string' ? req.body.url : ''
+        )
+      );
+    } catch (pageError) {
+      res.status(400).json({
+        error:
+          pageError instanceof Error ? pageError.message : String(pageError),
       });
     }
   });

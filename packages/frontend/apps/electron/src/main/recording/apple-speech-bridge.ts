@@ -1138,6 +1138,29 @@ export async function prepareAppleSpeechLanguage(locale: string) {
   });
 }
 
+export async function recognizeTextWithAppleVision(input: {
+  data: Uint8Array;
+  kind: 'image' | 'pdf';
+}) {
+  if (!(input.data instanceof Uint8Array) || !input.data.byteLength) {
+    throw new Error('Text recognition needs a file.');
+  }
+  const tempDir = await fs.promises.mkdtemp(
+    path.join(os.tmpdir(), 'nota-apple-ocr-')
+  );
+  const filePath = path.join(
+    tempDir,
+    input.kind === 'pdf' ? 'source.pdf' : 'source.img'
+  );
+  try {
+    await writeFile(filePath, input.data);
+    const output = await runAppleSpeechHelper(['recognize-text', filePath]);
+    return (output.text ?? '').trim();
+  } finally {
+    await rm(tempDir, { force: true, recursive: true }).catch(() => {});
+  }
+}
+
 export async function setupAppleSpeechBridge() {
   if (process.platform !== 'darwin') {
     return await registerAppleSpeechBridge({

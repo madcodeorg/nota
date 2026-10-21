@@ -14,12 +14,17 @@ const mocks = vi.hoisted(() => ({
   open: vi.fn(),
   jump: vi.fn(),
 }));
-vi.mock('@blocksuite/affine/shared/utils', () => ({ openFilesWith: vi.fn() }));
+vi.mock('@blocksuite/affine/shared/utils', () => ({
+  openDirectory: vi.fn(),
+  openFilesWith: vi.fn(),
+}));
 vi.mock('@blocksuite/affine/widgets/linked-doc', () => ({
+  BearTransformer: {},
   DocxTransformer: {},
   HtmlTransformer: {},
   MarkdownTransformer: {},
   NotionHtmlTransformer: {},
+  ObsidianTransformer: {},
   ZipTransformer: {},
 }));
 vi.mock('@blocksuite/icons/rc', () => ({
@@ -58,6 +63,7 @@ vi.mock('@nota/core/modules/explorer-icon/services/explorer-icon', () => ({
 vi.mock('@nota/core/modules/organize', () => ({
   OrganizeService: class OrganizeService {},
 }));
+vi.mock('@nota/core/modules/tag', () => ({ TagService: class TagService {} }));
 vi.mock('@nota/core/modules/url', () => ({ UrlService: class UrlService {} }));
 vi.mock('@nota/core/modules/workspace', () => ({
   WorkspaceService: class WorkspaceService {},

@@ -27,13 +27,13 @@ import {
 } from '@nota/core/modules/workbench';
 import { useI18n } from '@nota/i18n';
 import { useLiveData, useService, useServiceOptional } from '@nota/infra';
-import { assignInlineVars } from '@vanilla-extract/dynamic';
 import clsx from 'clsx';
 import dayjs from 'dayjs';
 import type { HTMLAttributes, PropsWithChildren, ReactNode } from 'react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { CalendarEvents } from './calendar-events';
+import { DailyBrief } from './daily-brief';
 import * as styles from './journal.css';
 import { JournalTemplateOnboarding } from './template-onboarding';
 import { JournalTemplateSetting } from './template-setting';
@@ -282,23 +282,28 @@ export const EditorJournalPanel = () => {
       data-is-journal={isJournal}
       data-testid="sidebar-journal-panel"
     >
-      <div data-mobile={mobile} className={styles.calendar}>
-        <DatePicker
-          weekDays={t['com.affine.calendar-date-picker.week-days']()}
-          monthNames={t['com.affine.calendar-date-picker.month-names']()}
-          todayLabel={t['com.affine.calendar-date-picker.today']()}
-          customDayRenderer={customDayRenderer}
-          value={selectedDate.format('YYYY-MM-DD')}
-          onChange={onDateSelect}
-          onCursorChange={setCalendarCursor}
-          cellSize={34}
-        />
+      <div className={styles.journalOverview}>
+        <div data-mobile={mobile} className={styles.calendar}>
+          <DatePicker
+            weekDays={t['com.affine.calendar-date-picker.week-days']()}
+            monthNames={t['com.affine.calendar-date-picker.month-names']()}
+            todayLabel={t['com.affine.calendar-date-picker.today']()}
+            customDayRenderer={customDayRenderer}
+            value={selectedDate.format('YYYY-MM-DD')}
+            onChange={onDateSelect}
+            onCursorChange={setCalendarCursor}
+            cellSize={34}
+          />
+        </div>
+        <JournalTemplateOnboarding />
+        <JournalConflictBlock date={selectedDate} />
+        <CalendarEvents date={selectedDate} />
+        <DailyBrief date={selectedDate} />
       </div>
-      <JournalTemplateOnboarding />
-      <JournalConflictBlock date={selectedDate} />
-      <CalendarEvents date={selectedDate} />
       <JournalDailyCountBlock date={selectedDate} />
-      <JournalTemplateSetting />
+      <div className={styles.journalOverview}>
+        <JournalTemplateSetting />
+      </div>
     </div>
   );
 };
@@ -328,7 +333,6 @@ const DailyCountEmptyFallback = ({ name }: { name: NavItemName }) => {
   );
 };
 const JournalDailyCountBlock = ({ date }: JournalBlockProps) => {
-  const nodeRef = useRef<HTMLDivElement>(null);
   const t = useI18n();
   const [activeItem, setActiveItem] = useState<NavItemName>('createdToday');
   const docRecords = useLiveData(useService(DocsService).list.docs$);
@@ -372,15 +376,11 @@ const JournalDailyCountBlock = ({ date }: JournalBlockProps) => {
     [createdToday.length, t, updatedToday.length]
   );
 
-  const activeIndex = headerItems.findIndex(({ name }) => name === activeItem);
-
-  const vars = assignInlineVars({
-    '--active-index': String(activeIndex),
-    '--item-count': String(headerItems.length),
-  });
+  const activePages =
+    activeItem === 'createdToday' ? createdToday : updatedToday;
 
   return (
-    <div className={styles.dailyCount} style={vars}>
+    <div className={styles.dailyCount}>
       <header className={styles.dailyCountHeader}>
         {headerItems.map(({ label, count, name }, index) => {
           return (
@@ -399,32 +399,20 @@ const JournalDailyCountBlock = ({ date }: JournalBlockProps) => {
       </header>
 
       <main className={styles.dailyCountContainer} data-active={activeItem}>
-        {headerItems.map(({ name }) => {
-          const renderList =
-            name === 'createdToday' ? createdToday : updatedToday;
-          if (renderList.length === 0)
-            return (
-              <div key={name} className={styles.dailyCountItem}>
-                <DailyCountEmptyFallback name={name} />
+        {activePages.length === 0 ? (
+          <DailyCountEmptyFallback name={activeItem} />
+        ) : (
+          <Scrollable.Root className={styles.dailyCountItem} key={activeItem}>
+            <Scrollable.Scrollbar />
+            <Scrollable.Viewport>
+              <div className={styles.dailyCountContent}>
+                {activePages.map(pageRecord => (
+                  <PageItem key={pageRecord.id} docId={pageRecord.id} />
+                ))}
               </div>
-            );
-          return (
-            <Scrollable.Root key={name} className={styles.dailyCountItem}>
-              <Scrollable.Scrollbar />
-              <Scrollable.Viewport>
-                <div className={styles.dailyCountContent} ref={nodeRef}>
-                  {renderList.map((pageRecord, index) => (
-                    <PageItem
-                      tabIndex={name === activeItem ? 0 : -1}
-                      key={index}
-                      docId={pageRecord.id}
-                    />
-                  ))}
-                </div>
-              </Scrollable.Viewport>
-            </Scrollable.Root>
-          );
-        })}
+            </Scrollable.Viewport>
+          </Scrollable.Root>
+        )}
       </main>
     </div>
   );

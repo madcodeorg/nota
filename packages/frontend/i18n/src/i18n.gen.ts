@@ -1823,6 +1823,14 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.copy.asImage.failed"](): string;
     /**
+      * `Copy as Markdown`
+      */
+    ["com.affine.export.copy-markdown"](): string;
+    /**
+      * `Copied as Markdown`
+      */
+    ["com.affine.export.copied-as-markdown"](): string;
+    /**
       * `Cancel`
       */
     ["com.affine.confirmModal.button.cancel"](): string;
@@ -2455,6 +2463,14 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.import.affine-workspace-data"](): string;
     /**
+      * `Bear (.bear2bk)`
+      */
+    ["com.affine.import.bear"](): string;
+    /**
+      * `Import your Bear note backup. Tags will be converted to Nota tags and folders.`
+      */
+    ["com.affine.import.bear.tooltip"](): string;
+    /**
       * `Docx`
       */
     ["com.affine.import.docx"](): string;
@@ -2494,6 +2510,22 @@ export function useAFFiNEI18N(): {
       * `Import your Notion data. Supported import formats: HTML with subpages.`
       */
     ["com.affine.import.notion.tooltip"](): string;
+    /**
+      * `Notion (Markdown, .zip)`
+      */
+    ["com.affine.import.notion-markdown"](): string;
+    /**
+      * `Import a Notion Markdown export zip with subpages and attachments.`
+      */
+    ["com.affine.import.notion-markdown.tooltip"](): string;
+    /**
+      * `Obsidian Vault (Experimental)`
+      */
+    ["com.affine.import.obsidian"](): string;
+    /**
+      * `Import an Obsidian vault. Select a folder to import all notes, images, and assets with wikilinks resolved.`
+      */
+    ["com.affine.import.obsidian.tooltip"](): string;
     /**
       * `Snapshot`
       */
@@ -5467,6 +5499,14 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.settings.editorSettings.general.default-code-block.language.title"](): string;
     /**
+      * `Show line numbers in all code blocks by default.`
+      */
+    ["com.affine.settings.editorSettings.general.default-code-block.line-numbers.description"](): string;
+    /**
+      * `Show line numbers in code blocks`
+      */
+    ["com.affine.settings.editorSettings.general.default-code-block.line-numbers.title"](): string;
+    /**
       * `Encapsulate code snippets for better readability.`
       */
     ["com.affine.settings.editorSettings.general.default-code-block.wrap.description"](): string;
@@ -5482,6 +5522,46 @@ export function useAFFiNEI18N(): {
       * `New doc default mode`
       */
     ["com.affine.settings.editorSettings.general.default-new-doc.title"](): string;
+    /**
+      * `Auto-title new docs with current date`
+      */
+    ["com.affine.settings.editorSettings.general.auto-date-title.title"](): string;
+    /**
+      * `Automatically title blank new docs with today's date.`
+      */
+    ["com.affine.settings.editorSettings.general.auto-date-title.description"](): string;
+    /**
+      * `New doc date format`
+      */
+    ["com.affine.settings.editorSettings.general.auto-date-title.format.title"](): string;
+    /**
+      * `Choose the date format used for automatic new doc titles.`
+      */
+    ["com.affine.settings.editorSettings.general.auto-date-title.format.description"](): string;
+    /**
+      * `DD-MM-YYYY`
+      */
+    ["com.affine.settings.editorSettings.general.auto-date-title.format.dd-mm-yyyy"](): string;
+    /**
+      * `MM-DD-YYYY`
+      */
+    ["com.affine.settings.editorSettings.general.auto-date-title.format.mm-dd-yyyy"](): string;
+    /**
+      * `YYYY-MM-DD`
+      */
+    ["com.affine.settings.editorSettings.general.auto-date-title.format.yyyy-mm-dd"](): string;
+    /**
+      * `Journal style (localized)`
+      */
+    ["com.affine.settings.editorSettings.general.auto-date-title.format.journal"](): string;
+    /**
+      * `Display add icon option`
+      */
+    ["com.affine.settings.editorSettings.general.add-icon-option.title"](): string;
+    /**
+      * `Show or hide the add icon option for docs without an icon.`
+      */
+    ["com.affine.settings.editorSettings.general.add-icon-option.description"](): string;
     /**
       * `Customize your text experience.`
       */
@@ -8124,7 +8204,7 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.integration.web-clipper.desc"](): string;
     /**
-      * `Bring calendar events and reading highlights into your local workspace.`
+      * `Connect calendars, reading highlights, and MCP servers to your local workspace.`
       */
     ["com.affine.integration.setting.description"](): string;
     /**
@@ -8509,6 +8589,14 @@ export function useAFFiNEI18N(): {
       * `The MCP token is shown only once. Delete and recreate it to copy the JSON configuration.`
       */
     ["com.affine.integration.mcp-server.copy-json.disabled-hint"](): string;
+    /**
+      * `MCP Servers`
+      */
+    ["com.affine.integration.mcp-servers.name"](): string;
+    /**
+      * `Connect MCP servers so Nota AI can use their tools.`
+      */
+    ["com.affine.integration.mcp-servers.desc"](): string;
     /**
       * `Notes`
       */

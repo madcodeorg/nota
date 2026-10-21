@@ -6,7 +6,7 @@ import { useI18n } from '@nota/i18n';
 import { useLiveData, useServices } from '@nota/infra';
 import { track } from '@nota/track';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { RiPriceTag3Fill } from 'react-icons/ri';
+import { RiPriceTag3Fill, RiPriceTag3Line } from 'react-icons/ri';
 
 import { CollapsibleSection } from '../../layouts/collapsible-section';
 import { NavigationPanelTagNode } from '../../nodes/tag';
@@ -49,6 +49,7 @@ export const NavigationPanelTags = () => {
       testId="navigation-panel-tags"
       headerClassName={styles.draggedOverHighlight}
       title={t['com.affine.rootAppSidebar.tags']()}
+      icon={<RiPriceTag3Line />}
       actions={
         <div className={styles.iconContainer}>
           <IconButton

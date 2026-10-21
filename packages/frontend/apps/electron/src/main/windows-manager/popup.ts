@@ -9,8 +9,8 @@ import {
 } from 'electron';
 import { BehaviorSubject } from 'rxjs';
 
+import { popupViewUrl } from '../../shared/internal-origin';
 import { beforeAppQuit } from '../cleanup';
-import { popupViewUrl } from '../constants';
 import { GOOGLE_SESSION_PUBLIC_STATE_KEY } from '../google-auth/secure-session';
 import { logger } from '../logger';
 import {
@@ -23,6 +23,7 @@ import {
 } from '../shared-storage/storage';
 import type { MainEventRegister, NamespaceHandlers } from '../type';
 import { buildWebPreferences } from '../web-preferences';
+import { ensureDockVisible } from './main-window';
 import {
   decideMeetingCalendarTrigger,
   effectiveMeetingRecordingMode,
@@ -132,8 +133,7 @@ abstract class PopupWindow {
       }),
     });
 
-    // it seems that the dock will disappear when popup windows are shown
-    await app.dock?.show();
+    await ensureDockVisible();
 
     // required to make the window transparent
     browserWindow.setBackgroundColor('#00000000');

@@ -6,7 +6,7 @@ import { useI18n } from '@nota/i18n';
 import { useLiveData, useServices } from '@nota/infra';
 import { track } from '@nota/track';
 import { useCallback, useMemo } from 'react';
-import { RiArchiveStackFill } from 'react-icons/ri';
+import { RiArchiveStackFill, RiStackLine } from 'react-icons/ri';
 
 import { CollapsibleSection } from '../../layouts/collapsible-section';
 import { NavigationPanelCollectionNode } from '../../nodes/collection';
@@ -65,6 +65,7 @@ export const NavigationPanelCollections = () => {
       path={path}
       testId="navigation-panel-collections"
       title={t['com.affine.rootAppSidebar.collections']()}
+      icon={<RiStackLine />}
       actions={
         <IconButton
           data-testid="navigation-panel-bar-add-collection-button"

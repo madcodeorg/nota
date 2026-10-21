@@ -13,6 +13,7 @@ import type { NamespaceHandlers } from '../type';
 import {
   activateView,
   addTab,
+  closeMainWindowToBackground,
   closeTab,
   ensureTabLoaded,
   getMainWindow,
@@ -100,8 +101,7 @@ export const uiHandlers = {
       TraySettingsState.value.enabled &&
       TraySettingsState.value.closeToTray
     ) {
-      const window = await getMainWindow();
-      window?.hide();
+      await closeMainWindowToBackground();
     } else {
       app.quit();
     }

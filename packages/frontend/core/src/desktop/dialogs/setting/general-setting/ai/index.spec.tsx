@@ -902,7 +902,7 @@ describe('AI settings panel', () => {
     expect(
       within(advanced).getByRole('heading', { name: 'Image Generation' })
     ).toBeTruthy();
-    expect(within(advanced).getByRole('heading', { name: 'MCP' })).toBeTruthy();
+    expect(screen.queryByRole('heading', { name: 'MCP' })).toBeNull();
     expect(
       screen.queryByRole('button', { name: 'Embedding model' })
     ).toBeNull();

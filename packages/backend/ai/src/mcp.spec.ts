@@ -1,6 +1,20 @@
+import { homedir } from 'node:os';
+import path from 'node:path';
+
 import { describe, expect, test } from 'vitest';
 
-import { isGatedMcpWriteTool } from './mcp';
+import { expandHomePath, isGatedMcpWriteTool } from './mcp';
+
+describe('expandHomePath', () => {
+  test('expands a leading ~ only', () => {
+    expect(expandHomePath('~')).toBe(homedir());
+    expect(expandHomePath('~/Documents')).toBe(
+      path.join(homedir(), 'Documents')
+    );
+    expect(expandHomePath('/tmp/~/x')).toBe('/tmp/~/x');
+    expect(expandHomePath('~other')).toBe('~other');
+  });
+});
 
 describe('MCP tool safety annotations', () => {
   test('lets destructiveHint win when a server publishes conflicting hints', () => {

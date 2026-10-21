@@ -34,7 +34,9 @@ const MeetingSummarySchema = z.object({
           .string()
           .max(80)
           .nullable()
-          .describe('Due date if explicitly known, otherwise null.'),
+          .describe(
+            'Due date if explicitly known, written as YYYY-MM-DD when the calendar date can be resolved from the meeting date, otherwise null.'
+          ),
         priority: z
           .enum(['high', 'medium', 'low'])
           .nullable()

@@ -1,9 +1,4 @@
-import {
-  Menu,
-  MenuItem as PopMenuItem,
-  MenuSeparator,
-  Tooltip,
-} from '@nota/component';
+import { Tooltip } from '@nota/component';
 import { AIProvider } from '@nota/core/blocksuite/ai';
 import { AppSidebarService } from '@nota/core/modules/app-sidebar/services/app-sidebar';
 import {
@@ -24,7 +19,14 @@ import { useI18n } from '@nota/i18n';
 import { LiveData, useLiveData, useService, useServices } from '@nota/infra';
 import dayjs from 'dayjs';
 import type { ReactElement } from 'react';
-import { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  Fragment,
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 import {
   RiAddFill,
   RiAddLine,
@@ -34,21 +36,16 @@ import {
   RiFileList3Line,
   RiFileTextFill,
   RiFileTextLine,
-  RiFolder3Fill,
-  RiFolder3Line,
+  RiGlobalLine,
   RiInboxArchiveLine,
-  RiMoreLine,
-  RiPriceTag3Fill,
-  RiPriceTag3Line,
-  RiSearch2Fill,
+  RiMindMap,
   RiSearchLine,
   RiSettings5Line,
   RiSparkling2Fill,
   RiSparkling2Line,
-  RiStackFill,
-  RiStackLine,
-  RiStarFill,
-  RiStarLine,
+  RiTaskFill,
+  RiTaskLine,
+  RiTimeLine,
   RiVoiceprintFill,
   RiVoiceprintLine,
 } from 'react-icons/ri';
@@ -59,6 +56,7 @@ import {
   NavigationPanelOrganize,
   NavigationPanelTags,
 } from '../../desktop/components/navigation-panel';
+import { CollapsibleSection } from '../../desktop/components/navigation-panel/layouts/collapsible-section';
 import { EditorChatPanel } from '../../desktop/pages/workspace/detail-page/tabs/chat';
 import { getContextDocIdFromPathname } from '../../desktop/pages/workspace/detail-page/tabs/chat-panel-session';
 import {
@@ -66,6 +64,7 @@ import {
   meetingDurationSeconds,
 } from '../../desktop/pages/workspace/meetings/meeting-save';
 import { WorkbenchService } from '../../modules/workbench';
+import { useSaveWebPage } from '../web-clip/use-save-web-page';
 import { WorkspaceNavigator } from '../workspace-selector';
 import {
   activeDocEditor$,
@@ -122,25 +121,23 @@ function meetingTitle(meeting: MeetingHistoryItem) {
 }
 
 const SearchNavItem = () => {
-  const t = useI18n();
   const { cMDKQuickSearchService } = useServices({ CMDKQuickSearchService });
-
-  const onOpenQuickSearchModal = useCallback(() => {
-    cMDKQuickSearchService.toggle();
-  }, [cMDKQuickSearchService]);
+  const shortcut = environment.isMacOs ? '⌘K' : 'Ctrl K';
 
   return (
-    <MenuItem
+    <button
+      type="button"
+      className={styles.searchBar}
       data-testid="slider-bar-quick-search-button"
       data-event-props="$.navigationPanel.$.quickSearch"
-      icon={<RiSearch2Fill size={18} />}
-      onClick={onOpenQuickSearchModal}
+      onClick={() => cMDKQuickSearchService.toggle()}
     >
-      <span>{t['com.affine.cmdk.placeholder']()}</span>
-    </MenuItem>
+      <RiSearchLine aria-hidden size={15} className={styles.searchBarIcon} />
+      <span className={styles.searchBarLabel}>Search</span>
+      <kbd className={styles.searchBarShortcut}>{shortcut}</kbd>
+    </button>
   );
 };
-
 const AllNotesNavItem = () => {
   const t = useI18n();
   const { workbenchService } = useServices({ WorkbenchService });
@@ -164,6 +161,58 @@ const AllNotesNavItem = () => {
         {t['com.affine.workspaceSubPath.all']()}
       </span>
     </MenuItem>
+  );
+};
+
+const useImportDocs = () => {
+  const workspaceDialogService = useService(WorkspaceDialogService);
+  const workbench = useService(WorkbenchService).workbench;
+  return useCallback(() => {
+    workspaceDialogService.open('import', undefined, result => {
+      if (!result) return;
+      const { docIds, entryId, isWorkspaceFile } = result;
+      if (isWorkspaceFile && entryId) {
+        workbench.openDoc(entryId);
+      } else if (docIds.length > 1) {
+        workbench.openAll();
+      } else if (docIds.length === 1) {
+        workbench.openDoc(docIds[0]);
+      }
+    });
+  }, [workspaceDialogService, workbench]);
+};
+
+const ImportButton = () => {
+  const importDocs = useImportDocs();
+  return (
+    <Tooltip content="Import" side="bottom">
+      <button
+        aria-label="Import"
+        className={styles.historyNewButton}
+        data-testid="sidebar-import-button"
+        type="button"
+        onClick={importDocs}
+      >
+        <RiInboxArchiveLine aria-hidden size={16} />
+      </button>
+    </Tooltip>
+  );
+};
+
+const SaveWebPageButton = () => {
+  const saveWebPage = useSaveWebPage();
+  return (
+    <Tooltip content="Save web page" side="bottom">
+      <button
+        aria-label="Save web page"
+        className={styles.historyNewButton}
+        data-testid="sidebar-save-web-page-button"
+        type="button"
+        onClick={saveWebPage}
+      >
+        <RiGlobalLine aria-hidden size={16} />
+      </button>
+    </Tooltip>
   );
 };
 
@@ -530,7 +579,7 @@ const RecentNoteRow = ({ docId }: { docId: string }) => {
   );
 };
 
-const RECENT_NOTES_LIMIT = 30;
+const RECENT_NOTES_LIMIT = 8;
 
 const RecentNotes = () => {
   const docsService = useService(DocsService);
@@ -552,12 +601,15 @@ const RecentNotes = () => {
   const recent = useLiveData(recent$);
   if (!recent.length) return null;
   return (
-    <div className={styles.panelGroup}>
-      <div className={styles.panelGroupLabel}>Recents</div>
+    <CollapsibleSection
+      path={['recents']}
+      title="Recents"
+      icon={<RiTimeLine />}
+    >
       {recent.map(id => (
         <RecentNoteRow key={id} docId={id} />
       ))}
-    </div>
+    </CollapsibleSection>
   );
 };
 
@@ -643,36 +695,6 @@ const RAIL_ITEMS: RailItem[] = [
     icon: <RiVoiceprintLine size={20} />,
     activeIcon: <RiVoiceprintFill size={20} />,
   },
-  {
-    id: 'favorites',
-    label: 'Favorites',
-    icon: <RiStarLine size={20} />,
-    activeIcon: <RiStarFill size={20} />,
-  },
-  {
-    id: 'organize',
-    label: 'Organize',
-    icon: <RiFolder3Line size={20} />,
-    activeIcon: <RiFolder3Fill size={20} />,
-  },
-  {
-    id: 'collections',
-    label: 'Collections',
-    icon: <RiStackLine size={20} />,
-    activeIcon: <RiStackFill size={20} />,
-  },
-  {
-    id: 'tags',
-    label: 'Tags',
-    icon: <RiPriceTag3Line size={20} />,
-    activeIcon: <RiPriceTag3Fill size={20} />,
-  },
-  {
-    id: 'page',
-    label: 'Page details',
-    icon: <RiFileTextLine size={20} />,
-    activeIcon: <RiFileTextFill size={20} />,
-  },
 ];
 
 const RailButton = ({
@@ -715,6 +737,8 @@ const SidebarRail = ({
   const appSidebar = useService(AppSidebarService).sidebar;
   const isJournal = location.pathname.startsWith('/journals');
   const isTrash = location.pathname.startsWith('/trash');
+  const isTasks = location.pathname.startsWith('/tasks');
+  const isGraph = location.pathname.startsWith('/graph');
 
   const select = (id: SidebarSection) => {
     // AI from the rail opens the full Nota AI page with the chat history in
@@ -741,29 +765,67 @@ const SidebarRail = ({
             (item.id === 'ai' &&
               (section === 'chats' || location.pathname === '/chat'));
           return (
-            <RailButton
-              key={item.id}
-              label={item.label}
-              active={active}
-              testId={`sidebar-rail-${item.id}`}
-              onClick={() => select(item.id)}
-            >
-              {active ? item.activeIcon : item.icon}
-            </RailButton>
+            <Fragment key={item.id}>
+              <RailButton
+                label={item.label}
+                active={active}
+                testId={`sidebar-rail-${item.id}`}
+                onClick={() => select(item.id)}
+              >
+                {active ? item.activeIcon : item.icon}
+              </RailButton>
+              {item.id === 'notes' ? (
+                <RailButton
+                  label="Journals"
+                  active={isJournal}
+                  testId="sidebar-rail-journals"
+                  onClick={() => workbench.open('/journals', { at: 'active' })}
+                >
+                  <RiCalendarTodoLine size={20} />
+                </RailButton>
+              ) : null}
+              {item.id === 'notes' ? (
+                <RailButton
+                  label="Tasks"
+                  active={isTasks}
+                  testId="sidebar-rail-tasks"
+                  onClick={() => workbench.open('/tasks', { at: 'active' })}
+                >
+                  {isTasks ? (
+                    <RiTaskFill size={20} />
+                  ) : (
+                    <RiTaskLine size={20} />
+                  )}
+                </RailButton>
+              ) : null}
+              {item.id === 'notes' ? (
+                <RailButton
+                  label="Graph"
+                  active={isGraph}
+                  testId="sidebar-rail-graph"
+                  onClick={() => workbench.open('/graph', { at: 'active' })}
+                >
+                  <RiMindMap size={20} />
+                </RailButton>
+              ) : null}
+            </Fragment>
           );
         })}
         <div className={styles.railDivider} />
         <RailButton
-          label="Journals"
-          active={isJournal}
-          testId="sidebar-rail-journals"
-          onClick={() => workbench.open('/journals', { at: 'active' })}
+          label="Page details"
+          active={section === 'page'}
+          testId="sidebar-rail-page"
+          onClick={() => select('page')}
         >
-          <RiCalendarTodoLine size={20} />
+          {section === 'page' ? (
+            <RiFileTextFill size={20} />
+          ) : (
+            <RiFileTextLine size={20} />
+          )}
         </RailButton>
       </div>
       <div className={styles.railGroup}>
-        <MoreMenu aiEnabled={aiEnabled} onSelect={select} />
         <RailButton
           label="Trash"
           active={isTrash}
@@ -792,88 +854,6 @@ const SidebarRail = ({
  * Root app sidebar: a thin icon rail plus a contextual panel that shows the
  * content of the selected rail section.
  */
-
-// Every destination in one list, so nothing depends on finding its icon.
-const MoreMenu = ({
-  aiEnabled,
-  onSelect,
-}: {
-  aiEnabled: boolean;
-  onSelect: (id: SidebarSection) => void;
-}) => {
-  const workbench = useService(WorkbenchService).workbench;
-  const workspaceDialogService = useService(WorkspaceDialogService);
-  const { cMDKQuickSearchService } = useServices({ CMDKQuickSearchService });
-  const open = (path: string) => workbench.open(path, { at: 'active' });
-
-  const items = (
-    <>
-      <PopMenuItem
-        prefixIcon={<RiSearchLine />}
-        onSelect={() => cMDKQuickSearchService.toggle()}
-      >
-        Search
-      </PopMenuItem>
-      <PopMenuItem
-        prefixIcon={<RiFileList3Line />}
-        onSelect={() => open('/all')}
-      >
-        All docs page
-      </PopMenuItem>
-      <MenuSeparator />
-      {RAIL_ITEMS.filter(item => item.id !== 'ai' || aiEnabled).map(item => (
-        <PopMenuItem
-          key={item.id}
-          prefixIcon={item.icon}
-          onSelect={() => onSelect(item.id)}
-        >
-          {item.label}
-        </PopMenuItem>
-      ))}
-      <PopMenuItem
-        prefixIcon={<RiCalendarTodoLine />}
-        onSelect={() => open('/journals')}
-      >
-        Journals
-      </PopMenuItem>
-      <MenuSeparator />
-      <PopMenuItem
-        prefixIcon={<RiInboxArchiveLine />}
-        onSelect={() => workspaceDialogService.open('import', undefined)}
-      >
-        Import
-      </PopMenuItem>
-      <PopMenuItem
-        prefixIcon={<RiDeleteBin6Line />}
-        onSelect={() => open('/trash')}
-      >
-        Trash
-      </PopMenuItem>
-      <PopMenuItem
-        prefixIcon={<RiSettings5Line />}
-        onSelect={() =>
-          workspaceDialogService.open('setting', { activeTab: 'appearance' })
-        }
-      >
-        Settings
-      </PopMenuItem>
-    </>
-  );
-
-  return (
-    <Menu items={items} contentOptions={{ side: 'right', align: 'end' }}>
-      <button
-        type="button"
-        className={styles.railButton}
-        aria-label="More"
-        title="More"
-        data-testid="sidebar-rail-more"
-      >
-        <RiMoreLine size={20} />
-      </button>
-    </Menu>
-  );
-};
 
 // The current view's page panels (properties, outline, frames, comments,
 // journal, export...) that used to live in the right sidebar.
@@ -926,6 +906,8 @@ export const RootAppSidebar = memo((): ReactElement => {
                 onOpenChange={onWorkspaceSelectorOpenChange}
                 dense
               />
+              {BUILD_CONFIG.isElectron ? <SaveWebPageButton /> : null}
+              <ImportButton />
             </div>
             {section === 'notes' ? (
               <>
@@ -946,15 +928,17 @@ export const RootAppSidebar = memo((): ReactElement => {
           </div>
           {section !== 'ai' && section !== 'page' ? (
             <SidebarScrollableContainer>
-              {section === 'notes' ? <RecentNotes /> : null}
+              {section === 'notes' ? (
+                <>
+                  <NavigationPanelFavorites />
+                  <NavigationPanelOrganize />
+                  <NavigationPanelCollections />
+                  <NavigationPanelTags />
+                  <RecentNotes />
+                </>
+              ) : null}
               {section === 'meetings' ? <MeetingHistorySidebar /> : null}
               {section === 'chats' ? <ChatHistorySidebar /> : null}
-              {section === 'favorites' ? <NavigationPanelFavorites /> : null}
-              {section === 'organize' ? <NavigationPanelOrganize /> : null}
-              {section === 'collections' ? (
-                <NavigationPanelCollections />
-              ) : null}
-              {section === 'tags' ? <NavigationPanelTags /> : null}
             </SidebarScrollableContainer>
           ) : null}
         </div>

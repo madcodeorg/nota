@@ -8,11 +8,13 @@ import {
   ImportIcon,
   InformationIcon,
   LocalWorkspaceIcon,
+  LockIcon,
   OpenInNewIcon,
   PageIcon,
   ShareIcon,
   SplitViewIcon,
   TocIcon,
+  UnlockIcon,
 } from '@blocksuite/icons/rc';
 import { notify, toast, useConfirmModal } from '@nota/component';
 import {
@@ -342,6 +344,11 @@ const PageHeaderMenuItem = ({
 
   const canEdit = useGuard('Doc_Update', pageId);
   const canMoveToTrash = useGuard('Doc_Trash', pageId);
+  const locked = useLiveData(editorService.editor.doc.locked$);
+  const handleToggleLock = useCallback(() => {
+    editorService.editor.doc.setLocked(!locked);
+    toast(locked ? 'Page unlocked' : 'Page locked');
+  }, [editorService, locked]);
 
   return (
     <>
@@ -351,7 +358,7 @@ const PageHeaderMenuItem = ({
           prefixIcon={<EditIcon />}
           data-testid="editor-option-menu-rename"
           onSelect={handleRename}
-          disabled={!canEdit}
+          disabled={!canEdit || locked}
         >
           {t['Rename']()}
         </MenuItem>
@@ -374,6 +381,14 @@ const PageHeaderMenuItem = ({
         {favorite
           ? t['com.affine.favoritePageOperation.remove']()
           : t['com.affine.favoritePageOperation.add']()}
+      </MenuItem>
+      <MenuItem
+        prefixIcon={locked ? <UnlockIcon /> : <LockIcon />}
+        data-testid="editor-option-menu-lock"
+        onSelect={handleToggleLock}
+        disabled={!canEdit}
+      >
+        {locked ? 'Unlock page' : 'Lock page'}
       </MenuItem>
       <MenuSeparator />
       <MenuItem

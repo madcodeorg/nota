@@ -132,3 +132,32 @@ export const collapsedIcon = style({
     },
   },
 });
+
+export const mentionRow = style({
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+  padding: '4px 0',
+});
+
+export const mentionBody = style({
+  flex: 1,
+  minWidth: 0,
+});
+
+export const mentionSnippet = style({
+  fontSize: '12px',
+  lineHeight: '18px',
+  color: cssVarV2('text/secondary'),
+  overflow: 'hidden',
+  display: '-webkit-box',
+  WebkitLineClamp: 2,
+  WebkitBoxOrient: 'vertical',
+  paddingLeft: 4,
+});
+
+export const mentionMatch = style({
+  backgroundColor: 'transparent',
+  color: cssVarV2('text/primary'),
+  fontWeight: 600,
+});

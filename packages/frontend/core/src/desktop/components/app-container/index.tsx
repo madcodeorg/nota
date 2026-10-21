@@ -21,6 +21,7 @@ import {
   useCallback,
 } from 'react';
 
+import { FocusModeExitButton } from './focus-mode-exit';
 import { HeaderUpdateButton } from './header-update-button';
 import * as styles from './styles.css';
 
@@ -34,6 +35,9 @@ export const AppContainer = ({
   fallback?: boolean;
 }>) => {
   const { appSettings } = useAppSettingHelper();
+  const focusMode = useLiveData(
+    useService(AppSidebarService).sidebar.focusMode$
+  );
 
   const noisyBackground =
     BUILD_CONFIG.isElectron && appSettings.enableNoisyBackground;
@@ -50,8 +54,10 @@ export const AppContainer = ({
       })}
       data-noise-background={noisyBackground}
       data-translucent={blurBackground}
+      data-focus-mode={focusMode}
     >
       <LayoutComponent fallback={fallback}>{children}</LayoutComponent>
+      {focusMode && !fallback ? <FocusModeExitButton /> : null}
     </div>
   );
 };
@@ -62,6 +68,9 @@ const DesktopLayout = ({
 }: PropsWithChildren<{ fallback?: boolean }>) => {
   const workspaceService = useServiceOptional(WorkspaceService);
   const isInWorkspace = !!workspaceService;
+  const focusMode = useLiveData(
+    useService(AppSidebarService).sidebar.focusMode$
+  );
   return (
     <div className={styles.desktopAppViewContainer}>
       <div className={styles.desktopTabsHeader}>
@@ -86,7 +95,7 @@ const DesktopLayout = ({
         {fallback ? (
           <AppSidebarFallback />
         ) : (
-          isInWorkspace && <RootAppSidebar />
+          isInWorkspace && !focusMode && <RootAppSidebar />
         )}
         <MainContainer>{children}</MainContainer>
       </div>
@@ -134,11 +143,18 @@ const BrowserLayout = ({
 }: PropsWithChildren<{ fallback?: boolean }>) => {
   const workspaceService = useServiceOptional(WorkspaceService);
   const isInWorkspace = !!workspaceService;
+  const focusMode = useLiveData(
+    useService(AppSidebarService).sidebar.focusMode$
+  );
 
   return (
     <div className={styles.browserAppViewContainer}>
       <OpenInAppCard />
-      {fallback ? <AppSidebarFallback /> : isInWorkspace && <RootAppSidebar />}
+      {fallback ? (
+        <AppSidebarFallback />
+      ) : (
+        isInWorkspace && !focusMode && <RootAppSidebar />
+      )}
       <MainContainer>{children}</MainContainer>
     </div>
   );
@@ -155,6 +171,7 @@ const MainContainer = forwardRef<
   const { appSettings } = useAppSettingHelper();
   const appSidebarService = useService(AppSidebarService).sidebar;
   const open = useLiveData(appSidebarService.open$);
+  const focusMode = useLiveData(appSidebarService.focusMode$);
 
   return (
     <div
@@ -163,7 +180,7 @@ const MainContainer = forwardRef<
       data-is-desktop={BUILD_CONFIG.isElectron}
       data-transparent={false}
       data-client-border={appSettings.clientBorder}
-      data-side-bar-open={open && isInWorkspace}
+      data-side-bar-open={open && isInWorkspace && !focusMode}
       data-testid="main-container"
       ref={ref}
     >

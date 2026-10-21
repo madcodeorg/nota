@@ -1,9 +1,11 @@
 import type { Store } from '@blocksuite/affine/store';
+import { LockIcon } from '@blocksuite/icons/rc';
 import {
   Divider,
   DragHandle,
   type InlineEditHandle,
   observeResize,
+  Tooltip,
   useDraggable,
 } from '@nota/component';
 import { FavoriteButton } from '@nota/core/blocksuite/block-suite-header/favorite';
@@ -14,6 +16,7 @@ import { PageHeaderMenuButton } from '@nota/core/blocksuite/block-suite-header/m
 import { DetailPageHeaderPresentButton } from '@nota/core/blocksuite/block-suite-header/present/detail-header-present-button';
 import { BlocksuiteHeaderTitle } from '@nota/core/blocksuite/block-suite-header/title';
 import { EditorModeSwitch } from '@nota/core/blocksuite/block-suite-mode-switch';
+import { useGuard } from '@nota/core/components/guard';
 import { useRegisterCopyLinkCommands } from '@nota/core/components/hooks/nota/use-register-copy-link-commands';
 import { HeaderDivider } from '@nota/core/components/pure/header';
 import { DocService } from '@nota/core/modules/doc';
@@ -77,6 +80,29 @@ const TemplateMark = memo(function TemplateMark({
   );
 });
 
+const LockedMark = memo(function LockedMark() {
+  const doc = useService(DocService).doc;
+  const locked = useLiveData(doc.locked$);
+  const canEdit = useGuard('Doc_Update', doc.id);
+
+  if (!locked) return null;
+
+  return (
+    <Tooltip content={canEdit ? 'Locked. Click to unlock.' : 'Locked'}>
+      <button
+        type="button"
+        className={styles.lockedMark}
+        disabled={!canEdit}
+        onClick={() => doc.setLocked(false)}
+        data-testid="page-locked-mark"
+      >
+        <LockIcon />
+        Locked
+      </button>
+    </Tooltip>
+  );
+});
+
 interface PageHeaderProps {
   page: Store;
   workspace: Workspace;
@@ -109,6 +135,7 @@ export function JournalPageHeader({ page, workspace }: PageHeaderProps) {
         <JournalWeekDatePicker page={page} />
       </div>
       <TemplateMark className={styles.journalTemplateMark} />
+      <LockedMark />
       {hideToday ? null : <JournalTodayButton />}
       <HeaderDivider />
       <PageHeaderMenuButton
@@ -160,6 +187,7 @@ export function NormalPageHeader({ page, workspace }: PageHeaderProps) {
       <EditorModeSwitch />
       <BlocksuiteHeaderTitle inputHandleRef={titleInputHandleRef} />
       <TemplateMark />
+      <LockedMark />
       <div className={styles.iconButtonContainer}>
         {hideCollect ? null : (
           <>

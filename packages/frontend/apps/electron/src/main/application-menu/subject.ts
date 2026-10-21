@@ -5,8 +5,10 @@ export interface OpenMeetingsPageIntent {
   stop?: boolean;
 }
 
+export type NewPageAction = 'page' | 'edgeless' | 'default';
+
 export const applicationMenuSubjects = {
-  newPageAction$: new Subject<'page' | 'edgeless'>(),
+  newPageAction$: new Subject<NewPageAction>(),
   openJournal$: new Subject<void>(),
   openMeetingsPage$: new Subject<OpenMeetingsPageIntent>(),
   openInSettingModal$: new Subject<{

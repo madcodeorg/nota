@@ -32,7 +32,7 @@ function escapeMhchem(text: string) {
  * @param content - The content to preprocess
  * @returns The preprocessed content
  */
-function preprocessLatex(content: string) {
+export function preprocessLatex(content: string) {
   // Protect code blocks
   const codeBlocks: string[] = [];
   let preprocessedContent = content;
@@ -44,18 +44,38 @@ function preprocessLatex(content: string) {
     }
   );
 
-  // Protect existing LaTeX expressions
+  // Protect existing LaTeX expressions.
+  //
+  // Single-dollar inline math is protected too, otherwise the currency escape
+  // below eats the opening `$` of expressions that start with a digit, such as
+  // `$4\vee 6=12$` (issue #15588). The delimiters follow the usual rule for
+  // telling math from prices: the opening `$` is not followed by whitespace,
+  // the closing `$` is not preceded by whitespace, and the closing `$` is not
+  // followed by a digit. That keeps `costs $5 and $10` and `$100$200` as
+  // currency while `$4\vee 6=12$` is recognised as math. Backslash escapes are
+  // consumed as a unit so an escaped `\$` neither opens nor closes math. An
+  // even-length backslash run before the opener is a literal backslash rather
+  // than an escape, so it is matched along with the expression it precedes.
   const latexExpressions: string[] = [];
   preprocessedContent = preprocessedContent.replace(
-    /(\$\$[\s\S]*?\$\$|\\\[[\s\S]*?\\\]|\\\(.*?\\\))/g,
+    /(\$\$[\s\S]*?\$\$|\\\[[\s\S]*?\\\]|\\\(.*?\\\)|(?<!\\)(?:\\\\)*\$(?!\s)(?:[^\n$\\]|\\.)*?(?<!\s)\$(?!\d))/g,
     match => {
       latexExpressions.push(match);
       return `<<LATEX_${latexExpressions.length - 1}>>`;
     }
   );
 
-  // Escape dollar signs that are likely currency indicators
-  preprocessedContent = preprocessedContent.replace(/\$(?=\d)/g, '\\$');
+  // Escape dollar signs that are likely currency indicators.
+  //
+  // A dollar preceded by an odd number of backslashes is already escaped, so
+  // adding another backslash makes the run even: `\$4` becomes `\\$4`, which is
+  // a literal backslash followed by an unescaped `$` that remark-math can then
+  // treat as a delimiter. Only escape a dollar whose preceding backslash run is
+  // even, and keep that run as it was.
+  preprocessedContent = preprocessedContent.replace(
+    /(?<!\\)((?:\\\\)*)\$(?=\d)/g,
+    '$1\\$'
+  );
 
   // Restore LaTeX expressions
   preprocessedContent = preprocessedContent.replace(

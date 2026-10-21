@@ -16,6 +16,7 @@ import { content, header, root } from './collapsible-section.css';
 interface CollapsibleSectionProps extends PropsWithChildren {
   path: string[];
   title: string;
+  icon?: ReactNode;
   actions?: ReactNode;
 
   className?: string;
@@ -32,6 +33,7 @@ interface CollapsibleSectionProps extends PropsWithChildren {
 export const CollapsibleSection = ({
   path,
   title,
+  icon,
   actions,
   children,
 
@@ -66,6 +68,7 @@ export const CollapsibleSection = ({
       <CategoryDivider
         data-testid={headerTestId}
         label={title}
+        icon={icon}
         setCollapsed={setCollapsed}
         collapsed={collapsed}
         ref={headerRef}

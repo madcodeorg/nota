@@ -122,6 +122,7 @@ export type TextRendererOptions = {
   testId?: string;
   affineFeatureFlagService?: FeatureFlagService;
   theme?: Signal<ColorScheme>;
+  scrollable?: boolean;
 };
 
 // todo: refactor it for more general purpose usage instead of AI only?
@@ -177,9 +178,12 @@ export class TextRenderer extends SignalWatcher(
     }
 
     .text-renderer-container {
+      padding: 0;
+    }
+
+    .text-renderer-container.scrollable {
       overflow-y: auto;
       overflow-x: hidden;
-      padding: 0;
     }
 
     .text-renderer-container[data-streaming='true'] .ai-answer-text-editor {
@@ -492,6 +496,7 @@ export class TextRenderer extends SignalWatcher(
     const classes = classMap({
       'text-renderer-container': true,
       'custom-heading': !!customHeading,
+      scrollable: this.options.scrollable !== false,
     });
     const theme = this.options.theme?.value;
     return html`

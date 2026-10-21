@@ -1,3 +1,5 @@
+import type { ClientRequest, IncomingMessage } from 'node:http';
+
 import type { Configuration as RspackDevServerConfiguration } from '@rspack/dev-server';
 
 export const RSPACK_SUPPORTED_PACKAGES = [
@@ -30,6 +32,23 @@ const IN_CI = !!process.env.CI;
 const httpProxyMiddlewareLogLevel = IN_CI ? 'silent' : 'error';
 const localBackendFallbackEnabled =
   process.env.NOTA_DEV_BACKEND_FALLBACK !== 'false';
+const devBackendToken = process.env.NOTA_AI_BACKEND_TOKEN?.trim();
+
+// The AI backend only accepts requests that carry its per-process token, which
+// normally only the desktop app adds. When the token is provided (see
+// `yarn dev:ai`), add it for requests from this machine so the web app can use
+// AI features. Requests from other devices on the network never get it.
+function addDevBackendToken(proxyReq: ClientRequest, req: IncomingMessage) {
+  const address = req.socket.remoteAddress;
+  if (
+    devBackendToken &&
+    (address === '127.0.0.1' ||
+      address === '::1' ||
+      address === '::ffff:127.0.0.1')
+  ) {
+    proxyReq.setHeader('x-nota-backend-token', devBackendToken);
+  }
+}
 
 function setLocalCorsHeaders(res: {
   setHeader: (name: string, value: string) => void;
@@ -141,22 +160,27 @@ export const DEFAULT_DEV_SERVER_CONFIG: RspackDevServerConfiguration = {
       context: '/api',
       target: 'http://localhost:3010',
       logLevel: httpProxyMiddlewareLogLevel,
+      onProxyReq: addDevBackendToken,
     },
     {
       context: '/v1',
       target: 'http://localhost:3010',
       logLevel: httpProxyMiddlewareLogLevel,
+      onProxyReq: addDevBackendToken,
     },
     {
       context: '/socket.io',
       target: 'http://localhost:3010',
       ws: true,
       logLevel: httpProxyMiddlewareLogLevel,
+      onProxyReq: addDevBackendToken,
+      onProxyReqWs: addDevBackendToken,
     },
     {
       context: '/graphql',
       target: 'http://localhost:3010',
       logLevel: httpProxyMiddlewareLogLevel,
+      onProxyReq: addDevBackendToken,
     },
   ],
 };

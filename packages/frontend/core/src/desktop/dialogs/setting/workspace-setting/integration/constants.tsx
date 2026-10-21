@@ -6,6 +6,7 @@ import type { ReactNode } from 'react';
 import { CalendarSettingPanel } from './calendar/setting-panel';
 import MCPIcon from './mcp-server/MCP.inline.svg';
 import { McpServerSettingPanel } from './mcp-server/setting-panel';
+import { McpServersSettingPanel } from './mcp-servers/setting-panel';
 import { ReadwiseSettingPanel } from './readwise/setting-panel';
 
 type IntegrationCard = {
@@ -37,6 +38,13 @@ const INTEGRATION_LIST = [
     desc: 'com.affine.integration.calendar.desc',
     icon: <TodayIcon />,
     setting: <CalendarSettingPanel />,
+  },
+  {
+    id: 'mcp-servers' as const,
+    name: 'com.affine.integration.mcp-servers.name',
+    desc: 'com.affine.integration.mcp-servers.desc',
+    icon: <img src={MCPIcon} />,
+    setting: <McpServersSettingPanel />,
   },
   {
     id: 'mcp-server' as const,

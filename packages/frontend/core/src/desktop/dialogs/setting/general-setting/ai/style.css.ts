@@ -76,26 +76,6 @@ export const rowControl = style({
   maxWidth: '100%',
 });
 
-export const textarea = style({
-  boxSizing: 'border-box',
-  width: 360,
-  maxWidth: '100%',
-  minHeight: 112,
-  resize: 'vertical',
-  padding: '8px 10px',
-  borderRadius: 6,
-  border: `1px solid ${cssVar('borderColor')}`,
-  background: cssVar('backgroundPrimaryColor'),
-  color: cssVar('textPrimaryColor'),
-  fontFamily: cssVar('fontMonoFamily'),
-  fontSize: cssVar('fontXs'),
-  lineHeight: '18px',
-  ':focus-visible': {
-    outline: `2px solid ${cssVar('primaryColor')}`,
-    outlineOffset: 2,
-  },
-});
-
 export const menuTrigger = style({
   boxSizing: 'border-box',
   width: 240,
@@ -198,24 +178,6 @@ export const disclosureHeader = style({
   gap: 8,
   marginBottom: 8,
 });
-export const capability = style({
-  display: 'flex',
-  alignItems: 'center',
-  gap: 8,
-  color: cssVar('textSecondaryColor'),
-  fontSize: cssVar('fontSm'),
-});
-export const dot = style({
-  width: 8,
-  height: 8,
-  borderRadius: '50%',
-  background: cssVarV2('status/success'),
-  flexShrink: 0,
-});
-export const pendingDot = style({
-  background: cssVar('textSecondaryColor'),
-});
-
 export const chatgptCompactRow = style({
   width: '100%',
   minWidth: 0,

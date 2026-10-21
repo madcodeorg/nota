@@ -2,6 +2,19 @@
 
 All notable changes to Nota are recorded here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Installers and release notes are published on [GitHub Releases](https://github.com/madcodeorg/nota/releases).
 
+## Unreleased
+
+- Graph view: see how your notes link together and jump to any note from the map.
+- Tasks view with due dates and daily reminders, plus a daily brief in your journal with due tasks and meeting notes.
+- Quick capture from anywhere into today's journal.
+- Save a web page as a note from its URL.
+- Extract text from images and PDFs into your note (macOS).
+- Connect MCP servers to the AI assistant from Integrations.
+- Import from Obsidian, Notion and Bear, and copy any note as Markdown.
+- Lock a page against accidental edits, focus mode, and word count with reading time.
+- Unlinked mentions and related notes under each page, and a simpler sidebar.
+- Many editor fixes for tables, kanban, code blocks, LaTeX and edgeless mode.
+
 ## 0.1.8
 
 - Nota now runs on Windows (x64). The installer is not signed yet, so Windows shows a SmartScreen warning the first time you open it.

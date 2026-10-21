@@ -15,6 +15,7 @@ import { useCallback, useMemo } from 'react';
 
 import { useAppSettingHelper } from '../../../../../components/hooks/nota/use-app-setting-helper';
 import { OpenInAppLinksMenu } from './links';
+import { QuickCaptureSetting } from './quick-capture-setting';
 import { settingWrapper } from './style.css';
 import { ThemeEditorSetting } from './theme-editor-setting';
 
@@ -80,43 +81,47 @@ const MenubarSetting = () => {
           />
         </SettingRow>
       </SettingWrapper>
-      {traySetting.enabled && !environment.isMacOs ? (
+      {traySetting.enabled ? (
         <SettingWrapper
           id="windowBehavior"
           title={t[
             'com.affine.appearanceSettings.menubar.windowBehavior.title'
           ]()}
         >
-          <SettingRow
-            name={t[
-              'com.affine.appearanceSettings.menubar.windowBehavior.openOnLeftClick.toggle'
-            ]()}
-            desc={t[
-              'com.affine.appearanceSettings.menubar.windowBehavior.openOnLeftClick.description'
-            ]()}
-          >
-            <Switch
-              checked={traySetting.openOnLeftClick}
-              onChange={checked =>
-                traySettingService.setOpenOnLeftClick(checked)
-              }
-            />
-          </SettingRow>
-          <SettingRow
-            name={t[
-              'com.affine.appearanceSettings.menubar.windowBehavior.minimizeToTray.toggle'
-            ]()}
-            desc={t[
-              'com.affine.appearanceSettings.menubar.windowBehavior.minimizeToTray.description'
-            ]()}
-          >
-            <Switch
-              checked={traySetting.minimizeToTray}
-              onChange={checked =>
-                traySettingService.setMinimizeToTray(checked)
-              }
-            />
-          </SettingRow>
+          {!environment.isMacOs ? (
+            <>
+              <SettingRow
+                name={t[
+                  'com.affine.appearanceSettings.menubar.windowBehavior.openOnLeftClick.toggle'
+                ]()}
+                desc={t[
+                  'com.affine.appearanceSettings.menubar.windowBehavior.openOnLeftClick.description'
+                ]()}
+              >
+                <Switch
+                  checked={traySetting.openOnLeftClick}
+                  onChange={checked =>
+                    traySettingService.setOpenOnLeftClick(checked)
+                  }
+                />
+              </SettingRow>
+              <SettingRow
+                name={t[
+                  'com.affine.appearanceSettings.menubar.windowBehavior.minimizeToTray.toggle'
+                ]()}
+                desc={t[
+                  'com.affine.appearanceSettings.menubar.windowBehavior.minimizeToTray.description'
+                ]()}
+              >
+                <Switch
+                  checked={traySetting.minimizeToTray}
+                  onChange={checked =>
+                    traySettingService.setMinimizeToTray(checked)
+                  }
+                />
+              </SettingRow>
+            </>
+          ) : null}
           <SettingRow
             name={t[
               'com.affine.appearanceSettings.menubar.windowBehavior.closeToTray.toggle'
@@ -130,21 +135,23 @@ const MenubarSetting = () => {
               onChange={checked => traySettingService.setCloseToTray(checked)}
             />
           </SettingRow>
-          <SettingRow
-            name={t[
-              'com.affine.appearanceSettings.menubar.windowBehavior.startMinimized.toggle'
-            ]()}
-            desc={t[
-              'com.affine.appearanceSettings.menubar.windowBehavior.startMinimized.description'
-            ]()}
-          >
-            <Switch
-              checked={traySetting.startMinimized}
-              onChange={checked =>
-                traySettingService.setStartMinimized(checked)
-              }
-            />
-          </SettingRow>
+          {!environment.isMacOs ? (
+            <SettingRow
+              name={t[
+                'com.affine.appearanceSettings.menubar.windowBehavior.startMinimized.toggle'
+              ]()}
+              desc={t[
+                'com.affine.appearanceSettings.menubar.windowBehavior.startMinimized.description'
+              ]()}
+            >
+              <Switch
+                checked={traySetting.startMinimized}
+                onChange={checked =>
+                  traySettingService.setStartMinimized(checked)
+                }
+              />
+            </SettingRow>
+          ) : null}
         </SettingWrapper>
       ) : null}
     </>
@@ -277,6 +284,7 @@ export const AppearanceSettings = () => {
       </SettingWrapper>
 
       {BUILD_CONFIG.isElectron ? <MenubarSetting /> : null}
+      {BUILD_CONFIG.isElectron ? <QuickCaptureSetting /> : null}
     </>
   );
 };

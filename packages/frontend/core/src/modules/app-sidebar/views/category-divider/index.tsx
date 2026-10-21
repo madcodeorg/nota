@@ -1,12 +1,18 @@
-import { ToggleRightIcon } from '@blocksuite/icons/rc';
 import clsx from 'clsx';
-import { type ForwardedRef, forwardRef, type PropsWithChildren } from 'react';
+import {
+  type ForwardedRef,
+  forwardRef,
+  type PropsWithChildren,
+  type ReactNode,
+} from 'react';
+import { RiArrowRightSLine } from 'react-icons/ri';
 
 import * as styles from './index.css';
 
 export type CategoryDividerProps = PropsWithChildren<
   {
     label: string;
+    icon?: ReactNode;
     className?: string;
     collapsed?: boolean;
     setCollapsed?: (collapsed: boolean) => void;
@@ -19,6 +25,7 @@ export const CategoryDivider = forwardRef(
   (
     {
       label,
+      icon,
       children,
       className,
       collapsed,
@@ -40,11 +47,11 @@ export const CategoryDivider = forwardRef(
         {...otherProps}
       >
         <div className={styles.label}>
-          {label}
+          {icon ? <span className={styles.icon}>{icon}</span> : null}
+          <span>{label}</span>
           {collapsible ? (
-            <ToggleRightIcon
-              width={16}
-              height={16}
+            <RiArrowRightSLine
+              size={14}
               data-testid="category-divider-collapse-button"
               className={styles.collapseIcon}
             />

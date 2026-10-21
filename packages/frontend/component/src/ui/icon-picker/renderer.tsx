@@ -6,6 +6,7 @@ import { type IconData, IconType } from './type';
 export const IconRenderer = ({
   data,
   fallback,
+  ...props
 }: {
   data?: IconData;
   fallback?: ReactNode;
@@ -18,7 +19,7 @@ export const IconRenderer = ({
     return data.unicode;
   }
   if (data.type === IconType.NotaIcon && data.name) {
-    return <NotaIconRenderer name={data.name} color={data.color} />;
+    return <NotaIconRenderer name={data.name} color={data.color} {...props} />;
   }
   if (data.type === IconType.Blob) {
     // Not supported yet

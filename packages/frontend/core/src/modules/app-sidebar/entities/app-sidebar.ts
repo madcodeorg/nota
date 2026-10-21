@@ -64,6 +64,19 @@ export class AppSidebar extends Entity {
   smallScreenMode$ = new LiveData<boolean>(false);
   resizing$ = new LiveData<boolean>(false);
 
+  /**
+   * hides the sidebar and page header while writing, kept for this session only
+   */
+  focusMode$ = new LiveData<boolean>(false);
+
+  setFocusMode = (focusMode: boolean) => {
+    this.focusMode$.next(focusMode);
+  };
+
+  toggleFocusMode = () => {
+    this.setFocusMode(!this.focusMode$.value);
+  };
+
   getCachedAppSidebarOpenState = () => {
     return this.appSidebarState.get<boolean>(APP_SIDEBAR_STATE.OPEN);
   };

@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   windows: [] as Array<{ destroy: ReturnType<typeof vi.fn> }>,
 }));
 vi.mock('electron', () => ({
+  app: { isReady: () => false },
   nativeTheme: {},
   BrowserWindow: class {
     destroyed = false;
@@ -38,7 +39,7 @@ vi.mock('../../src/main/helper-process', () => ({
   ensureHelperProcess: mocks.ensureHelper,
 }));
 vi.mock('../../src/main/logger', () => ({
-  logger: { info: vi.fn() },
+  logger: { info: vi.fn(), error: vi.fn() },
 }));
 vi.mock('../../src/main/shared-state-schema', () => ({
   MenubarStateKey: 'menubar',

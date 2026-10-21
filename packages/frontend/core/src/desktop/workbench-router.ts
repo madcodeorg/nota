@@ -30,6 +30,14 @@ export const workbenchRoutes = [
     lazy: () => import('./pages/workspace/tag'),
   },
   {
+    path: '/graph',
+    lazy: () => import('./pages/workspace/graph'),
+  },
+  {
+    path: '/tasks',
+    lazy: () => import('./pages/workspace/tasks'),
+  },
+  {
     path: '/trash',
     lazy: () => import('./pages/workspace/trash-page'),
   },

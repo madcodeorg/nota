@@ -1,10 +1,12 @@
-import { openFilesWith } from '@blocksuite/affine/shared/utils';
+import { openDirectory, openFilesWith } from '@blocksuite/affine/shared/utils';
 import type { Workspace } from '@blocksuite/affine/store';
 import {
+  BearTransformer,
   DocxTransformer,
   HtmlTransformer,
   MarkdownTransformer,
   NotionHtmlTransformer,
+  ObsidianTransformer,
   ZipTransformer,
 } from '@blocksuite/affine/widgets/linked-doc';
 import {
@@ -17,7 +19,13 @@ import {
   SaveIcon,
   ZipIcon,
 } from '@blocksuite/icons/rc';
-import { Button, IconButton, IconType, Modal } from '@nota/component';
+import {
+  Button,
+  IconButton,
+  type IconData,
+  IconType,
+  Modal,
+} from '@nota/component';
 import { getStoreManager } from '@nota/core/blocksuite/manager/store';
 import { useAsyncCallback } from '@nota/core/components/hooks/nota-async-hooks';
 import { useNavigateHelper } from '@nota/core/components/hooks/use-navigate-helper';
@@ -28,6 +36,7 @@ import {
 } from '@nota/core/modules/dialogs';
 import { ExplorerIconService } from '@nota/core/modules/explorer-icon/services/explorer-icon';
 import { OrganizeService } from '@nota/core/modules/organize';
+import { TagService } from '@nota/core/modules/tag';
 import { UrlService } from '@nota/core/modules/url';
 import {
   getAFFiNEWorkspaceSchema,
@@ -118,10 +127,10 @@ function createFolderStructure(
           logger.debug('Icon data:', child.icon);
 
           try {
-            let iconData;
+            let iconData: IconData | undefined;
             if (child.icon.type === 'emoji') {
               iconData = {
-                type: IconType.Emoji as const,
+                type: IconType.Emoji,
                 unicode: child.icon.content,
               };
               logger.debug('Created emoji icon data:', iconData);
@@ -187,16 +196,46 @@ function createFolderStructure(
   return { folderId: rootFolderId, docLinks };
 }
 
+function applyFolderHierarchy(
+  organizeService: OrganizeService,
+  folderHierarchy: FolderHierarchy,
+  explorerIconService?: ExplorerIconService
+): string | undefined {
+  if (folderHierarchy.children.size === 0) return undefined;
+  try {
+    const { folderId, docLinks } = createFolderStructure(
+      organizeService,
+      folderHierarchy,
+      null,
+      explorerIconService
+    );
+    for (const { folderId, docId } of docLinks) {
+      const folder = organizeService.folderTree.folderNode$(folderId).value;
+      if (folder) {
+        const index = folder.indexAt('after');
+        folder.createLink('doc', docId, index);
+      }
+    }
+    return folderId || undefined;
+  } catch (error) {
+    logger.warn('Failed to create folder structure:', error);
+    return undefined;
+  }
+}
+
 type ImportType =
   | 'csv'
   | 'markdown'
   | 'markdownZip'
   | 'notion'
+  | 'notionMarkdown'
+  | 'obsidian'
+  | 'bear'
   | 'snapshot'
   | 'html'
   | 'docx'
   | 'dotaffinefile';
-type AcceptType = 'Markdown' | 'Zip' | 'Html' | 'Docx' | 'Skip'; // Skip is used for dotaffinefile
+type AcceptType = 'Markdown' | 'Zip' | 'Html' | 'Docx' | 'Directory' | 'Skip'; // Skip is used for dotaffinefile
 type Status = 'idle' | 'csv' | 'importing' | 'success' | 'error';
 type ImportResult = {
   report?: string[];
@@ -204,6 +243,10 @@ type ImportResult = {
   entryId?: string;
   isWorkspaceFile?: boolean;
   rootFolderId?: string;
+};
+
+type ImportedWorkspacePayload = {
+  workspace: WorkspaceMetadata;
 };
 
 type ImportConfig = {
@@ -214,7 +257,8 @@ type ImportConfig = {
     handleImportAffineFile: () => Promise<WorkspaceMetadata | undefined>,
     organizeService?: OrganizeService,
     explorerIconService?: ExplorerIconService,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    tagService?: TagService
   ) => Promise<ImportResult>;
 };
 
@@ -272,6 +316,43 @@ const importOptions = [
     suffixTooltip: 'com.affine.import.notion.tooltip',
     testId: 'editor-option-menu-import-notion',
     type: 'notion' as ImportType,
+  },
+  {
+    key: 'notionMarkdown',
+    label: 'com.affine.import.notion-markdown',
+    prefixIcon: <NotionIcon color={cssVar('black')} width={20} height={20} />,
+    suffixIcon: (
+      <HelpIcon color={cssVarV2('icon/primary')} width={20} height={20} />
+    ),
+    suffixTooltip: 'com.affine.import.notion-markdown.tooltip',
+    testId: 'editor-option-menu-import-notion-markdown',
+    type: 'notionMarkdown' as ImportType,
+  },
+  {
+    key: 'obsidian',
+    label: 'com.affine.import.obsidian',
+    prefixIcon: (
+      <ExportToMarkdownIcon color={cssVar('black')} width={20} height={20} />
+    ),
+    suffixIcon: (
+      <HelpIcon color={cssVarV2('icon/primary')} width={20} height={20} />
+    ),
+    suffixTooltip: 'com.affine.import.obsidian.tooltip',
+    testId: 'editor-option-menu-import-obsidian',
+    type: 'obsidian' as ImportType,
+  },
+  {
+    key: 'bear',
+    label: 'com.affine.import.bear',
+    prefixIcon: (
+      <FileIcon color={cssVarV2('icon/primary')} width={20} height={20} />
+    ),
+    suffixIcon: (
+      <HelpIcon color={cssVarV2('icon/primary')} width={20} height={20} />
+    ),
+    suffixTooltip: 'com.affine.import.bear.tooltip',
+    testId: 'editor-option-menu-import-bear',
+    type: 'bear' as ImportType,
   },
   {
     key: 'docx',
@@ -346,21 +427,29 @@ const importConfigs: Record<Exclude<ImportType, 'csv'>, ImportConfig> = {
       docCollection,
       files,
       _handleImportAffineFile,
-      _organizeService,
+      organizeService,
       _explorerIconService
     ) => {
       const file = files.length === 1 ? files[0] : null;
       if (!file) {
         throw new Error('Expected a single zip file for markdownZip import');
       }
-      const docIds = await MarkdownTransformer.importMarkdownZip({
-        collection: docCollection,
-        schema: getAFFiNEWorkspaceSchema(),
-        imported: file,
-        extensions: getStoreManager().config.init().value.get('store'),
-      });
+      const { docIds, folderHierarchy } =
+        await MarkdownTransformer.importMarkdownZip({
+          collection: docCollection,
+          schema: getAFFiNEWorkspaceSchema(),
+          imported: file,
+          extensions: getStoreManager().config.init().value.get('store'),
+        });
+
+      const rootFolderId =
+        folderHierarchy && organizeService
+          ? applyFolderHierarchy(organizeService, folderHierarchy)
+          : undefined;
+
       return {
         docIds,
+        rootFolderId,
       };
     },
   },
@@ -436,37 +525,14 @@ const importConfigs: Record<Exclude<ImportType, 'csv'>, ImportConfig> = {
           },
         });
 
-      let rootFolderId: string | undefined;
-
-      // Create folder structure if hierarchy exists and OrganizeService is available
-      if (
-        folderHierarchy &&
-        organizeService &&
-        folderHierarchy.children.size > 0
-      ) {
-        try {
-          const { folderId, docLinks } = createFolderStructure(
-            organizeService,
-            folderHierarchy,
-            null,
-            explorerIconService
-          );
-          rootFolderId = folderId || undefined;
-
-          // Create links for all documents to their respective folders
-          for (const { folderId, docId } of docLinks) {
-            const folder =
-              organizeService.folderTree.folderNode$(folderId).value;
-            if (folder) {
-              const index = folder.indexAt('after');
-              folder.createLink('doc', docId, index);
-            }
-          }
-        } catch (error) {
-          logger.warn('Failed to create folder structure:', error);
-          // Continue with import even if folder creation fails
-        }
-      }
+      const rootFolderId =
+        folderHierarchy && organizeService
+          ? applyFolderHierarchy(
+              organizeService,
+              folderHierarchy,
+              explorerIconService
+            )
+          : undefined;
 
       return {
         docIds: pageIds,
@@ -479,6 +545,181 @@ const importConfigs: Record<Exclude<ImportType, 'csv'>, ImportConfig> = {
               'Notion CSV values are mapped to supported Nota columns. Source relation, formula and view definitions are not included in ordinary CSV exports; any supplied values remain readable.',
             ]
           : undefined,
+      };
+    },
+  },
+  notionMarkdown: {
+    fileOptions: { acceptType: 'Zip', multiple: false },
+    importFunction: async (
+      docCollection,
+      files,
+      _handleImportAffineFile,
+      organizeService,
+      explorerIconService
+    ) => {
+      const file = files.length === 1 ? files[0] : null;
+      if (!file) {
+        throw new Error('Expected a single zip file for notionMarkdown import');
+      }
+      const { docIds, folderHierarchy } =
+        await MarkdownTransformer.importNotionMarkdownZip({
+          collection: docCollection,
+          schema: getAFFiNEWorkspaceSchema(),
+          imported: file,
+          extensions: getStoreManager().config.init().value.get('store'),
+        });
+
+      const rootFolderId =
+        folderHierarchy && organizeService
+          ? applyFolderHierarchy(
+              organizeService,
+              folderHierarchy,
+              explorerIconService
+            )
+          : undefined;
+
+      return {
+        docIds,
+        rootFolderId,
+      };
+    },
+  },
+  obsidian: {
+    fileOptions: { acceptType: 'Directory', multiple: false },
+    importFunction: async (
+      docCollection,
+      files,
+      _handleImportAffineFile,
+      _organizeService,
+      explorerIconService
+    ) => {
+      const { docIds, docEmojis } =
+        await ObsidianTransformer.importObsidianVault({
+          collection: docCollection,
+          schema: getAFFiNEWorkspaceSchema(),
+          importedFiles: files,
+          extensions: getStoreManager().config.init().value.get('store'),
+        });
+
+      if (explorerIconService) {
+        for (const [id, emoji] of docEmojis.entries()) {
+          explorerIconService.setIcon({
+            where: 'doc',
+            id,
+            icon: { type: IconType.Emoji, unicode: emoji },
+          });
+        }
+      }
+
+      return { docIds };
+    },
+  },
+  bear: {
+    fileOptions: { acceptType: 'Zip', multiple: false },
+    importFunction: async (
+      docCollection,
+      files,
+      _handleImportAffineFile,
+      organizeService,
+      _explorerIconService,
+      _signal,
+      tagService
+    ) => {
+      const file = files.length === 1 ? files[0] : null;
+      if (!file) {
+        throw new Error('Expected a single .bear2bk file for Bear import');
+      }
+      let docIds: string[];
+      let tags: Map<string, string[]>;
+      let folderHierarchy: FolderHierarchy;
+      try {
+        const result = await BearTransformer.importBearBackup({
+          collection: docCollection,
+          schema: getAFFiNEWorkspaceSchema(),
+          imported: file,
+          extensions: getStoreManager().config.init().value.get('store'),
+        });
+        docIds = result.docIds;
+        tags = result.tags;
+        folderHierarchy = result.folderHierarchy;
+      } catch (err) {
+        logger.error('Bear import failed:', err);
+        throw err instanceof Error
+          ? err
+          : new Error(String(err) || 'Bear import failed');
+      }
+
+      // Create Nota tags from Bear tags
+      if (tagService && tags.size > 0) {
+        try {
+          // Get existing tags for deduplication
+          const existingTags = tagService.tagList.tags$.value;
+          const existingTagMap = new Map<string, string>(); // lowercase name → tag id
+          for (const tag of existingTags) {
+            const name = tag.value$.value.toLowerCase();
+            existingTagMap.set(name, tag.id);
+          }
+
+          // Consolidate tags by root segment (e.g., "privat/bike" → "privat").
+          // Keyed by lowercase root for case-insensitive dedup, but the
+          // original capitalization of the first occurrence is preserved
+          // so new Nota tags are created with the user's casing.
+          const rootTagDocMap = new Map<
+            string,
+            { displayName: string; docs: Set<string> }
+          >();
+          for (const [tagName, tagDocIds] of tags) {
+            const originalRoot = tagName.split('/')[0];
+            const key = originalRoot.toLowerCase();
+            let entry = rootTagDocMap.get(key);
+            if (!entry) {
+              entry = { displayName: originalRoot, docs: new Set<string>() };
+              rootTagDocMap.set(key, entry);
+            }
+            for (const docId of tagDocIds) {
+              entry.docs.add(docId);
+            }
+          }
+
+          for (const [
+            rootTagKey,
+            { displayName, docs: docIdSet },
+          ] of rootTagDocMap) {
+            // Check if tag already exists (case-insensitive)
+            let tagId = existingTagMap.get(rootTagKey);
+            if (!tagId) {
+              const newTag = tagService.tagList.createTag(
+                displayName,
+                tagService.randomTagColor()
+              );
+              tagId = newTag.id;
+              existingTagMap.set(rootTagKey, tagId);
+            }
+
+            // Assign tag to each doc
+            for (const docId of docIdSet) {
+              const doc = docCollection.getDoc(docId);
+              const currentTags = doc?.meta?.tags ?? [];
+              if (!currentTags.includes(tagId)) {
+                docCollection.meta.setDocMeta(docId, {
+                  tags: [...currentTags, tagId],
+                });
+              }
+            }
+          }
+        } catch (error) {
+          logger.warn('Failed to create Bear tags:', error);
+        }
+      }
+
+      const rootFolderId =
+        folderHierarchy && organizeService
+          ? applyFolderHierarchy(organizeService, folderHierarchy)
+          : undefined;
+
+      return {
+        docIds,
+        rootFolderId,
       };
     },
   },
@@ -519,7 +760,7 @@ const importConfigs: Record<Exclude<ImportType, 'csv'>, ImportConfig> = {
           signal
         )
       )
-        .filter(doc => doc !== undefined)
+        .filter((doc): doc is NonNullable<typeof doc> => doc !== undefined)
         .map(doc => doc.id);
 
       return {
@@ -750,6 +991,7 @@ export const ImportDialog = ({
   const docCollection = workspace.docCollection;
   const organizeService = useService(OrganizeService);
   const explorerIconService = useService(ExplorerIconService);
+  const tagService = useService(TagService);
 
   const globalDialogService = useService(GlobalDialogService);
 
@@ -785,17 +1027,21 @@ export const ImportDialog = ({
       });
 
       return new Promise<WorkspaceMetadata | undefined>((resolve, reject) => {
-        globalDialogService.open('import-workspace', undefined, payload => {
-          if (payload) {
-            // Notify the source workspace before navigation unmounts its
-            // dialog, so onboarding can resume after this successful import.
-            close({ docIds: [], isWorkspaceFile: true });
-            handleCreatedWorkspace({ metadata: payload.workspace });
-            resolve(payload.workspace);
-          } else {
-            reject(new Error('No workspace imported'));
+        globalDialogService.open(
+          'import-workspace',
+          undefined,
+          (payload?: ImportedWorkspacePayload) => {
+            if (payload) {
+              // Notify the source workspace before navigation unmounts its
+              // dialog, so onboarding can resume after this successful import.
+              close({ docIds: [], isWorkspaceFile: true });
+              handleCreatedWorkspace({ metadata: payload.workspace });
+              resolve(payload.workspace);
+            } else {
+              reject(new Error('No workspace imported'));
+            }
           }
-        });
+        );
       });
     };
   }, [close, globalDialogService, handleCreatedWorkspace]);
@@ -830,7 +1076,9 @@ export const ImportDialog = ({
         const files =
           acceptType === 'Skip'
             ? []
-            : await openFilesWith(acceptType, multiple);
+            : acceptType === 'Directory'
+              ? await openDirectory()
+              : await openFilesWith(acceptType, multiple);
         request.signal.throwIfAborted();
 
         if (!files || (files.length === 0 && acceptType !== 'Skip')) {
@@ -854,7 +1102,8 @@ export const ImportDialog = ({
             handleImportAffineFile,
             organizeService,
             explorerIconService,
-            request.signal
+            request.signal,
+            tagService
           );
         const { docIds, entryId, isWorkspaceFile, rootFolderId, report } =
           type === 'snapshot' || type === 'notion' || type === 'dotaffinefile'
@@ -900,6 +1149,7 @@ export const ImportDialog = ({
       explorerIconService,
       handleImportAffineFile,
       organizeService,
+      tagService,
       t,
     ]
   );
