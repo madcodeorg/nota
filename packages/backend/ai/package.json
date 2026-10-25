@@ -46,7 +46,7 @@
     "multer": "^2.0.2",
     "onnxruntime-node": "patch:onnxruntime-node@npm%3A1.24.3#~/.yarn/patches/onnxruntime-node-npm-1.24.3-b5bf0b646c.patch",
     "sherpa-onnx-node": "1.13.8",
-    "undici": "^7.29.0",
+    "undici": "^7.30.1",
     "zod": "^3.25.76"
   },
   "devDependencies": {
