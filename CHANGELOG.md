@@ -2,6 +2,10 @@
 
 All notable changes to Nota are recorded here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Installers and release notes are published on [GitHub Releases](https://github.com/madcodeorg/nota/releases).
 
+## 0.1.10
+
+- Updated the desktop runtime with the latest security fixes.
+
 ## 0.1.9
 
 - Graph view: see how your notes link together and jump to any note from the map.
