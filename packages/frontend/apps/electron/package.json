@@ -78,7 +78,7 @@
     "typescript": "^5.9.3",
     "uuid": "^14.0.1",
     "vitest": "^4.1.11",
-    "zod": "^3.25.76"
+    "zod": "^4.6.6"
   },
   "dependencies": {
     "async-call-rpc": "^6.4.2",

@@ -19,7 +19,7 @@
     "@nota/templates": "workspace:*"
   },
   "dependencies": {
-    "zod": "^3.25.76"
+    "zod": "^4.6.6"
   },
   "version": "0.1.9"
 }
