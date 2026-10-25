@@ -43,7 +43,7 @@
     "cors": "^2.8.5",
     "express": "^5.2.1",
     "jose": "5.10.0",
-    "multer": "^2.0.2",
+    "multer": "^2.5.0",
     "onnxruntime-node": "patch:onnxruntime-node@npm%3A1.24.3#~/.yarn/patches/onnxruntime-node-npm-1.24.3-b5bf0b646c.patch",
     "sherpa-onnx-node": "1.13.8",
     "undici": "^7.29.0",

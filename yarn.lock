@@ -8673,7 +8673,7 @@ __metadata:
     cors: "npm:^2.8.5"
     express: "npm:^5.2.1"
     jose: "npm:5.10.0"
-    multer: "npm:^2.0.2"
+    multer: "npm:^2.5.0"
     onnxruntime-node: "patch:onnxruntime-node@npm%3A1.24.3#~/.yarn/patches/onnxruntime-node-npm-1.24.3-b5bf0b646c.patch"
     sherpa-onnx-node: "npm:1.13.8"
     tsx: "npm:^4.21.0"
@@ -9223,7 +9223,7 @@ __metadata:
     express-rate-limit: "npm:^7.1.5"
     fs-extra: "npm:^11.3.0"
     lodash-es: "npm:^4.17.23"
-    multer: "npm:^2.0.2"
+    multer: "npm:^2.5.0"
     react: "npm:^19.2.1"
     react-dom: "npm:^19.2.1"
     react-markdown: "npm:^10.1.0"
@@ -27327,14 +27327,14 @@ __metadata:
   languageName: node
   linkType: hard
 
-"multer@npm:^2.0.2":
-  version: 2.4.0
-  resolution: "multer@npm:2.4.0"
+"multer@npm:^2.5.0":
+  version: 2.5.0
+  resolution: "multer@npm:2.5.0"
   dependencies:
     append-field: "npm:^1.0.0"
     busboy: "npm:^1.6.0"
     type-is: "npm:^1.6.18"
-  checksum: 10/644efb2eefa60079866c3ed9eb549e76c93bd642af2790c2579b224de9a4a4e0545d8e36aeafca21207445b6d2505e85779dca365351eb6f45fca8ce44a8e605
+  checksum: 10/c5b968f51f69df631059bb01088c15d0e670853fcfed029af3cf8167ef50f798bb6344143eb1884708bd0de34317d1b4696d74aa93c482390e7d291172958ae9
   languageName: node
   linkType: hard
 
