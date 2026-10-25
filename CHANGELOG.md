@@ -2,9 +2,9 @@
 
 All notable changes to Nota are recorded here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Installers and release notes are published on [GitHub Releases](https://github.com/madcodeorg/nota/releases).
 
-## 0.1.10
+## 0.1.11
 
-- Updated the desktop runtime with the latest security fixes.
+- Updated the desktop runtime, HTML sanitizer, and network dependencies with the latest security fixes.
 
 ## 0.1.9
 
