@@ -5,18 +5,30 @@ on:
     branches: [main, beta]
     paths-ignore: ['**.md', 'public/**']
   pull_request:
+  workflow_dispatch:
+  # Reused by release-desktop.yml as the release gate (typecheck + tests).
+  workflow_call:
+    inputs:
+      skip_build_renderer:
+        description: 'Skip the renderer build (the release builds it itself).'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
 
+# The ci- prefix keeps this group distinct from the caller's own group when the
+# workflow is reused (concurrency groups are case-insensitive, and a reused
+# workflow sees the caller's github.workflow, so an identical group deadlocks).
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || github.event_name == 'push' }}
 
 jobs:
   typecheck:
     name: Typecheck
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     env:
       NODE_OPTIONS: --max-old-space-size=14384
     steps:
@@ -31,6 +43,7 @@ jobs:
   unit-test:
     name: Unit tests
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-node
@@ -40,9 +53,32 @@ jobs:
       - run: yarn nota @nota/i18n build
       - run: yarn vitest --run packages/frontend/apps/electron/test/main packages/frontend/core/src/modules/google-auth
 
+  # Builds the desktop renderer the same way the release workflow does, so a
+  # broken bundle fails the PR instead of the release. Runs on main too, which
+  # keeps the rspack cache warm for release builds (caches saved on the default
+  # branch are readable from tag and dispatch runs).
+  build-renderer:
+    name: Build renderer
+    if: ${{ !inputs.skip_build_renderer }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      NODE_OPTIONS: --max-old-space-size=8192
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-node
+        with:
+          electron-install: false
+          # Share the typecheck/unit-test node_modules cache instead of saving
+          # a second ~1.7 GB copy (the repo cache limit is 10 GB).
+          full-cache: true
+      - uses: ./.github/actions/rspack-cache
+      - run: yarn nota @nota/i18n build
+      - run: yarn nota @nota/electron-renderer build
+
   ci-passed:
     name: CI passed
-    needs: [typecheck, unit-test]
+    needs: [typecheck, unit-test, build-renderer]
     if: always()
     runs-on: ubuntu-latest
     steps:
