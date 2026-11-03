@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
 
 import { arch as makeArch } from './make-env.js';
@@ -239,4 +239,7 @@ export async function buildLocalAsr() {
     `Local ASR and llama.cpp helpers built for ${targetPlatform}/${targetArch}.`
   );
 }
-if (import.meta.url === `file://${process.argv[1]}`) await buildLocalAsr();
+// `file://${argv[1]}` never matches on Windows (drive letters, backslashes),
+// which made a direct run silently build nothing.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href)
+  await buildLocalAsr();
