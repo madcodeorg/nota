@@ -2,7 +2,7 @@
   "name": "@nota/core",
   "type": "module",
   "private": true,
-  "version": "0.1.12-beta.1",
+  "version": "0.1.12",
   "exports": {
     "./*": "./src/*",
     "./bootstrap": "./src/bootstrap/index.ts"

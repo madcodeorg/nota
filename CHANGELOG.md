@@ -2,6 +2,12 @@
 
 All notable changes to Nota are recorded here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Installers and release notes are published on [GitHub Releases](https://github.com/madcodeorg/nota/releases).
 
+## 0.1.12
+
+- New Graphite Coral theme with an accent color picker.
+- Smoother split view and sidebar menus.
+- The AI assistant stays responsive while it searches your notes and saves its data.
+
 ## 0.1.11
 
 - Updated the desktop runtime, HTML sanitizer, and network dependencies with the latest security fixes.
