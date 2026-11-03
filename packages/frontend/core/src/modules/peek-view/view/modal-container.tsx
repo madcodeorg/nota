@@ -1,6 +1,6 @@
 import { useLiveData, useService } from '@nota/infra';
 import * as Dialog from '@radix-ui/react-dialog';
-import { eases, waapi, type WAAPIAnimation } from 'animejs';
+import { cubicBezier, eases, waapi, type WAAPIAnimation } from 'animejs';
 import clsx from 'clsx';
 import {
   createContext,
@@ -327,7 +327,7 @@ export const PeekViewModalContainer = forwardRef<
             opacity: animateIn ? [0, 1] : [1, 0],
             y: animateIn ? ['-2%', '0%'] : ['0%', '-2%'],
             scale: animateIn ? [0.96, 1] : [1, 0.96],
-            ease: eases.cubicBezier(0.42, 0, 0.58, 1),
+            ease: cubicBezier(0.42, 0, 0.58, 1),
             duration: 230,
             onComplete: () => {
               if (!animateIn) setVtOpen(false);

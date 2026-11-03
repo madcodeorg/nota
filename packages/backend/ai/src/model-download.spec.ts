@@ -378,6 +378,22 @@ describe('local model downloads', () => {
       },
       { timeout: 2000 }
     );
+    // The job keeps writing downloads.json after the model file lands; wait for
+    // it so cleanup does not race the final save.
+    await vi.waitFor(
+      async () => {
+        const saved = JSON.parse(
+          await readFile(
+            path.join(workspaceRoot, '.nota', 'models', 'downloads.json'),
+            'utf8'
+          )
+        ) as { downloads: Array<{ modelId: string; status: string }> };
+        expect(
+          saved.downloads.find(job => job.modelId === model.id)?.status
+        ).toBe('downloaded');
+      },
+      { timeout: 2000 }
+    );
     expect(headRequests).toBe(1);
     expect(getRequests).toBe(1);
   });

@@ -18,13 +18,13 @@
     "@nota/infra": "workspace:*",
     "@nota/nbstore": "workspace:*",
     "@nota/track": "workspace:*",
-    "react": "^19.2.1",
-    "react-dom": "^19.2.1",
-    "react-router-dom": "^6.30.3"
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "react-router-dom": "^6.30.6"
   },
   "devDependencies": {
-    "@types/react": "^19.0.1",
-    "@types/react-dom": "^19.0.2",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
     "cross-env": "^10.1.0",
     "typescript": "^5.9.3"
   }

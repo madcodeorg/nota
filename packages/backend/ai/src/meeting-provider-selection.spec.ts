@@ -104,7 +104,7 @@ describe.each([
       });
     });
 
-    test('keeps the native platform default ahead of installed fallbacks', () => {
+    test('prefers installed Large v3 in Auto', () => {
       expect(
         selectMeetingSttProvider({
           config: config(),
@@ -113,9 +113,35 @@ describe.each([
         })
       ).toMatchObject({
         error: null,
+        provider: { id: 'whisper-large-v3-cpp' },
+        requestedProviderId: 'auto',
+      });
+    });
+
+    test('keeps the native platform default ahead of other installed fallbacks', () => {
+      expect(
+        selectMeetingSttProvider({
+          config: config(),
+          platform,
+          providers: providers(
+            providerIds.filter(id => id !== 'whisper-large-v3-cpp')
+          ),
+        })
+      ).toMatchObject({
+        error: null,
         provider: { id: primary },
         requestedProviderId: 'auto',
       });
+    });
+
+    test('keeps an explicitly configured provider ahead of installed Large v3', () => {
+      expect(
+        selectMeetingSttProvider({
+          config: config('whisper-medium-cpp'),
+          platform,
+          providers: providers(providerIds),
+        }).provider?.id
+      ).toBe('whisper-medium-cpp');
     });
 
     test('keeps the second native choice ahead of installed fallbacks', () => {
@@ -123,7 +149,11 @@ describe.each([
         selectMeetingSttProvider({
           config: config(),
           platform,
-          providers: providers(providerIds.filter(id => id !== primary)),
+          providers: providers(
+            providerIds.filter(
+              id => id !== primary && id !== 'whisper-large-v3-cpp'
+            )
+          ),
           requestedProviderId: 'auto',
         }).provider?.id
       ).toBe(secondary);

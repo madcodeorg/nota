@@ -20,15 +20,15 @@
   "dependencies": {
     "@magic-works/i18n-codegen": "^0.6.1",
     "@nota/debug": "workspace:*",
-    "dayjs": "^1.11.13",
-    "i18next": "^25.0.0",
-    "react": "^19.2.1",
-    "react-i18next": "^15.2.0"
+    "dayjs": "^1.11.23",
+    "i18next": "^25.10.10",
+    "react": "^19.3.1",
+    "react-i18next": "^15.7.4"
   },
   "devDependencies": {
     "@nota-tools/cli": "workspace:*",
     "@nota-tools/utils": "workspace:*",
-    "glob": "^11.0.0",
-    "vitest": "^4.1.11"
+    "glob": "^11.1.0",
+    "vitest": "^4.1.12"
   }
 }

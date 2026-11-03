@@ -13,12 +13,12 @@
   "dependencies": {
     "@blocksuite/affine": "workspace:*",
     "@blocksuite/icons": "^2.2.17",
-    "@capacitor/android": "^8.4.2",
-    "@capacitor/app": "^8.0.0",
-    "@capacitor/core": "^8.4.2",
-    "@capacitor/keyboard": "^8.0.0",
-    "@capacitor/status-bar": "^8.0.0",
-    "@capgo/capacitor-inappbrowser": "^8.12.0",
+    "@capacitor/android": "^8.6.0",
+    "@capacitor/app": "^8.1.2",
+    "@capacitor/core": "^8.6.0",
+    "@capacitor/keyboard": "^8.0.6",
+    "@capacitor/status-bar": "^8.0.4",
+    "@capgo/capacitor-inappbrowser": "^8.27.1",
     "@nota/component": "workspace:*",
     "@nota/core": "workspace:*",
     "@nota/env": "workspace:*",
@@ -28,16 +28,16 @@
     "@nota/nbstore": "workspace:*",
     "@nota/track": "workspace:*",
     "async-call-rpc": "^6.4.2",
-    "idb": "^8.0.0",
-    "next-themes": "^0.4.4",
-    "react": "^19.2.1",
-    "react-dom": "^19.2.1",
-    "react-router-dom": "^6.30.3"
+    "idb": "^8.0.4",
+    "next-themes": "^0.4.6",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "react-router-dom": "^6.30.6"
   },
   "devDependencies": {
-    "@capacitor/cli": "^8.4.2",
-    "@types/react": "^19.0.1",
-    "@types/react-dom": "^19.0.2",
+    "@capacitor/cli": "^8.6.0",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
     "cross-env": "^10.1.0",
     "typescript": "^5.9.3"
   }

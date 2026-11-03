@@ -290,18 +290,21 @@ const copyNodeRuntimePackage = async (packageName, nodeModulesDir) => {
   });
 };
 
+// Paths, relative to node_modules, of every onnxruntime-node copy. Transformers
+// pins its own release, so a nested copy ships next to the top-level one.
+const ONNX_RUNTIME_NODE_PACKAGE_DIRS = [
+  'onnxruntime-node',
+  '@huggingface/transformers/node_modules/onnxruntime-node',
+];
+
 const pruneOnnxRuntimeNodePackage = async (
   nodeModulesDir,
   targetPlatform,
-  targetArch
+  targetArch,
+  packageDir = 'onnxruntime-node'
 ) => {
   const runtimePlatform = targetPlatform === 'mas' ? 'darwin' : targetPlatform;
-  const binRoot = path.join(
-    nodeModulesDir,
-    'onnxruntime-node',
-    'bin',
-    'napi-v6'
-  );
+  const binRoot = path.join(nodeModulesDir, packageDir, 'bin', 'napi-v6');
 
   let platformEntries;
   try {
@@ -324,7 +327,7 @@ const pruneOnnxRuntimeNodePackage = async (
     archEntries = await readdir(platformRoot, { withFileTypes: true });
   } catch {
     throw new Error(
-      `onnxruntime-node does not include binaries for ${runtimePlatform}-${targetArch}`
+      `${packageDir} does not include binaries for ${runtimePlatform}-${targetArch}`
     );
   }
 
@@ -357,7 +360,14 @@ const copyAiBackendRuntimePackages = async (
     await copyNodeRuntimePackage(packageName, nodeModulesDir);
   }
 
-  await pruneOnnxRuntimeNodePackage(nodeModulesDir, targetPlatform, targetArch);
+  for (const packageDir of ONNX_RUNTIME_NODE_PACKAGE_DIRS) {
+    await pruneOnnxRuntimeNodePackage(
+      nodeModulesDir,
+      targetPlatform,
+      targetArch,
+      packageDir
+    );
+  }
 };
 
 const prepareSeededLocalModelResources = async () => {
@@ -775,6 +785,11 @@ const makers = [
         productName,
         icon: iconX512PngPath,
         mimeType: linuxMimeTypes,
+        // Meeting recording reads the output monitor with parec or pw-record.
+        recommends: [
+          'pulseaudio | libasound2',
+          'pulseaudio-utils | pipewire-bin',
+        ],
         scripts: {
           // maker-deb does not have a way to include arbitrary files in package root
           // instead, put files in extraResource, and then install with a script

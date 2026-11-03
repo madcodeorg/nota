@@ -26,6 +26,7 @@ const buildRoot =
     : path.join(sourceDir, '.build'));
 const buildDir = path.join(buildRoot, `${targetPlatform}-${targetArch}`);
 const resourceDir = path.join(electronDir, 'resources/native');
+const buildJobs = Math.max(1, os.availableParallelism());
 const whisperCommit = '60c0be6ac8fa71b1a2ae2dd938a31a34a508e774';
 // llama.cpp serves chat and meeting summaries on the GPU (Metal on macOS,
 // Vulkan on Windows) from a separate helper process.
@@ -130,7 +131,7 @@ async function buildLlamaServer(cmake: string) {
       '--target',
       'llama-server',
       '-j',
-      '4',
+      String(buildJobs),
     ],
     { maxBuffer: 64 * 1024 * 1024 }
   );
@@ -186,7 +187,14 @@ export async function buildLocalAsr() {
   await run(cmake, cmakeArgs, { maxBuffer: 16 * 1024 * 1024 });
   await run(
     cmake,
-    ['--build', path.join(buildDir, 'cmake'), '--config', 'Release', '-j', '4'],
+    [
+      '--build',
+      path.join(buildDir, 'cmake'),
+      '--config',
+      'Release',
+      '-j',
+      String(buildJobs),
+    ],
     { maxBuffer: 32 * 1024 * 1024 }
   );
   for (const name of ['nota-whisper-helper']) {

@@ -7,12 +7,12 @@
   },
   "dependencies": {
     "aws4": "^1.13.2",
-    "fast-xml-parser": "^5.3.4",
-    "s3mini": "^0.9.1"
+    "fast-xml-parser": "^5.12.0",
+    "s3mini": "^0.9.5"
   },
   "devDependencies": {
     "@types/aws4": "^1.11.6",
-    "vitest": "^4.1.11"
+    "vitest": "^4.1.12"
   },
   "version": "0.1.12"
 }

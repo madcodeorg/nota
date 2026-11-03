@@ -19,7 +19,7 @@ import {
 } from 'rxjs';
 import { filter, map, shareReplay } from 'rxjs/operators';
 
-import { isMacOS, isWindows, shallowEqual } from '../../shared/utils';
+import { isLinux, isMacOS, isWindows, shallowEqual } from '../../shared/utils';
 import { beforeAppQuit } from '../cleanup';
 import { logger } from '../logger';
 import {
@@ -127,10 +127,19 @@ export function getRecordingRuntimeStatus() {
     };
   }
 
-  if (!isMacOS() && !isWindows()) {
+  if (!isMacOS() && !isWindows() && !isLinux()) {
     return {
       available: false,
-      reason: 'Meeting recording is only available on macOS and Windows.',
+      reason:
+        'Meeting recording is only available on macOS, Windows and Linux.',
+    };
+  }
+
+  if (isLinux() && !findLinuxSystemAudioRecorder()) {
+    return {
+      available: false,
+      reason:
+        'System audio capture needs parec (pulseaudio-utils) or pw-record (pipewire-utils). Install one with your package manager, then check again.',
     };
   }
 
@@ -356,7 +365,9 @@ function getSanitizedAppId(bundleIdentifier?: string) {
     return 'unknown';
   }
 
-  return isWindows()
+  // Windows and Linux identify apps by executable path, which is not a
+  // valid file name, so hash it.
+  return isWindows() || isLinux()
     ? createHash('sha256')
         .update(bundleIdentifier)
         .digest('hex')
@@ -655,6 +666,9 @@ function getAllApps(): TappableAppInfo[] {
       v !== null &&
       !v.bundleIdentifier.startsWith('com.apple') &&
       !v.bundleIdentifier.startsWith('pro.nota') &&
+      // Electron helpers (e.g. the audio service that owns the renderer's
+      // microphone stream) share Nota's executable but not its pid.
+      v.bundleIdentifier !== process.execPath &&
       v.processId !== process.pid
   );
   return filteredApps;
@@ -1182,8 +1196,29 @@ export const checkRecordingAvailable = () => {
   if (isWindows()) {
     return true;
   }
-  return false;
+  // Linux captures the output monitor through PipeWire or PulseAudio.
+  return isLinux();
 };
+
+const LINUX_SYSTEM_AUDIO_RECORDERS = ['parec', 'pw-record'];
+
+/** The recorder the native Linux tap will use, or null if none is installed. */
+export function findLinuxSystemAudioRecorder(
+  searchPath = process.env.PATH ?? ''
+) {
+  for (const dir of searchPath.split(path.delimiter).filter(Boolean)) {
+    for (const name of LINUX_SYSTEM_AUDIO_RECORDERS) {
+      const candidate = path.join(dir, name);
+      try {
+        fs.accessSync(candidate, fs.constants.X_OK);
+        return candidate;
+      } catch {
+        // keep looking
+      }
+    }
+  }
+  return null;
+}
 
 export type MeetingMediaAccessStatus =
   | 'denied'
@@ -1261,6 +1296,32 @@ export const checkMeetingPermissions = (
       statuses: {
         systemAudio: 'unknown',
         microphone: microphoneStatus,
+      },
+    } satisfies MeetingPermissionReport;
+  }
+
+  if (isLinux()) {
+    // Linux desktops have no per-app microphone permission outside sandboxes,
+    // and the output monitor needs none. Devices are checked when recording
+    // starts, as on Windows.
+    return {
+      checkedAt: Date.now(),
+      systemAudio: runtime.available,
+      microphone: true,
+      permissionClient: getMacOSPermissionClient(),
+      ready: runtime.available,
+      runtime,
+      systemAudioAccessSource: runtime.available
+        ? 'platform-compatibility'
+        : 'unavailable',
+      reasons: runtime.available
+        ? {
+            systemAudio: 'Linux system audio is checked when recording starts.',
+          }
+        : { systemAudio: runtime.reason ?? 'System audio is unavailable.' },
+      statuses: {
+        systemAudio: 'unknown',
+        microphone: 'granted',
       },
     } satisfies MeetingPermissionReport;
   }

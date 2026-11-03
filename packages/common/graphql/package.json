@@ -17,8 +17,8 @@
     "@graphql-codegen/typescript": "^4.1.6",
     "@graphql-codegen/typescript-operations": "^4.6.1",
     "@types/lodash-es": "^4.17.12",
-    "prettier": "^3.7.4",
-    "vitest": "^4.1.11"
+    "prettier": "^3.9.10",
+    "vitest": "^4.1.12"
   },
   "scripts": {
     "build": "gql-gen --errors-only",
@@ -28,8 +28,8 @@
     "@nota/debug": "workspace:*",
     "@nota/env": "workspace:*",
     "@nota/error": "workspace:*",
-    "graphql": "^16.9.0",
-    "lodash": "^4.17.23",
-    "lodash-es": "^4.17.23"
+    "graphql": "^16.14.2",
+    "lodash": "^4.18.1",
+    "lodash-es": "^4.18.1"
   }
 }

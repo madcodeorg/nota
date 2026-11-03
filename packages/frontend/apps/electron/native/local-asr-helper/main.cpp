@@ -1,6 +1,7 @@
 // Nota's private stdio adapter. Models stay loaded across phrase requests.
 // Input: little-endian uint32 sample count, uint16 language byte count,
-// UTF-8 language, then signed PCM16 samples at 16 kHz mono. Output: JSON lines.
+// UTF-8 language, uint16 prompt byte count, UTF-8 prompt, then signed PCM16
+// samples at 16 kHz mono. Output: JSON lines.
 #include <algorithm>
 #include <cstdint>
 #include <cstdlib>
@@ -53,21 +54,35 @@ int main(int argc, char **argv) {
             fail("Invalid audio request; maximum phrase is 30 seconds."); break;
         }
         std::string language(lang_size, '\0');
+        if (!read_exact(language.data(), lang_size)) break;
+        unsigned char prompt_header[2];
+        if (!read_exact(reinterpret_cast<char *>(prompt_header), sizeof(prompt_header))) break;
+        uint16_t prompt_size = uint16_t(prompt_header[0]) | (uint16_t(prompt_header[1]) << 8);
+        if (prompt_size > 1024) { fail("Invalid prompt size."); break; }
+        std::string prompt(prompt_size, '\0');
         std::vector<unsigned char> raw(count * 2);
-        if (!read_exact(language.data(), lang_size) ||
+        if (!read_exact(prompt.data(), prompt_size) ||
             !read_exact(reinterpret_cast<char *>(raw.data()), raw.size())) break;
         std::vector<float> pcm(count);
         for (uint32_t i = 0; i < count; ++i) {
             int16_t s = static_cast<int16_t>(uint16_t(raw[i * 2]) | (uint16_t(raw[i * 2 + 1]) << 8));
             pcm[i] = float(s) / 32768.0f;
         }
-        auto options = whisper_full_default_params(WHISPER_SAMPLING_GREEDY);
+        // Beam search is far more accurate than greedy on short phrases and
+        // decoding runs well under real time, so the extra cost is affordable.
+        auto options = whisper_full_default_params(WHISPER_SAMPLING_BEAM_SEARCH);
+        // Without this, silence and noise decode as "[Music]", "(applause)" and
+        // "Thank you for watching".
+        options.suppress_nst = true;
         options.n_threads = std::max(1u, std::min(4u, std::thread::hardware_concurrency()));
         options.language = language.c_str();
         // "auto" detects then transcribes; detect_language=true returns early.
         options.detect_language = false;
         options.translate = false;
         options.no_context = true;
+        // The previous phrase conditions spelling, names and style without
+        // carrying decoder state between requests.
+        if (!prompt.empty()) options.initial_prompt = prompt.c_str();
         options.print_progress = false;
         options.print_realtime = false;
         options.print_timestamps = false;
@@ -76,11 +91,28 @@ int main(int argc, char **argv) {
             fail("Whisper transcription failed."); continue;
         }
         std::string text;
-        for (int i = 0; i < whisper_full_n_segments(ctx); ++i)
+        // Confidence for dropping hallucinations on noise: the highest
+        // no-speech probability of any segment and the mean token log-prob.
+        float no_speech = 0.0f;
+        double logprob_sum = 0.0;
+        int logprob_count = 0;
+        const whisper_token eot = whisper_token_eot(ctx);
+        for (int i = 0; i < whisper_full_n_segments(ctx); ++i) {
             text += whisper_full_get_segment_text(ctx, i);
+            no_speech = std::max(no_speech, whisper_full_get_segment_no_speech_prob(ctx, i));
+            for (int j = 0; j < whisper_full_n_tokens(ctx, i); ++j) {
+                auto token = whisper_full_get_token_data(ctx, i, j);
+                if (token.id >= eot) continue;
+                logprob_sum += token.plog;
+                ++logprob_count;
+            }
+        }
+        const double avg_logprob = logprob_count ? logprob_sum / logprob_count : 0.0;
         const char *lang = whisper_lang_str(whisper_full_lang_id(ctx));
         std::cout << "{\"text\":" << quote(text) << ",\"language\":"
-                  << (lang ? quote(lang) : "null") << "}" << std::endl;
+                  << (lang ? quote(lang) : "null")
+                  << ",\"noSpeechProb\":" << no_speech
+                  << ",\"avgLogprob\":" << avg_logprob << "}" << std::endl;
     }
     whisper_free(ctx);
     return 0;

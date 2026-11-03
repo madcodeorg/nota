@@ -14,12 +14,12 @@
     "bundle": "affine bundle -p @nota/reader"
   },
   "dependencies": {
-    "lodash-es": "^4.17.23",
-    "yjs": "^13.6.27"
+    "lodash-es": "^4.18.1",
+    "yjs": "^13.6.33"
   },
   "devDependencies": {
     "@blocksuite/affine": "workspace:*",
-    "vitest": "^4.1.11"
+    "vitest": "^4.1.12"
   },
   "peerDependencies": {
     "@blocksuite/affine": "workspace:*"

@@ -12,14 +12,14 @@
   "dependencies": {
     "@blocksuite/global": "workspace:*",
     "@types/lodash-es": "^4.17.12",
-    "idb": "^8.0.0",
-    "idb-keyval": "^6.2.2",
-    "lodash-es": "^4.17.23",
+    "idb": "^8.0.4",
+    "idb-keyval": "^6.3.0",
+    "lodash-es": "^4.18.1",
     "rxjs": "^7.8.2",
-    "y-protocols": "^1.0.6"
+    "y-protocols": "^1.0.7"
   },
   "devDependencies": {
-    "vitest": "^4.1.11"
+    "vitest": "^4.1.12"
   },
   "peerDependencies": {
     "yjs": "*"

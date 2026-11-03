@@ -43,6 +43,7 @@ import { useLiveData, useService } from '@nota/infra';
 import clsx from 'clsx';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import { PostMeetingPassRow } from './post-meeting-pass';
 import {
   meetingDownloadFeedback,
   meetingLanguageSelection,
@@ -1748,6 +1749,7 @@ const MeetingsSettingsMain = () => {
             {aiSettingsSaving ? 'Saving and preparing model...' : ''}
           </span>
         </div>
+        <PostMeetingPassRow />
         <details className={styles.otherModels}>
           <summary>Other speech models</summary>
           {providerCards
@@ -1858,7 +1860,9 @@ const MeetingsSettingsMain = () => {
               />
             </SettingRow>
           </SettingWrapper>
-          {(environment.isMacOs || environment.isWindows) && (
+          {(environment.isMacOs ||
+            environment.isWindows ||
+            environment.isLinux) && (
             <SettingWrapper
               title={t['com.affine.settings.meetings.privacy.header']()}
             >
@@ -1885,14 +1889,16 @@ const MeetingsSettingsMain = () => {
                   }
                 />
               )}
-              {environment.isWindows && (
+              {(environment.isWindows || environment.isLinux) && (
                 <SettingRow
                   name="System audio"
                   desc={
                     permissions?.runtime.available === false
                       ? (permissions.runtime.reason ??
                         'System audio capture is unavailable in this build.')
-                      : 'Captures sound played through your default Windows output device. Access is checked when recording starts.'
+                      : environment.isLinux
+                        ? 'Captures sound played through your default output device with PipeWire or PulseAudio. Access is checked when recording starts.'
+                        : 'Captures sound played through your default Windows output device. Access is checked when recording starts.'
                   }
                 >
                   <span role="status" className={styles.permissionGranted}>

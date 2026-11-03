@@ -10,10 +10,10 @@
   },
   "dependencies": {
     "@nota-tools/cli": "workspace:*",
-    "yjs": "^13.6.27"
+    "yjs": "^13.6.33"
   },
   "devDependencies": {
-    "@types/node": "^22.0.0",
+    "@types/node": "^22.20.5",
     "typescript": "^5.9.3"
   }
 }

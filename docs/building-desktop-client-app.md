@@ -77,6 +77,21 @@ yarn workspace @nota/electron dev
 
 The desktop development launcher bundles and starts the local AI backend. The app's dev script targets the renderer at `http://localhost:8080`. Models still need to be installed locally for inference.
 
+Local chat and Whisper transcription also need the `nota-llama-server` and `nota-whisper-helper` binaries in `packages/frontend/apps/electron/resources/native/`. Build them once with `yarn nota @nota/electron build` (needs CMake and a C/C++ compiler). Without them, model checks report that the runtime is not installed.
+
+### Linux
+
+Meeting recording reads system audio from the default output's monitor with `parec` (`pulseaudio-utils`) or, failing that, `pw-record` (`pipewire-utils` on Fedora, `pipewire-bin` on Debian/Ubuntu). Both work on PipeWire and PulseAudio desktops. The microphone uses Chromium's capture, and Linux has no per-app permission prompt. Without either tool, Settings reports recording as unavailable with an install hint. The `.deb` recommends both packages.
+
+To package on Linux, run the steps below with `--platform=linux --arch=x64`. The deb maker needs `dpkg` and `fakeroot`; the flatpak maker needs `flatpak-builder` and a Flathub remote. Select makers with `--targets`, for example:
+
+```sh
+BUILD_TYPE=canary SKIP_WEB_BUILD=1 HOIST_NODE_MODULES=1 yarn nota @nota/electron make --platform=linux --arch=x64 \
+  --targets=@electron-forge/maker-zip,@reforged/maker-appimage,@electron-forge/maker-deb
+```
+
+The Linux helpers are CPU builds by default. `NOTA_LLAMA_VULKAN=1` and `NOTA_WHISPER_VULKAN=1` build them with Vulkan, which needs the Vulkan headers and `glslc`.
+
 ## Build, package & make the desktop client app
 
 > repos/nota/.github/workflows/release-desktop.yml contains real order to build the desktop client app, but here we will explain the steps in a more detailed way. Up-to date.

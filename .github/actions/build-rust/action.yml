@@ -64,7 +64,7 @@ runs:
       if: ${{ runner.os == 'Windows' }}
       with:
         workspaces: ${{ env.DEV_DRIVE_WORKSPACE }}
-        save-if: ${{ github.ref_name == 'canary' }}
+        save-if: ${{ github.ref_name == github.event.repository.default_branch }}
         shared-key: ${{ inputs.target }}-${{ inputs.package }}
       env:
         CARGO_HOME: ${{ env.DEV_DRIVE }}/.cargo
@@ -74,7 +74,7 @@ runs:
       uses: Swatinem/rust-cache@v2
       if: ${{ runner.os != 'Windows' }}
       with:
-        save-if: ${{ github.ref_name == 'canary' }}
+        save-if: ${{ github.ref_name == github.event.repository.default_branch }}
         shared-key: ${{ inputs.target }}-${{ inputs.package }}
 
     - name: Build

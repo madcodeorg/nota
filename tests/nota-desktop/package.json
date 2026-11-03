@@ -10,7 +10,7 @@
     "@nota/electron-api": "workspace:*",
     "@playwright/test": "=1.58.2",
     "@types/fs-extra": "^11.0.4",
-    "fs-extra": "^11.2.0",
+    "fs-extra": "^11.4.1",
     "playwright": "=1.58.2"
   },
   "version": "0.1.12"

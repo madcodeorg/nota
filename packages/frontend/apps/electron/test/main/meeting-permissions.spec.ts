@@ -1,4 +1,7 @@
+import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import Module, { createRequire } from 'node:module';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -67,6 +70,7 @@ vi.mock('../../src/main/recording/system-audio-access', () => ({
 import {
   askForMeetingPermission,
   checkMeetingPermissions,
+  findLinuxSystemAudioRecorder,
   getRecordingRuntimeStatus,
   type MeetingMediaAccessStatus,
   type MeetingPermissionReport,
@@ -282,12 +286,80 @@ describe('other platforms', () => {
   });
 
   it('does not query unsupported platforms', async () => {
-    vi.spyOn(process, 'platform', 'get').mockReturnValue('linux');
+    vi.spyOn(process, 'platform', 'get').mockReturnValue('freebsd');
     expect(checkMeetingPermissions()).toBeUndefined();
     await expect(askForMeetingPermission('microphone')).resolves.toBe(false);
     expect(mocks.getMediaAccessStatus).not.toHaveBeenCalled();
     expect(mocks.askForMediaAccess).not.toHaveBeenCalled();
     expect(mocks.loadNative).not.toHaveBeenCalled();
+  });
+});
+
+describe('Linux meeting permission report', () => {
+  let binDir: string;
+  let previousPath: string | undefined;
+
+  beforeEach(() => {
+    vi.spyOn(process, 'platform', 'get').mockReturnValue('linux');
+    binDir = mkdtempSync(path.join(tmpdir(), 'nota-linux-recorder-'));
+    previousPath = process.env.PATH;
+    process.env.PATH = binDir;
+  });
+
+  afterEach(() => {
+    process.env.PATH = previousPath;
+    rmSync(binDir, { force: true, recursive: true });
+  });
+
+  function installRecorder(name: string) {
+    const file = path.join(binDir, name);
+    writeFileSync(file, '#!/bin/sh\n');
+    chmodSync(file, 0o755);
+    return file;
+  }
+
+  it.each(['parec', 'pw-record'])(
+    'is ready with %s and checks system audio on start',
+    name => {
+      const recorder = installRecorder(name);
+      expect(findLinuxSystemAudioRecorder()).toBe(recorder);
+      expect(checkMeetingPermissions()).toMatchObject({
+        microphone: true,
+        ready: true,
+        runtime: { available: true },
+        systemAudio: true,
+        systemAudioAccessSource: 'platform-compatibility',
+        statuses: { microphone: 'granted', systemAudio: 'unknown' },
+      });
+      expect(mocks.getMediaAccessStatus).not.toHaveBeenCalled();
+      expect(mocks.askForMediaAccess).not.toHaveBeenCalled();
+      expect(mocks.probe).not.toHaveBeenCalled();
+    }
+  );
+
+  it('explains how to install a recorder when none is on PATH', () => {
+    expect(findLinuxSystemAudioRecorder()).toBeNull();
+    const report = checkMeetingPermissions();
+    expect(report).toMatchObject({
+      ready: false,
+      runtime: { available: false },
+      systemAudio: false,
+      systemAudioAccessSource: 'unavailable',
+    });
+    expect(report?.runtime.reason).toMatch(/pulseaudio-utils/);
+    expect(report?.reasons.systemAudio).toMatch(/pipewire-utils/);
+    expect(mocks.loadNative).not.toHaveBeenCalled();
+  });
+
+  it('ignores a recorder that is not executable', () => {
+    writeFileSync(path.join(binDir, 'parec'), '');
+    expect(findLinuxSystemAudioRecorder()).toBeNull();
+  });
+
+  it('does not prompt for access', async () => {
+    installRecorder('parec');
+    await expect(askForMeetingPermission('microphone')).resolves.toBe(false);
+    expect(mocks.askForMediaAccess).not.toHaveBeenCalled();
   });
 });
 

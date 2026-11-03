@@ -6,9 +6,63 @@ import { createInterface } from 'node:readline';
 import type { MeetingUtteranceDecoder } from './meeting-capture-pipeline';
 
 export type NativeAsrRuntime = 'whisper.cpp';
-type Recognition = { text: string; language: string | null };
+type Recognition = {
+  text: string;
+  language: string | null;
+  noSpeechProb: number;
+  avgLogprob: number;
+};
 const workers = new Map<string, NativeAsrWorker>();
 const IDLE_MS = 60_000;
+const LANGUAGE_VOTE_MIN_SAMPLES = 3 * 16000;
+const LANGUAGE_LOCK_VOTES = 2;
+// Whisper's own rule for "no speech" is no_speech_prob > 0.6 together with
+// avg_logprob < -1. Noise that decodes to confident filler ("Thank you")
+// still has a poor average log-probability, so the second rule catches it.
+const NO_SPEECH_PROB = 0.6;
+const LOW_LOGPROB = -1;
+const VERY_LOW_LOGPROB = -1.6;
+const PROMPT_MAX_CHARS = 200;
+// Phrases much longer than this are real speech even at a low score.
+const LOW_CONFIDENCE_MAX_SAMPLES = 4 * 16000;
+// A prompt on a very short clip makes Whisper continue the prompt instead of
+// transcribing, so only phrases with enough audio get one.
+const PROMPT_MIN_SAMPLES = 3 * 16000;
+const MAX_WORDS_PER_SECOND = 6.5;
+
+// Speech rarely exceeds ~4 words per second, and Whisper runaway loops repeat
+// one phrase many times; either is invented text.
+function isRunawayText(text: string, samples: number) {
+  const words = text.toLowerCase().match(/[\p{L}\p{N}']+/gu) ?? [];
+  if (
+    words.length >= 8 &&
+    words.length / (samples / 16000) > MAX_WORDS_PER_SECOND
+  )
+    return true;
+  for (let size = 2; size <= 6; size++) {
+    const counts = new Map<string, number>();
+    for (let i = 0; i + size <= words.length; i++) {
+      const gram = words.slice(i, i + size).join(' ');
+      const count = (counts.get(gram) ?? 0) + 1;
+      if (count >= (size === 2 ? 5 : 4)) return true;
+      counts.set(gram, count);
+    }
+  }
+  return false;
+}
+
+export function isLowConfidenceRecognition(
+  result: Pick<Recognition, 'avgLogprob' | 'noSpeechProb' | 'text'>,
+  samples: number
+) {
+  if (isRunawayText(result.text, samples)) return true;
+  if (result.avgLogprob === 0) return false;
+  return (
+    (result.noSpeechProb > NO_SPEECH_PROB && result.avgLogprob < LOW_LOGPROB) ||
+    (result.avgLogprob < VERY_LOW_LOGPROB &&
+      samples <= LOW_CONFIDENCE_MAX_SAMPLES)
+  );
+}
 
 export function nativeAsrHelperPath(_runtime: NativeAsrRuntime) {
   const name = 'nota-whisper-helper';
@@ -39,20 +93,41 @@ export function isNativeAsrCached(
 ) {
   return workers.has(`${runtime}:${modelPath}`);
 }
-export function encodeNativeAsrRequest(pcm: Int16Array, language: string) {
+export function encodeNativeAsrRequest(
+  pcm: Int16Array,
+  language: string,
+  prompt = ''
+) {
   const locale = Buffer.from(language, 'utf8');
-  if (!pcm.length || pcm.length > 30 * 16000 || locale.length > 32) {
+  const promptBytes = Buffer.from(prompt, 'utf8');
+  if (
+    !pcm.length ||
+    pcm.length > 30 * 16000 ||
+    locale.length > 32 ||
+    promptBytes.length > 1024
+  ) {
     throw new Error(
       'Invalid native ASR request; maximum phrase is 30 seconds.'
     );
   }
-  const frame = Buffer.alloc(6 + locale.length + pcm.length * 2);
+  const pcmOffset = 8 + locale.length + promptBytes.length;
+  const frame = Buffer.alloc(pcmOffset + pcm.length * 2);
   frame.writeUInt32LE(pcm.length, 0);
   frame.writeUInt16LE(locale.length, 4);
   locale.copy(frame, 6);
+  frame.writeUInt16LE(promptBytes.length, 6 + locale.length);
+  promptBytes.copy(frame, 8 + locale.length);
   for (let i = 0; i < pcm.length; i++)
-    frame.writeInt16LE(pcm[i], 6 + locale.length + i * 2);
+    frame.writeInt16LE(pcm[i], pcmOffset + i * 2);
   return frame;
+}
+
+// Keep the tail of the previous phrase, cut at a word boundary.
+function promptTail(text: string) {
+  if (text.length <= PROMPT_MAX_CHARS) return text;
+  const tail = text.slice(-PROMPT_MAX_CHARS);
+  const space = tail.indexOf(' ');
+  return space >= 0 ? tail.slice(space + 1) : tail;
 }
 class NativeAsrWorker {
   private timer: ReturnType<typeof setTimeout> | undefined;
@@ -88,6 +163,8 @@ class NativeAsrWorker {
           error?: string;
           text?: unknown;
           language?: unknown;
+          noSpeechProb?: unknown;
+          avgLogprob?: unknown;
         };
         if (response.error) throw new Error(response.error);
         if (response.ready) {
@@ -102,6 +179,12 @@ class NativeAsrWorker {
           text: response.text.trim(),
           language:
             typeof response.language === 'string' ? response.language : null,
+          noSpeechProb:
+            typeof response.noSpeechProb === 'number'
+              ? response.noSpeechProb
+              : 0,
+          avgLogprob:
+            typeof response.avgLogprob === 'number' ? response.avgLogprob : 0,
         });
         this.waiting = null;
       } catch (error) {
@@ -151,8 +234,12 @@ class NativeAsrWorker {
     this.timer = setTimeout(() => this.close(), IDLE_MS);
     this.timer.unref();
   }
-  async recognize(pcm: Int16Array, language: string): Promise<Recognition> {
-    const frame = encodeNativeAsrRequest(pcm, language);
+  async recognize(
+    pcm: Int16Array,
+    language: string,
+    prompt = ''
+  ): Promise<Recognition> {
+    const frame = encodeNativeAsrRequest(pcm, language, prompt);
     // A queued request must not cancel the timeout of the current decode.
     if (this.pending === 0 && this.loaded) clearTimeout(this.timer);
     this.pending++;
@@ -222,6 +309,15 @@ export async function createNativeAsrDecoder(
   await preloadNativeAsr(runtime, modelPath);
   let chunks: Int16Array[] = [];
   let count = 0;
+  // Whisper re-detects the language for every phrase, and short phrases flip
+  // to Dutch, Malay or Turkish with invented text. 'auto' detects on long
+  // phrases only, then keeps the language the meeting agrees on.
+  const votes = new Map<string, number>();
+  let locked: string | null = null;
+  // The previous accepted phrase conditions the next one (names, spelling,
+  // vocabulary). It is cleared when a phrase is dropped so a hallucination
+  // cannot feed the next decode.
+  let previous = '';
   return {
     executionProvider:
       process.env.NOTA_ASR_GPU === '0' ? 'whisper-cpp-cpu' : 'whisper-cpp-gpu',
@@ -244,22 +340,40 @@ export async function createNativeAsrDecoder(
       count = 0;
       if (!pcm.length) return { text: '', language: null };
       const results: Recognition[] = [];
+      const requested = language === 'auto' && locked ? locked : language;
       // The helper's 30 s input limit never caps the whole meeting/file.
       for (let start = 0; start < pcm.length; start += 20 * 16000) {
         const loaded = worker(runtime, modelPath);
-        results.push(
-          await loaded.recognize(
-            pcm.subarray(start, start + 20 * 16000),
-            language
-          )
+        const piece = pcm.subarray(start, start + 20 * 16000);
+        const result = await loaded.recognize(
+          piece,
+          requested,
+          piece.length >= PROMPT_MIN_SAMPLES ? promptTail(previous) : ''
         );
+        if (isLowConfidenceRecognition(result, piece.length)) {
+          previous = '';
+          continue;
+        }
+        results.push(result);
+        if (result.text) previous = result.text;
+      }
+      const detected = results.find(r => r.text)?.language ?? null;
+      if (
+        language === 'auto' &&
+        !locked &&
+        detected &&
+        pcm.length >= LANGUAGE_VOTE_MIN_SAMPLES
+      ) {
+        const total = (votes.get(detected) ?? 0) + 1;
+        votes.set(detected, total);
+        if (total >= LANGUAGE_LOCK_VOTES) locked = detected;
       }
       return {
         text: results
           .map(r => r.text)
           .filter(Boolean)
           .join(' '),
-        language: results.find(r => r.text)?.language ?? null,
+        language: detected,
       };
     },
   };

@@ -36,6 +36,16 @@ describe('isIsolatedFillerLine', () => {
     );
     expect(isIsolatedFillerLine('Okay.', 800)).toBe(false);
   });
+
+  it('drops stock noise hallucinations and looped filler when short', () => {
+    expect(isIsolatedFillerLine('Thank you very much.', 1300)).toBe(true);
+    expect(isIsolatedFillerLine('Thank you for watching!', 2000)).toBe(true);
+    expect(isIsolatedFillerLine('Thank you. Thank you.', 1500)).toBe(true);
+    expect(isIsolatedFillerLine('You you you', 1500)).toBe(true);
+    expect(isIsolatedFillerLine('Thank you very much.', 6000)).toBe(false);
+    expect(isIsolatedFillerLine('Thank you, you can go.', 1500)).toBe(false);
+    expect(isIsolatedFillerLine('Oh no.', 800)).toBe(false);
+  });
 });
 
 describe('replaceLiveSegmentsWithRecovery', () => {
@@ -75,5 +85,20 @@ describe('replaceLiveSegmentsWithRecovery', () => {
       'other-source',
       'later',
     ]);
+  });
+
+  it('replaces live finals of either source for a full pass', () => {
+    const runtime = {
+      transcriptSegments: [
+        segment('mislabeled', 0, 10000, 'system'),
+        segment('later', 40000, 50000),
+      ],
+    };
+    replaceLiveSegmentsWithRecovery(
+      runtime,
+      { endMs: 10000, source: 'mic', startMs: 0 },
+      { anySource: true }
+    );
+    expect(runtime.transcriptSegments.map(item => item.id)).toEqual(['later']);
   });
 });

@@ -119,6 +119,8 @@ export interface AiBackendConfig {
   meetingSttModelId: string;
   meetingSttLanguage: string;
   meetingSttProviderId: string;
+  // Opt-in: re-transcribe the whole meeting with the high-accuracy model after it ends.
+  meetingPostPassEnabled: boolean;
   toolMaxSteps: number;
 }
 
@@ -142,6 +144,7 @@ type PersistedAiBackendSettings = Partial<
     | 'localModel'
     | 'mcpConfig'
     | 'mcpEnabled'
+    | 'meetingPostPassEnabled'
     | 'meetingSttModelId'
     | 'meetingSttLanguage'
     | 'meetingSttProviderId'
@@ -493,6 +496,9 @@ function loadPersistedSettings(
       localModel: readStringSetting(settings.localModel),
       mcpConfig: readStringSetting(settings.mcpConfig),
       mcpEnabled: readBooleanSetting(settings.mcpEnabled),
+      meetingPostPassEnabled: readBooleanSetting(
+        settings.meetingPostPassEnabled
+      ),
       meetingSttModelId: normalizeMeetingSttModel(
         settings.meetingSttProviderId === 'nemotron-onnx'
           ? (readStringSetting(settings.meetingSttModelId) ??
@@ -599,6 +605,7 @@ export function updateConfig(
     toolsEnabled: boolean;
     webCrawlToolEnabled: boolean;
     shellToolEnabled: boolean;
+    meetingPostPassEnabled: boolean;
     workspaceSearchToolEnabled: boolean;
     mcpEnabled: boolean;
     mcpConfig: string;
@@ -740,6 +747,9 @@ export function updateConfig(
   if (input.mcpConfig !== undefined) {
     config.mcpConfig = input.mcpConfig;
   }
+  if (input.meetingPostPassEnabled !== undefined) {
+    config.meetingPostPassEnabled = input.meetingPostPassEnabled === true;
+  }
   if (input.meetingSttModelId !== undefined) {
     config.meetingSttModelId =
       normalizeMeetingSttModel(input.meetingSttModelId) ??
@@ -793,6 +803,7 @@ export function saveConfig(config: AiBackendConfig) {
     localModel: config.localModel,
     mcpConfig: config.mcpConfig,
     mcpEnabled: config.mcpEnabled,
+    meetingPostPassEnabled: config.meetingPostPassEnabled,
     meetingSttModelId: config.meetingSttModelId,
     meetingSttLanguage: config.meetingSttLanguage,
     meetingSttProviderId: config.meetingSttProviderId,
@@ -922,6 +933,7 @@ export function loadConfig(): AiBackendConfig {
     mcpEnabled: readBoolean('NOTA_AI_MCP_ENABLED', false),
     mcpConfig: process.env.NOTA_AI_MCP_CONFIG ?? '{}',
     meetingSttProviderId,
+    meetingPostPassEnabled: false,
     meetingSttLanguage: 'auto',
     meetingSttModelId:
       normalizeMeetingSttModel(process.env.NOTA_MEETING_STT_MODEL) ??

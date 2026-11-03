@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import path, { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -70,6 +71,15 @@ function proxyRequest(
   );
 }
 
+function hasWebStaticFile(pathname: string) {
+  try {
+    const filepath = join(webStaticDir, decodeURIComponent(pathname));
+    return filepath.startsWith(webStaticDir + path.sep) && existsSync(filepath);
+  } catch {
+    return false;
+  }
+}
+
 async function handleFileRequest(request: Request) {
   const urlObject = new URL(request.url);
 
@@ -109,8 +119,20 @@ async function handleFileRequest(request: Request) {
     urlObject.pathname &&
     /\.(woff2?|ttf|otf)$/i.test(urlObject.pathname.split('?')[0] ?? '');
 
-  // Redirect to webpack dev server if available
-  if (isDev && devServerBase && !isAbsolutePath && !isFontRequest) {
+  // Redirect to webpack dev server if available. Fonts come from the bundled
+  // web-static copy when one exists, otherwise from the dev server, which
+  // serves them under the same hashed names.
+  if (
+    isDev &&
+    devServerBase &&
+    !isAbsolutePath &&
+    (!isFontRequest || !hasWebStaticFile(urlObject.pathname))
+  ) {
+    if (isFontRequest) {
+      // Font loads carry `Origin: assets://.`, which net.fetch rejects for
+      // http targets. Fonts are static files, so a plain GET is enough.
+      return net.fetch(buildTargetUrl(devServerBase, urlObject));
+    }
     return proxyRequest(request, urlObject, devServerBase, {
       bypassCustomProtocolHandlers: false,
     });

@@ -76,7 +76,7 @@ export const useGeneralSettingList = (): GeneralSettingList => {
     }
 
     if (
-      (environment.isMacOs || environment.isWindows) &&
+      (environment.isMacOs || environment.isWindows || environment.isLinux) &&
       BUILD_CONFIG.isElectron
     ) {
       settings.push({

@@ -22,6 +22,11 @@ const HARD_UTTERANCE_MS = 20_000;
 const SOFT_CUT_SILENCE_MS = 150;
 const ENERGY_THRESHOLD = 0.006;
 const GAIN_FLOOR = 0.0008;
+// Boosting a very quiet source (a Bluetooth headset mic, a far-away laptop)
+// by more than this mostly amplifies noise, and Whisper then invents text.
+const MAX_GAIN = 8;
+// Mixed audio below this level (about -60 dBFS) is room tone, not speech.
+const MIN_SPEECH_RMS = 0.001;
 const TARGET_SPEECH_RMS = 0.06;
 // First-order 80 Hz high-pass for the microphone, as in Meetily's mic chain:
 // removes rumble, desk thumps and mains hum before gain and VAD.
@@ -193,7 +198,11 @@ function createMixer(onLateAudio: (samples: number) => void) {
     for (const sample of samples) peak = Math.max(peak, Math.abs(sample));
     const target = Math.max(
       0.5,
-      Math.min(12, TARGET_SPEECH_RMS / (levels[source] ?? level), 0.9 / peak)
+      Math.min(
+        MAX_GAIN,
+        TARGET_SPEECH_RMS / (levels[source] ?? level),
+        0.9 / peak
+      )
     );
     // Drop gain at once on louder input; only increases are ramped.
     const from = Math.min(applied[source] ?? target, target);
@@ -363,11 +372,13 @@ export function createMeetingCapturePipeline(input: {
     // fans, hum or music "speaking" forever and forced 15 s cuts.
     vadSpeech = probability >= (vadSpeech ? 0.35 : 0.5);
     vadKnown = true;
-    return vadSpeech;
+    return vadSpeech && level >= MIN_SPEECH_RMS;
   }
 
   async function finish(endMs: number) {
     if (!active) return;
+    // Attribute the phrase before the finally block resets its energy.
+    const phraseSource = source();
     const decodeStart = performance.now();
     let result: { language: string | null; text: string };
     try {
@@ -382,7 +393,6 @@ export function createMeetingCapturePipeline(input: {
       micEnergy = systemEnergy = 0;
     }
     const text = result.text.trim();
-    const phraseSource = source();
     if (text) {
       await input.onTranscript({
         endMs,

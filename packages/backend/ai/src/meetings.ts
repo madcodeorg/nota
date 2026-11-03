@@ -2801,22 +2801,118 @@ export async function discardMeetingFallbackAudioAfterRecovery(input: {
 function recoveryLanguage(runtime: MeetingRuntime) {
   const configured = runtime.meeting.sttLanguage;
   if (configured && configured !== 'auto') return configured;
-  return runtime.stt.detectedLanguage ?? 'auto';
+  // The last detection can be a one-off flip; use the language most phrases agree on.
+  const counts = new Map<string, number>();
+  for (const segment of runtime.transcriptSegments) {
+    if (segment.type === 'final' && segment.language)
+      counts.set(segment.language, (counts.get(segment.language) ?? 0) + 1);
+  }
+  const [common] = [...counts].sort((a, b) => b[1] - a[1])[0] ?? [];
+  return common ?? runtime.stt.detectedLanguage ?? 'auto';
 }
 
 // The recovered text is the better copy of the same speech, so it replaces the
-// live final segments it covers instead of sitting beside them.
+// live final segments it covers instead of sitting beside them. A full pass
+// also ignores the source label: live phrases are labeled from a mixed stream.
 export function replaceLiveSegmentsWithRecovery(
   runtime: Pick<MeetingRuntime, 'transcriptSegments'>,
-  recovered: Pick<TranscriptSegment, 'endMs' | 'source' | 'startMs'>
+  recovered: Pick<TranscriptSegment, 'endMs' | 'source' | 'startMs'>,
+  options: { anySource?: boolean } = {}
 ) {
   runtime.transcriptSegments = runtime.transcriptSegments.filter(existing => {
-    if (existing.type !== 'final' || existing.source !== recovered.source) {
+    if (
+      existing.type !== 'final' ||
+      (!options.anySource && existing.source !== recovered.source)
+    ) {
       return true;
     }
     const duration = Math.max(1, existing.endMs - existing.startMs);
     return transcriptSegmentOverlap(existing, recovered) / duration < 0.5;
   });
+}
+
+const FULL_PASS_MAX_GAP_MS = 800;
+const FULL_PASS_MAX_PHRASE_MS = 25_000;
+
+// Re-decodes every retained speech chunk with the high-accuracy model, one
+// source at a time. Neighbouring chunks are joined into phrases so the model
+// sees whole sentences, and each source keeps its own previous-phrase prompt.
+async function fullPassTranscriptSegments(
+  config: AiBackendConfig,
+  runtime: MeetingRuntime,
+  modelId: string
+) {
+  const model = modelById(modelId);
+  const nativeRuntime = model ? nativeAsrRuntime(model) : null;
+  if (!model || !nativeRuntime) {
+    throw new Error(`${modelId} cannot run the after-meeting pass.`);
+  }
+  const requested = recoveryLanguage(runtime);
+  const language =
+    requested === 'auto' || model.languages.includes(requested)
+      ? requested
+      : new Intl.Locale(requested).language;
+  const modelPath = nativeAsrModelPath(config, model);
+  const decoders = new Map<
+    MeetingFallbackAudioChunk['source'],
+    MeetingUtteranceDecoder
+  >();
+  const segments: TranscriptSegment[] = [];
+  let phrase: MeetingFallbackAudioChunk[] = [];
+  let processedMs = 0;
+
+  const decodePhrase = async (chunks: MeetingFallbackAudioChunk[]) => {
+    const first = chunks[0];
+    const last = chunks.at(-1);
+    if (!first || !last) return;
+    let decoder = decoders.get(first.source);
+    if (!decoder) {
+      decoder = await createNativeAsrDecoder(
+        nativeRuntime,
+        modelPath,
+        language
+      );
+      decoders.set(first.source, decoder);
+    }
+    for (const chunk of chunks) decoder.pushPcm16(chunk.pcm16);
+    const text = cleanTranscriptText((await decoder.finish()).text);
+    processedMs += last.endMs - first.startMs;
+    if (!text || isIsolatedFillerLine(text, last.endMs - first.startMs)) return;
+    segments.push({
+      createdAt: now(),
+      endMs: last.endMs,
+      id: randomUUID(),
+      meetingId: runtime.meeting.id,
+      source: first.source,
+      startMs: first.startMs,
+      text,
+      type: 'final',
+    });
+  };
+
+  for await (const chunks of runtime.fallbackAudioSpool.windows()) {
+    for (const chunk of chunks) {
+      const last = phrase.at(-1);
+      if (
+        last &&
+        (last.source !== chunk.source ||
+          chunk.startMs - last.endMs > FULL_PASS_MAX_GAP_MS ||
+          chunk.endMs - (phrase[0]?.startMs ?? chunk.startMs) >
+            FULL_PASS_MAX_PHRASE_MS)
+      ) {
+        await decodePhrase(phrase);
+        phrase = [];
+        runtime.stt.message = `Improving transcript with ${modelId} (${Math.round(
+          processedMs / 1000
+        )} s of speech done).`;
+      }
+      phrase.push(chunk);
+    }
+    // Windows are per source; never join a phrase across them.
+    await decodePhrase(phrase);
+    phrase = [];
+  }
+  return segments;
 }
 
 async function transcribeStoppedMeetingFallback(
@@ -2835,6 +2931,45 @@ async function transcribeStoppedMeetingFallback(
   });
 
   try {
+    // Opt-in: when the user enabled it and the accurate model is installed,
+    // re-decode the whole meeting. A failure keeps the live transcript and
+    // falls through to the ordinary gap recovery below.
+    const [fullPassModelId] = config.meetingPostPassEnabled
+      ? await installedPostMeetingTurboModelIds(
+          config,
+          runtime.meeting.sttLanguage
+        )
+      : [];
+    if (fullPassModelId) {
+      try {
+        const improved = dedupeRecoveredTranscriptSegments(
+          await fullPassTranscriptSegments(config, runtime, fullPassModelId)
+        ).sort(
+          (first, second) =>
+            first.startMs - second.startMs || first.endMs - second.endMs
+        );
+        if (improved.length) {
+          improved.forEach(segment => {
+            replaceLiveSegmentsWithRecovery(runtime, segment, {
+              anySource: true,
+            });
+            applyTranscriptSegment(runtime, segment);
+          });
+          await persistMeetings(config);
+          await discardMeetingFallbackAudioAfterRecovery({
+            fallbackAudioSpool: runtime.fallbackAudioSpool,
+            unresolvedGroups: 0,
+          });
+          runtime.stt.message = `Improved the transcript with ${fullPassModelId}.`;
+          return;
+        }
+      } catch (fullPassError) {
+        console.warn(
+          'After-meeting transcript pass failed; keeping the live transcript',
+          errorMessage(fullPassError)
+        );
+      }
+    }
     const fallbackSegments: TranscriptSegment[] = [];
     let capturedChunks = 0;
     let completedWindows = 0;
@@ -3411,9 +3546,18 @@ export function selectMeetingSttProvider(input: {
   // An explicit request remains strict above. In Auto mode, however, the saved
   // provider is only a preference: skip it when it cannot currently transcribe
   // so a bundled/installed provider can keep meeting capture working.
-  const availablePriority = [configured, ...orderedProviders].filter(
-    (provider): provider is SttProviderManifest => !!provider
+  // Large v3 is the most accurate choice, so use it whenever it is installed.
+  // It is not the first-time recommendation because that would force a ~1 GB
+  // download before the first meeting; the bundled Base stays the fallback.
+  const installedLarge = orderedProviders.find(
+    provider =>
+      provider.id === 'whisper-large-v3-cpp' && provider.canProduceTranscript
   );
+  const availablePriority = [
+    configured,
+    installedLarge,
+    ...orderedProviders,
+  ].filter((provider): provider is SttProviderManifest => !!provider);
   const uniqueAvailablePriority = availablePriority.filter(
     (provider, index, all) =>
       all.findIndex(candidate => candidate.id === provider.id) === index

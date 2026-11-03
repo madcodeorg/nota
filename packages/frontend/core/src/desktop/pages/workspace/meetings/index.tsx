@@ -57,6 +57,7 @@ import {
   RiVoiceprintFill,
 } from 'react-icons/ri';
 
+import { usePostMeetingPassPrompt } from '../../../dialogs/setting/general-setting/meetings/post-meeting-pass';
 import { syncWorkspaceContentIndex } from '../ai-workspace-index';
 import { startMeetingCalendarRefresh } from './calendar-refresh';
 import {
@@ -95,6 +96,7 @@ import {
   browserMeetingSaveStorage,
   persistPendingMeetingSave,
 } from './meeting-save-worker';
+import { MeetingStartSettings } from './meeting-start-settings';
 import { finalizeConfirmedMeetingCapture } from './meeting-stop-finalization';
 import { createMeetingTranscriptReplayFilter } from './meeting-transcript-replay';
 import * as styles from './style.css';
@@ -1427,6 +1429,7 @@ export const Component = () => {
   const localMeetingSummaryDocIdsRef = useRef(new Map<string, string>());
   const started = meetingState === 'recording' || meetingState === 'paused';
   const stopped = meetingState === 'stopped';
+  usePostMeetingPassPrompt(stopped);
   const activeFlow = started || stopped || transcriptSegments.length > 0;
   const compactCover = activeFlow;
   const snippetRows = useMemo(
@@ -4947,25 +4950,28 @@ export const Component = () => {
                   ) : null}
                 </>
               ) : (
-                <button
-                  aria-label="Start meeting"
-                  className={styles.startButton}
-                  disabled={controlBusy || isSaving || isSummarizing}
-                  title="Start meeting"
-                  type="button"
-                  onClick={() => {
-                    startMeeting().catch(console.error);
-                  }}
-                >
-                  <RiVoiceprintFill aria-hidden />
-                  <span>
-                    {preStartStatusText
-                      ? 'Loading model'
-                      : controlBusy
-                        ? 'Working'
-                        : 'Start'}
-                  </span>
-                </button>
+                <>
+                  <button
+                    aria-label="Start meeting"
+                    className={styles.startButton}
+                    disabled={controlBusy || isSaving || isSummarizing}
+                    title="Start meeting"
+                    type="button"
+                    onClick={() => {
+                      startMeeting().catch(console.error);
+                    }}
+                  >
+                    <RiVoiceprintFill aria-hidden />
+                    <span>
+                      {preStartStatusText
+                        ? 'Loading model'
+                        : controlBusy
+                          ? 'Working'
+                          : 'Start'}
+                    </span>
+                  </button>
+                  <MeetingStartSettings disabled={controlBusy} />
+                </>
               )}
             </div>
             {recordingError ? (

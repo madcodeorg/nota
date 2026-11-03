@@ -9,12 +9,12 @@
     "bump": "r ./index.ts"
   },
   "dependencies": {
-    "@googleapis/androidpublisher": "^35.0.0",
+    "@googleapis/androidpublisher": "^35.4.0",
     "@nota-tools/cli": "workspace:*",
     "@nota-tools/utils": "workspace:*",
     "typescript": "^5.9.3"
   },
   "devDependencies": {
-    "@types/node": "^22.0.0"
+    "@types/node": "^22.20.5"
   }
 }

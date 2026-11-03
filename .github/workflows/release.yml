@@ -19,6 +19,12 @@ on:
         type: boolean
         default: false
 
+# Never run two releases for the same ref at once, but never cancel one that
+# is already publishing.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 permissions:
   contents: write
   pull-requests: write

@@ -125,3 +125,29 @@ test('preserves an unverified macOS result instead of implying it will pass at r
     screen.getByRole('button', { name: 'Allow system audio' })
   ).toBeTruthy();
 });
+
+test('shows the Linux PipeWire/PulseAudio path as checked on start', async () => {
+  vi.stubGlobal('environment', {
+    isLinux: true,
+    isMacOs: false,
+    isWindows: false,
+  });
+  const report = windowsReport();
+  report.reasons = {
+    systemAudio: 'Linux system audio is checked when recording starts.',
+  };
+  mocks.check.mockResolvedValue(report);
+  render(<NotaPermissionsSetup onContinue={vi.fn()} onSkip={vi.fn()} />);
+  expect(screen.getByText(/through PipeWire or PulseAudio/)).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Check access' }));
+  await waitFor(() =>
+    expect(screen.getByText('Checked on start')).toBeTruthy()
+  );
+  expect(
+    screen.getByText(
+      'Microphone access is ready. System audio is checked when recording starts.'
+    )
+  ).toBeTruthy();
+  expect(screen.queryByRole('button', { name: 'Allow microphone' })).toBeNull();
+  expect(mocks.ask).not.toHaveBeenCalled();
+});
