@@ -4,12 +4,12 @@
 //
 //   node scripts/smoke-desktop-app.ts --app <executable> [--timeout 120] [-- extra electron args]
 //
-// It drives the app through Chromium's remote debugging port, so it needs no
-// code in the app itself. Node's built-in fetch/WebSocket are enough (Node 22).
+// Packaged builds ignore --remote-debugging-port, so the app reports itself:
+// with NOTA_SMOKE_TEST=<file> it writes that file once the UI has mounted
+// (src/main/smoke-test.ts) and exits.
 import type { ChildProcess } from 'node:child_process';
 import { spawn, spawnSync } from 'node:child_process';
-import { mkdtempSync, rmSync } from 'node:fs';
-import net from 'node:net';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
@@ -31,17 +31,6 @@ if (!app) {
   process.exit(2);
 }
 
-function freePort(): Promise<number> {
-  return new Promise((resolve, reject) => {
-    const server = net.createServer();
-    server.once('error', reject);
-    server.listen(0, '127.0.0.1', () => {
-      const { port } = server.address() as net.AddressInfo;
-      server.close(() => resolve(port));
-    });
-  });
-}
-
 function killTree(child: ChildProcess) {
   if (child.pid === undefined) return;
   if (process.platform === 'win32') {
@@ -56,54 +45,12 @@ function killTree(child: ChildProcess) {
   }
 }
 
-type Target = { type: string; url: string; webSocketDebuggerUrl?: string };
-
-async function listTargets(port: number): Promise<Target[]> {
-  try {
-    const response = await fetch(`http://127.0.0.1:${port}/json/list`);
-    return response.ok ? ((await response.json()) as Target[]) : [];
-  } catch {
-    return [];
-  }
-}
-
-// Evaluates an expression in a page over the DevTools protocol.
-function evaluate(webSocketUrl: string, expression: string): Promise<unknown> {
-  return new Promise((resolve, reject) => {
-    const socket = new WebSocket(webSocketUrl);
-    const timer = setTimeout(() => {
-      socket.close();
-      reject(new Error('DevTools evaluate timed out'));
-    }, 10_000);
-    socket.addEventListener('open', () => {
-      socket.send(
-        JSON.stringify({
-          id: 1,
-          method: 'Runtime.evaluate',
-          params: { expression, returnByValue: true },
-        })
-      );
-    });
-    socket.addEventListener('message', event => {
-      const message = JSON.parse(String(event.data));
-      if (message.id !== 1) return;
-      clearTimeout(timer);
-      socket.close();
-      resolve(message.result?.result?.value);
-    });
-    socket.addEventListener('error', () => {
-      clearTimeout(timer);
-      reject(new Error('DevTools socket error'));
-    });
-  });
-}
-
-const port = await freePort();
 const home = mkdtempSync(join(tmpdir(), 'nota-smoke-'));
+const resultFile = join(home, 'smoke-result.txt');
 const output: string[] = [];
-const child = spawn(app, [`--remote-debugging-port=${port}`, ...extraArgs], {
-  // Fresh profile and home so the smoke run never touches real user data
-  // and always starts from first launch, like a new install.
+const child = spawn(app, extraArgs, {
+  // Fresh profile and home so the smoke run never touches real user data and
+  // always starts from first launch, like a new install.
   env: {
     ...process.env,
     HOME: home,
@@ -113,6 +60,7 @@ const child = spawn(app, [`--remote-debugging-port=${port}`, ...extraArgs], {
     APPDATA: join(home, 'AppData', 'Roaming'),
     LOCALAPPDATA: join(home, 'AppData', 'Local'),
     ELECTRON_ENABLE_LOGGING: '1',
+    NOTA_SMOKE_TEST: resultFile,
   },
   detached: process.platform !== 'win32',
   stdio: ['ignore', 'pipe', 'pipe'],
@@ -128,39 +76,23 @@ for (const stream of [child.stdout, child.stderr]) {
   });
 }
 
-let result = 'no renderer page appeared';
+let result = 'the UI did not mount before the timeout';
 let ok = false;
 const deadline = Date.now() + timeoutMs;
 while (Date.now() < deadline) {
+  if (existsSync(resultFile)) {
+    result = `UI mounted at ${readFileSync(resultFile, 'utf8')}`;
+    ok = true;
+    break;
+  }
   if (exitCode !== null) {
+    // The result file is written just before the app exits.
+    await sleep(500);
+    if (existsSync(resultFile)) continue;
     result = `app exited early with code ${exitCode}`;
     break;
   }
-  const pages = (await listTargets(port)).filter(
-    target =>
-      target.type === 'page' &&
-      target.webSocketDebuggerUrl &&
-      !target.url.startsWith('devtools://') &&
-      target.url !== 'about:blank'
-  );
-  for (const page of pages) {
-    try {
-      const state = (await evaluate(
-        page.webSocketDebuggerUrl as string,
-        "`${document.readyState}|${document.getElementById('app')?.childElementCount ?? -1}`"
-      )) as string | undefined;
-      result = `page ${page.url.slice(0, 80)} state ${state}`;
-      const [readyState, children] = (state ?? '').split('|');
-      if (readyState === 'complete' && Number(children) > 0) {
-        ok = true;
-      }
-    } catch (error) {
-      result = `page ${page.url.slice(0, 80)}: ${(error as Error).message}`;
-    }
-    if (ok) break;
-  }
-  if (ok) break;
-  await sleep(1000);
+  await sleep(500);
 }
 
 killTree(child);
