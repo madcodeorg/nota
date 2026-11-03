@@ -116,8 +116,11 @@ runs:
       with:
         path: |
           ${{ steps.workspace-path.outputs.workspace_path }}/node_modules
+          !${{ steps.workspace-path.outputs.workspace_path }}/node_modules/.cache/rspack
           ${{ steps.yarn-cache.outputs.yarn_global_cache }}
-        key: node_modules-cache-${{ github.job }}-${{ runner.os }}-${{ runner.arch }}-${{ steps.system-info.outputs.name }}-${{ steps.system-info.outputs.release }}-${{ steps.system-info.outputs.version }}
+        key: node_modules-cache-${{ github.job }}-${{ runner.os }}-${{ runner.arch }}-${{ steps.system-info.outputs.name }}-${{ steps.system-info.outputs.release }}-${{ steps.system-info.outputs.version }}-${{ hashFiles('yarn.lock', '.yarnrc.yml') }}
+        restore-keys: |
+          node_modules-cache-${{ github.job }}-${{ runner.os }}-${{ runner.arch }}-${{ steps.system-info.outputs.name }}-${{ steps.system-info.outputs.release }}-${{ steps.system-info.outputs.version }}-
 
     # The network performance on macOS is very poor
     # and the decompression performance on Windows is very terrible
@@ -128,7 +131,9 @@ runs:
       with:
         path: |
           ${{ steps.yarn-cache.outputs.yarn_global_cache }}
-        key: node_modules-cache-${{ github.job }}-${{ runner.os }}-${{ runner.arch }}-${{ steps.system-info.outputs.name }}-${{ steps.system-info.outputs.release }}-${{ steps.system-info.outputs.version }}
+        key: node_modules-cache-${{ github.job }}-${{ runner.os }}-${{ runner.arch }}-${{ steps.system-info.outputs.name }}-${{ steps.system-info.outputs.release }}-${{ steps.system-info.outputs.version }}-${{ hashFiles('yarn.lock', '.yarnrc.yml') }}
+        restore-keys: |
+          node_modules-cache-${{ github.job }}-${{ runner.os }}-${{ runner.arch }}-${{ steps.system-info.outputs.name }}-${{ steps.system-info.outputs.release }}-${{ steps.system-info.outputs.version }}-
 
     - name: Cache full yarn cache on Linux
       uses: actions/cache@v5
@@ -136,8 +141,11 @@ runs:
       with:
         path: |
           node_modules
+          !node_modules/.cache/rspack
           ${{ steps.yarn-cache.outputs.yarn_global_cache }}
-        key: node_modules-cache-full-${{ runner.os }}-${{ runner.arch }}-${{ steps.system-info.outputs.name }}-${{ steps.system-info.outputs.release }}-${{ steps.system-info.outputs.version }}
+        key: node_modules-cache-full-${{ runner.os }}-${{ runner.arch }}-${{ steps.system-info.outputs.name }}-${{ steps.system-info.outputs.release }}-${{ steps.system-info.outputs.version }}-${{ hashFiles('yarn.lock', '.yarnrc.yml') }}
+        restore-keys: |
+          node_modules-cache-full-${{ runner.os }}-${{ runner.arch }}-${{ steps.system-info.outputs.name }}-${{ steps.system-info.outputs.release }}-${{ steps.system-info.outputs.version }}-
 
     - name: Cache full yarn cache on non-Linux
       uses: actions/cache@v5
@@ -145,7 +153,9 @@ runs:
       with:
         path: |
           ${{ steps.yarn-cache.outputs.yarn_global_cache }}
-        key: node_modules-cache-full-${{ runner.os }}-${{ runner.arch }}-${{ steps.system-info.outputs.name }}-${{ steps.system-info.outputs.release }}-${{ steps.system-info.outputs.version }}
+        key: node_modules-cache-full-${{ runner.os }}-${{ runner.arch }}-${{ steps.system-info.outputs.name }}-${{ steps.system-info.outputs.release }}-${{ steps.system-info.outputs.version }}-${{ hashFiles('yarn.lock', '.yarnrc.yml') }}
+        restore-keys: |
+          node_modules-cache-full-${{ runner.os }}-${{ runner.arch }}-${{ steps.system-info.outputs.name }}-${{ steps.system-info.outputs.release }}-${{ steps.system-info.outputs.version }}-
 
     - name: yarn install
       if: ${{ inputs.package-install == 'true' }}
@@ -156,7 +166,6 @@ runs:
         HUSKY: '0'
         PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
         ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
-        DEBUG: '*'
 
     - name: Get installed Playwright version
       id: playwright-version

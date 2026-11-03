@@ -1,0 +1,122 @@
+name: Warm caches
+
+# GitHub only lets a run read caches saved by its own ref or by the default
+# branch. Releases run on `v*` tags, so without this their native and install
+# caches would start cold every time. This runs on the default branch and saves
+# the same caches the release jobs restore (same actions, same job ids, same
+# keys), so a tag release starts warm. It builds nothing that is shipped.
+#
+# Caches that are not read for 7 days are evicted, hence the twice-weekly run.
+on:
+  push:
+    branches: [main]
+    paths:
+      - yarn.lock
+      - Cargo.lock
+      - rust-toolchain.toml
+      - .yarnrc.yml
+      - packages/frontend/native/**
+      - packages/common/y-octo/**
+      - packages/frontend/apps/electron/scripts/build-local-asr.ts
+      - packages/frontend/apps/electron/native/local-asr-helper/**
+      - tools/cli/src/**
+      - .github/actions/**
+      - .github/workflows/warm-caches.yml
+  schedule:
+    - cron: '17 5 * * 1,4'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: warm-caches
+  cancel-in-progress: false
+
+jobs:
+  # Job ids must match the release jobs: setup-node keys its cache on
+  # github.job. `before-make` is the Linux web build, `build` the per-platform one.
+  before-make:
+    name: Warm web build (linux)
+    if: github.repository == 'madcodeorg/nota'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-node
+      - uses: ./.github/actions/rspack-cache
+      # Same command as the release's before-make job; also fills the rspack cache.
+      - run: yarn nota @nota/electron generate-assets
+        env:
+          NOTA_SKIP_LOCAL_ASR: '1'
+
+  build:
+    name: Warm native (${{ matrix.platform }}-${{ matrix.arch }})
+    if: github.repository == 'madcodeorg/nota'
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-latest
+            platform: darwin
+            arch: arm64
+            target: aarch64-apple-darwin
+            enable_scripts: false
+          - runner: windows-latest
+            platform: win32
+            arch: x64
+            target: x86_64-pc-windows-msvc
+            enable_scripts: true
+    env:
+      MACOSX_DEPLOYMENT_TARGET: '14.0'
+      NOTA_ELECTRON_TARGET_ARCH: ${{ matrix.arch }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Xcode
+        if: ${{ matrix.platform == 'darwin' }}
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: 26.2
+
+      - name: Setup Node.js
+        timeout-minutes: 10
+        uses: ./.github/actions/setup-node
+        with:
+          extra-flags: workspaces focus @nota/electron @nota/ai-backend @nota/monorepo @nota/nbstore @nota/infra
+          hard-link-nm: false
+          nmHoistingLimits: workspaces
+          enableScripts: ${{ matrix.enable_scripts }}
+          supported-architecture-os: ${{ matrix.platform }}
+          supported-architecture-cpu: ${{ matrix.arch }}
+
+      - name: Build Nota native
+        uses: ./.github/actions/build-rust
+        with:
+          target: ${{ matrix.target }}
+          package: '@nota/native'
+
+      - name: Install Vulkan SDK
+        if: ${{ matrix.platform == 'win32' }}
+        uses: jakoch/install-vulkan-sdk-action@v1.7.0
+        with:
+          vulkan_version: 1.4.363.0
+          install_runtime: false
+          cache: true
+
+      - name: Use short native build root
+        if: ${{ matrix.platform == 'win32' }}
+        shell: pwsh
+        run: Add-Content -Path $env:GITHUB_ENV -Value 'NOTA_LOCAL_ASR_BUILD_ROOT=C:\nvk'
+
+      - uses: ./.github/actions/local-asr-cache
+        with:
+          platform: ${{ matrix.platform }}
+          arch: ${{ matrix.arch }}
+
+      # Only the whisper.cpp / llama.cpp helpers, so the cache is filled without
+      # packaging anything.
+      - name: Build local ASR helpers
+        run: yarn nota @nota/electron node ./scripts/build-local-asr.ts
