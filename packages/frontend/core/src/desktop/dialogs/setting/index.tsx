@@ -258,6 +258,7 @@ export const SettingDialog = ({
           padding: 0,
           overflow: 'hidden',
           display: 'flex',
+          borderRadius: 'var(--nota-panel-radius)',
         },
       }}
       open

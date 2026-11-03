@@ -83,12 +83,12 @@ export const dailyCountNav = style([
     fontSize: 14,
     padding: '4px 8px',
     whiteSpace: 'nowrap',
-    borderRadius: 8,
+    borderRadius: 999,
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     color: cssVar('textSecondaryColor'),
-    transition: 'all .3s',
+    transition: 'background-color .14s ease, color .14s ease',
     selectors: {
       '&[aria-selected="true"]': {
         backgroundColor: cssVar('backgroundTertiaryColor'),
@@ -135,10 +135,11 @@ export const pageItem = style([
     width: '100%',
     display: 'flex',
     alignItems: 'center',
-    borderRadius: 4,
-    padding: '0 4px',
+    borderRadius: 'var(--nota-control-radius)',
+    padding: '0 8px',
     gap: 8,
     height: 30,
+    transition: 'background-color .14s ease',
     selectors: {
       '&[aria-selected="true"]': {
         backgroundColor: cssVar('hoverColor'),
@@ -187,7 +188,7 @@ export const journalConflictMoreTrigger = style([
   {
     color: cssVar('textSecondaryColor'),
     height: 30,
-    borderRadius: 4,
+    borderRadius: 'var(--nota-control-radius)',
     padding: '0px 8px',
     fontSize: cssVar('fontSm'),
     display: 'flex',
@@ -199,10 +200,10 @@ export const duplicateTag = style({
   border: `1px solid ${cssVarV2('database/border')}`,
   background: cssVarV2('layer/background/error'),
   color: cssVarV2('toast/iconState/error'),
-  borderRadius: 4,
-  fontSize: cssVar('fontXs'),
+  borderRadius: 999,
+  fontSize: 11,
   lineHeight: '20px',
-  fontWeight: 400,
+  fontWeight: 600,
 });
 
 // customize date-picker cell
@@ -220,14 +221,13 @@ export const journalDateCell = style([
     selectors: {
       '&[data-is-today="true"]': {
         fontWeight: 600,
-        color: cssVar('brandColor'),
+        color: 'var(--nota-accent)',
       },
       '&[data-not-current-month="true"]': {
         color: cssVar('black10'),
       },
       '&[data-has-event="true"]': {
-        backgroundColor: 'rgba(90, 138, 85, 0.14)',
-        boxShadow: `inset 0 0 0 1px rgba(90, 138, 85, 0.28)`,
+        backgroundColor: 'var(--nota-row-background)',
       },
       '&[data-selected="true"]': {
         backgroundColor: cssVar('brandColor'),
@@ -243,8 +243,7 @@ export const journalDateCell = style([
       },
       '&[data-is-journal="false"][data-selected="true"][data-has-event="true"]':
         {
-          backgroundColor: 'rgba(90, 138, 85, 0.16)',
-          boxShadow: `inset 0 0 0 1px rgba(90, 138, 85, 0.34)`,
+          backgroundColor: 'var(--nota-row-background)',
         },
 
       '&[data-mobile=true]': {

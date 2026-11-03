@@ -74,8 +74,9 @@ globalStyle(`${root} [cmdk-item]`, {
   padding: '6px 12px',
   alignItems: 'center',
   cursor: 'default',
-  borderRadius: 4,
+  borderRadius: 'var(--nota-row-radius)',
   userSelect: 'none',
+  transition: 'background 120ms ease',
 });
 globalStyle(`${root} [cmdk-item][data-selected=true]`, {
   background: cssVar('backgroundSecondaryColor'),
@@ -115,7 +116,7 @@ export const pageTitleWrapper = style({
 
 export const pageTitle = style({
   padding: '2px 6px',
-  borderRadius: 4,
+  borderRadius: 999,
   fontSize: cssVar('fontXs'),
   lineHeight: '20px',
   color: cssVar('textSecondaryColor'),

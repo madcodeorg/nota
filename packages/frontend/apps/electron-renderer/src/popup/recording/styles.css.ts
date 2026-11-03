@@ -34,7 +34,7 @@ export const capsule = style({
   boxSizing: 'border-box',
   borderRadius: 999,
   background:
-    'linear-gradient(135deg, rgba(28, 31, 34, 0.92), rgba(18, 20, 23, 0.88))',
+    'linear-gradient(135deg, rgba(30, 30, 33, 0.92), rgba(20, 20, 22, 0.88))',
   border: '1px solid rgba(255, 255, 255, 0.14)',
   boxShadow:
     '0 16px 40px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
@@ -58,12 +58,12 @@ export const iconWrap = style({
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
-  color: 'rgba(247, 249, 239, 0.94)',
-  background: 'rgba(93, 124, 164, 0.72)',
+  color: 'rgba(244, 244, 245, 0.94)',
+  background: 'rgba(255, 255, 255, 0.12)',
   boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.14)',
   selectors: {
     '&[data-state="recording"], &[data-state="create-block-failed"]': {
-      background: 'rgba(159, 63, 58, 0.78)',
+      background: 'var(--nota-accent)',
     },
     '&[data-state="paused"]': {
       background: 'rgba(150, 108, 39, 0.78)',
@@ -91,8 +91,9 @@ export const statusDot = style({
   boxShadow: '0 0 0 2px rgba(138, 180, 248, 0.16)',
   selectors: {
     '&[data-state="recording"]': {
-      background: '#f05252',
-      boxShadow: '0 0 0 2px rgba(240, 82, 82, 0.18)',
+      background: 'var(--nota-accent)',
+      boxShadow:
+        '0 0 0 2px color-mix(in srgb, var(--nota-accent) 18%, transparent)',
     },
     '&[data-state="paused"]': {
       background: '#f59e0b',
@@ -111,8 +112,9 @@ export const statusDot = style({
       boxShadow: '0 0 0 2px rgba(116, 184, 22, 0.18)',
     },
     '&[data-state="create-block-failed"]': {
-      background: '#f05252',
-      boxShadow: '0 0 0 2px rgba(240, 82, 82, 0.18)',
+      background: 'var(--nota-accent)',
+      boxShadow:
+        '0 0 0 2px color-mix(in srgb, var(--nota-accent) 18%, transparent)',
     },
   },
 });
@@ -131,7 +133,7 @@ export const statusTitle = style({
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
-  color: 'rgba(250, 251, 247, 0.96)',
+  color: 'rgba(250, 250, 250, 0.96)',
   fontSize: 13,
   fontWeight: 680,
   lineHeight: 1,
@@ -142,7 +144,7 @@ export const statusMeta = style({
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
-  color: 'rgba(220, 226, 218, 0.64)',
+  color: 'rgba(228, 228, 231, 0.64)',
   fontSize: 11,
   fontWeight: 560,
   lineHeight: 1,
@@ -163,9 +165,9 @@ const pillButtonBase = {
   gap: 6,
   height: 36,
   padding: '0 13px',
-  border: '1px solid rgba(204, 223, 149, 0.18)',
+  border: '1px solid rgba(255, 255, 255, 0.12)',
   borderRadius: 999,
-  color: 'rgba(247, 249, 239, 0.94)',
+  color: 'rgba(244, 244, 245, 0.94)',
   fontFamily: 'inherit',
   fontSize: 12,
   fontWeight: 650,
@@ -175,9 +177,9 @@ const pillButtonBase = {
   userSelect: 'none',
   outline: 'none',
   boxShadow:
-    '0 10px 22px rgba(0, 0, 0, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.08)',
+    '0 4px 12px rgba(0, 0, 0, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.08)',
   transition:
-    'transform 180ms ease, background 180ms ease, border-color 180ms ease, opacity 180ms ease',
+    'transform 160ms ease, background 160ms ease, border-color 160ms ease, opacity 160ms ease',
   animation: `${controlIn} 260ms cubic-bezier(0.2, 0.8, 0.2, 1) both`,
   ['WebkitAppRegion' as string]: 'no-drag',
   selectors: {
@@ -203,13 +205,12 @@ globalStyle(`${controls} button svg`, {
 export const startButton = style({
   ...pillButtonBase,
   minWidth: 82,
-  border: '1px solid rgba(158, 206, 255, 0.2)',
-  background: 'rgba(52, 92, 128, 0.9)',
+  border: '1px solid transparent',
+  background: 'var(--nota-accent)',
   selectors: {
     ...pillButtonBase.selectors,
     '&:hover': {
-      background: 'rgba(61, 108, 150, 0.94)',
-      borderColor: 'rgba(158, 206, 255, 0.32)',
+      filter: 'brightness(1.08)',
     },
   },
 });
@@ -232,12 +233,11 @@ export const secondaryButton = style({
   ...pillButtonBase,
   width: 36,
   padding: 0,
-  background: 'rgba(45, 75, 91, 0.9)',
-  borderColor: 'rgba(137, 197, 226, 0.2)',
+  background: 'rgba(255, 255, 255, 0.1)',
   selectors: {
     ...pillButtonBase.selectors,
     '&:hover': {
-      background: 'rgba(51, 86, 104, 0.94)',
+      background: 'rgba(255, 255, 255, 0.16)',
     },
   },
 });
@@ -245,12 +245,13 @@ export const secondaryButton = style({
 export const doneButton = style({
   ...pillButtonBase,
   minWidth: 82,
-  background: 'rgba(111, 127, 84, 0.88)',
+  border: '1px solid transparent',
+  background: '#f4f4f5',
+  color: '#18181b',
   selectors: {
     ...pillButtonBase.selectors,
     '&:hover': {
-      background: 'rgba(123, 142, 90, 0.92)',
-      borderColor: 'rgba(204, 223, 149, 0.28)',
+      background: '#dcdce0',
     },
   },
 });
@@ -260,7 +261,7 @@ export const dismissButton = style({
   height: 36,
   padding: '0 10px',
   background: 'rgba(255, 255, 255, 0.08)',
-  color: 'rgba(220, 226, 218, 0.72)',
+  color: 'rgba(228, 228, 231, 0.72)',
   border: '1px solid rgba(255, 255, 255, 0.12)',
   boxShadow: 'none',
   selectors: {
@@ -291,7 +292,7 @@ export const processingButton = style({
   minWidth: 96,
   cursor: 'default',
   opacity: 0.86,
-  background: 'rgba(111, 127, 84, 0.72)',
+  background: 'rgba(255, 255, 255, 0.1)',
   selectors: {
     ...pillButtonBase.selectors,
     '&:hover': {
@@ -304,7 +305,7 @@ export const spinner = style({
   width: 12,
   height: 12,
   borderRadius: '50%',
-  border: '2px solid rgba(247, 249, 239, 0.36)',
-  borderTopColor: 'rgba(247, 249, 239, 0.94)',
+  border: '2px solid rgba(244, 244, 245, 0.36)',
+  borderTopColor: 'rgba(244, 244, 245, 0.94)',
   animation: `${spin} 900ms linear infinite`,
 });

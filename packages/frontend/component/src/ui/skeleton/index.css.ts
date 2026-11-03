@@ -1,9 +1,11 @@
 import { cssVar } from '@toeverything/theme';
 import { keyframes, style } from '@vanilla-extract/css';
-// variables
-const bg = cssVar('placeholderColor');
-const highlight = 'rgba(255, 255, 255, 0.4)';
+
+const bg = `var(--nota-skeleton-base, color-mix(in srgb, ${cssVar('placeholderColor')} 30%, transparent))`;
+const highlight = 'var(--nota-skeleton-highlight, rgba(255, 255, 255, 0.4))';
 const defaultHeight = '32px';
+const reducedMotion = '(prefers-reduced-motion: reduce)';
+
 const pulseKeyframes = keyframes({
   '0%': {
     opacity: 1,
@@ -19,9 +21,6 @@ const waveKeyframes = keyframes({
   '0%': {
     transform: 'translateX(-100%)',
   },
-  '50%': {
-    transform: 'translateX(100%)',
-  },
   '100%': {
     transform: 'translateX(100%)',
   },
@@ -32,17 +31,12 @@ export const root = style({
   maxWidth: '100%',
   height: defaultHeight,
   flexShrink: 0,
-  /**
-   * paint background in ::before,
-   * so that we can use opacity to control the color
-   **/
   position: 'relative',
   '::before': {
     content: '',
     position: 'absolute',
     borderRadius: 'inherit',
     inset: 0,
-    opacity: 0.3,
     backgroundColor: bg,
   },
 });
@@ -52,13 +46,13 @@ export const variant = {
     borderRadius: '50%',
   }),
   rectangular: style({
-    borderRadius: '4px',
-  }),
-  rounded: style({
     borderRadius: '8px',
   }),
+  rounded: style({
+    borderRadius: 'var(--nota-row-radius, 10px)',
+  }),
   text: style({
-    borderRadius: '4px',
+    borderRadius: '6px',
     height: '1.2em',
     marginTop: '0.2em',
     marginBottom: '0.2em',
@@ -67,6 +61,11 @@ export const variant = {
 export const animation = {
   pulse: style({
     animation: `${pulseKeyframes} 2s ease-in-out 0.5s infinite`,
+    '@media': {
+      [reducedMotion]: {
+        animation: 'none',
+      },
+    },
   }),
   wave: style({
     position: 'relative',
@@ -74,7 +73,7 @@ export const animation = {
     /* Fix bug in Safari https://bugs.webkit.org/show_bug.cgi?id=68196 */
     WebkitMaskImage: '-webkit-radial-gradient(white, black)',
     '::after': {
-      animation: `${waveKeyframes} 2s linear 0.5s infinite`,
+      animation: `${waveKeyframes} 1.4s ease-in-out infinite`,
       background: `linear-gradient(
         90deg,
         transparent,
@@ -89,6 +88,13 @@ export const animation = {
       left: 0,
       right: 0,
       top: 0,
+    },
+    '@media': {
+      [reducedMotion]: {
+        '::after': {
+          display: 'none',
+        },
+      },
     },
   }),
 };

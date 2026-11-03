@@ -123,7 +123,7 @@ export class AIChatInput extends SignalWatcher(
           display: none;
           width: 16px;
           height: 16px;
-          border-radius: 4px;
+          border-radius: var(--nota-control-radius, 8px);
           border: 1px solid var(--affine-border-color);
           background-color: var(--affine-white);
           padding: 0;
@@ -162,7 +162,7 @@ export class AIChatInput extends SignalWatcher(
         display: flex;
         justify-content: center;
         align-items: center;
-        border-radius: 4px;
+        border-radius: var(--nota-control-radius, 8px);
 
         svg {
           width: 20px;
@@ -188,7 +188,7 @@ export class AIChatInput extends SignalWatcher(
       }
 
       .chat-input-icon[data-active='true'] {
-        background-color: #1e96eb14;
+        background-color: ${unsafeCSSVarV2('button/actionActive')};
 
         svg {
           color: ${unsafeCSSVarV2('icon/activated')};

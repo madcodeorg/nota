@@ -413,7 +413,7 @@ export class CodeArtifactTool extends ArtifactTool<
       padding: 2px;
       align-items: flex-start;
       gap: 4px;
-      border-radius: 4px;
+      border-radius: 999px;
       background: ${unsafeCSSVarV2('segment/background')};
     }
 
@@ -423,7 +423,7 @@ export class CodeArtifactTool extends ArtifactTool<
       justify-content: center;
       align-items: center;
       gap: 4px;
-      border-radius: 4px;
+      border-radius: 999px;
       color: ${unsafeCSSVarV2('text/primary')};
       font-family: Inter;
       font-size: 12px;

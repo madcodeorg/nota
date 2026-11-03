@@ -27,7 +27,7 @@ export const workspaceLabel = style({
   flexWrap: 'wrap',
   justifyContent: 'center',
   alignItems: 'center',
-  borderRadius: '6px',
+  borderRadius: 999,
   padding: '2px 10px',
   border: `1px solid ${cssVar('white30')}`,
   fontSize: cssVar('fontXs'),

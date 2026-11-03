@@ -9,6 +9,22 @@ export const pageDetailSkeletonStyle = style({
   justifyContent: 'center',
   alignItems: 'center',
 });
+export const docSkeleton = style({
+  width: '100%',
+  height: '100%',
+  maxWidth: 800,
+  margin: '0 auto',
+  padding: '72px 24px 0',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 10,
+});
+export const docSkeletonParagraph = style({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 10,
+  marginTop: 24,
+});
 export const blockSuiteEditorStyle = style({
   margin: 'auto 2rem',
   padding: '0 24px',

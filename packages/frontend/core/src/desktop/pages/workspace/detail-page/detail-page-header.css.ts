@@ -62,7 +62,7 @@ export const dragPreview = style({
 export const templateMark = style({
   backgroundColor: cssVarV2.button.templateLabelBackground,
   color: cssVarV2.button.primary,
-  borderRadius: 4,
+  borderRadius: 999,
   padding: '2px 8px',
   fontSize: 12,
   fontWeight: 500,
@@ -75,7 +75,7 @@ export const lockedMark = style({
   gap: 4,
   flexShrink: 0,
   border: 'none',
-  borderRadius: 4,
+  borderRadius: 999,
   padding: '2px 8px',
   fontSize: 12,
   fontWeight: 500,

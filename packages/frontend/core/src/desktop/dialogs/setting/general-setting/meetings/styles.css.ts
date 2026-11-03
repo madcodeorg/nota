@@ -80,7 +80,7 @@ export const readonlyLanguage = style({
   minHeight: 36,
   padding: '7px 12px',
   marginTop: 8,
-  borderRadius: 6,
+  borderRadius: 'var(--nota-control-radius)',
   background: cssVar('hoverColor'),
   color: cssVar('textSecondaryColor'),
   fontSize: cssVar('fontSm'),
@@ -129,7 +129,7 @@ export const providerMenu = style({
   height: 'auto',
   whiteSpace: 'normal',
   overflowWrap: 'anywhere',
-  borderRadius: 6,
+  borderRadius: 'var(--affine-popover-radius)',
 });
 
 export const providerMenuContent = style({
@@ -211,7 +211,7 @@ export const status = style({
   alignItems: 'center',
   height: 24,
   padding: '0 8px',
-  borderRadius: 4,
+  borderRadius: 999,
   background: cssVarV2('chip/label/blue'),
   color: cssVarV2('text/primary'),
   fontSize: cssVar('fontXs'),
@@ -225,7 +225,7 @@ export const mutedStatus = style({
 
 export const modelBadge = style({
   padding: '2px 6px',
-  borderRadius: 4,
+  borderRadius: 999,
   background: cssVarV2('chip/label/blue'),
   color: cssVarV2('text/primary'),
   fontSize: cssVar('fontXs'),

@@ -633,3 +633,99 @@ describe('workspace retrieval preflight', () => {
     }
   );
 });
+
+describe('workspace search index', () => {
+  async function createFallbackConfig() {
+    const workspaceRoot = await mkdtemp(
+      path.join(os.tmpdir(), 'nota-workspace-index-')
+    );
+    temporaryRoots.push(workspaceRoot);
+    return { embeddingMode: 'fallback', workspaceRoot } as AiBackendConfig;
+  }
+
+  const scope = { userId: 'alice', workspaceId: 'workspace-alpha' };
+
+  test('returns the best matches up to the limit, ranked like the full result list', async () => {
+    const config = await createFallbackConfig();
+    await upsertWorkspaceContentDocuments(config, {
+      workspaceId: scope.workspaceId,
+      documents: [
+        ...Array.from({ length: 12 }, (_, index) => ({
+          docId: `copy-${index}`,
+          markdown: '# Roadmap\n\nQuarterly roadmap review for the launch.',
+          title: 'Roadmap',
+        })),
+        {
+          docId: 'unrelated',
+          markdown: '# Lunch\n\nSandwich menu for Friday.',
+          title: 'Lunch',
+        },
+      ],
+    });
+    const query = 'quarterly roadmap review';
+
+    const everything = await searchWorkspace(config, {
+      ...scope,
+      limit: 20,
+      query,
+    });
+    const top = await searchWorkspace(config, { ...scope, limit: 5, query });
+
+    expect(everything.results).toHaveLength(12);
+    expect(top.results).toEqual(everything.results.slice(0, 5));
+    for (const [index, item] of everything.results.slice(1).entries()) {
+      const before = everything.results[index];
+      expect(before.score).toBeGreaterThanOrEqual(item.score);
+      if (before.score === item.score) {
+        expect(before.docId.localeCompare(item.docId)).toBeLessThan(0);
+      }
+    }
+  });
+
+  test('finds an edit made after the index was built and keeps other notes', async () => {
+    const config = await createFallbackConfig();
+    await upsertWorkspaceContentDocuments(config, {
+      workspaceId: scope.workspaceId,
+      documents: [
+        { docId: 'edited', markdown: '# Edited\n\nGlacier notes.', title: 'A' },
+        { docId: 'stable', markdown: '# Stable\n\nVolcano notes.', title: 'B' },
+      ],
+    });
+    await searchWorkspace(config, { ...scope, query: 'glacier' });
+
+    await upsertWorkspaceContentDocuments(config, {
+      workspaceId: scope.workspaceId,
+      documents: [
+        { docId: 'edited', markdown: '# Edited\n\nDesert notes.', title: 'A' },
+      ],
+    });
+
+    const idsFor = async (query: string) =>
+      (await searchWorkspace(config, { ...scope, query })).results.map(
+        item => item.docId
+      );
+    await expect(idsFor('desert')).resolves.toEqual(['edited']);
+    await expect(idsFor('glacier')).resolves.toEqual([]);
+    await expect(idsFor('volcano')).resolves.toEqual(['stable']);
+  });
+
+  test('stops returning a document once it is removed', async () => {
+    const config = await createFallbackConfig();
+    await upsertWorkspaceContentDocuments(config, {
+      workspaceId: scope.workspaceId,
+      documents: [
+        { docId: 'gone', markdown: '# Gone\n\nAurora notes.', title: 'Gone' },
+        { docId: 'kept', markdown: '# Kept\n\nAurora plans.', title: 'Kept' },
+      ],
+    });
+    await searchWorkspace(config, { ...scope, query: 'aurora' });
+
+    await deleteWorkspaceContentDocuments(config, {
+      docIds: ['gone'],
+      workspaceId: scope.workspaceId,
+    });
+
+    const result = await searchWorkspace(config, { ...scope, query: 'aurora' });
+    expect(result.results.map(item => item.docId)).toEqual(['kept']);
+  });
+});

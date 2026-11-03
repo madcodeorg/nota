@@ -49,7 +49,7 @@ export class ChatContentImages extends WithDisposable(ShadowlessElement) {
     }
 
     .chat-content-images-column .image-container {
-      border-radius: 4px;
+      border-radius: var(--nota-control-radius, 8px);
       overflow: hidden;
       position: relative;
       display: flex;

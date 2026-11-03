@@ -15,10 +15,10 @@ export const root = style({
   transition: 'background-color .16s ease, color .16s ease, opacity .16s ease',
   selectors: {
     '&:hover': {
-      background: 'rgba(111, 127, 84, 0.14)',
+      background: cssVar('hoverColor'),
     },
     '&:active': {
-      background: 'rgba(111, 127, 84, 0.2)',
+      background: 'var(--nota-sidebar-active)',
     },
   },
 });

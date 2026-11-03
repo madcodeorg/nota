@@ -1,5 +1,19 @@
 import { cssVar } from '@toeverything/theme';
-import { globalStyle, style } from '@vanilla-extract/css';
+import { globalStyle, keyframes, style } from '@vanilla-extract/css';
+
+const fadeIn = keyframes({
+  from: { opacity: 0, transform: 'translateY(4px)' },
+  to: { opacity: 1, transform: 'none' },
+});
+
+const fadeInOnMount = {
+  animation: `${fadeIn} 160ms ease-out`,
+  '@media': {
+    '(prefers-reduced-motion: reduce)': {
+      animation: 'none',
+    },
+  },
+} as const;
 
 export const root = style({
   display: 'flex',
@@ -42,16 +56,29 @@ export const viewBodyContainer = style({
   flex: 1,
   overflow: 'hidden',
   contain: 'strict',
+  ...fadeInOnMount,
 });
 
 export const routeFallback = style({
   position: 'absolute',
   inset: '52px 0 0 0',
   display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  color: cssVar('iconColor'),
+  flexDirection: 'column',
+  gap: 8,
+  padding: '24px 32px',
+  overflow: 'hidden',
   pointerEvents: 'none',
+  ...fadeInOnMount,
+});
+
+export const routeFallbackRow = style({
+  display: 'flex',
+  alignItems: 'center',
+  flexShrink: 0,
+  height: 46,
+  padding: '0 14px',
+  borderRadius: 'var(--nota-row-radius, 10px)',
+  background: `var(--nota-row-background, ${cssVar('hoverColor')})`,
 });
 
 export const leftSidebarButton = style({

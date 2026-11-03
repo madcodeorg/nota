@@ -1,4 +1,12 @@
-import { Tooltip } from '@nota/component';
+import {
+  IconButton,
+  Menu,
+  MenuItem as MenuOption,
+  MenuSeparator,
+  toast,
+  Tooltip,
+  useConfirmModal,
+} from '@nota/component';
 import { AIProvider } from '@nota/core/blocksuite/ai';
 import { AppSidebarService } from '@nota/core/modules/app-sidebar/services/app-sidebar';
 import {
@@ -39,6 +47,9 @@ import {
   RiGlobalLine,
   RiInboxArchiveLine,
   RiMindMap,
+  RiMoreFill,
+  RiPushpinFill,
+  RiPushpinLine,
   RiSearchLine,
   RiSettings5Line,
   RiSparkling2Fill,
@@ -46,6 +57,7 @@ import {
   RiTaskFill,
   RiTaskLine,
   RiTimeLine,
+  RiUnpinLine,
   RiVoiceprintFill,
   RiVoiceprintLine,
 } from 'react-icons/ri';
@@ -57,6 +69,7 @@ import {
   NavigationPanelTags,
 } from '../../desktop/components/navigation-panel';
 import { CollapsibleSection } from '../../desktop/components/navigation-panel/layouts/collapsible-section';
+import { useNavigationPanelDocNodeOperations } from '../../desktop/components/navigation-panel/nodes/doc/operations';
 import { EditorChatPanel } from '../../desktop/pages/workspace/detail-page/tabs/chat';
 import { getContextDocIdFromPathname } from '../../desktop/pages/workspace/detail-page/tabs/chat-panel-session';
 import {
@@ -72,6 +85,7 @@ import {
   chatHistoryVersion$,
   fullChatSessionId$,
   linkSidebarChat,
+  notifyChatHistoryChanged,
   pagePanelSlot$,
   pendingFullChatSessionId$,
   pendingNewFullChat$,
@@ -452,25 +466,130 @@ const ChatHistoryRow = ({
   onOpen: (sessionId: string) => void;
 }) => {
   const docDisplayMetaService = useService(DocDisplayMetaService);
+  const workbench = useService(WorkbenchService).workbench;
+  const t = useI18n();
+  const { openConfirmModal } = useConfirmModal();
+  const [menuOpen, setMenuOpen] = useState(false);
   const docTitle = useLiveData(
     session.docId ? docDisplayMetaService.title$(session.docId) : null
   );
+
+  const togglePin = useCallback(() => {
+    Promise.resolve(
+      AIProvider.session?.updateSession({
+        sessionId: session.sessionId,
+        pinned: !session.pinned,
+      })
+    )
+      .then(notifyChatHistoryChanged)
+      .catch(error => {
+        console.error(error);
+        toast('Could not update the chat');
+      });
+  }, [session.pinned, session.sessionId]);
+
+  const deleteChat = useCallback(() => {
+    openConfirmModal({
+      title: t['com.affine.ai.chat-panel.session.delete.confirm.title'](),
+      description:
+        t['com.affine.ai.chat-panel.session.delete.confirm.message'](),
+      confirmText: t['Delete'](),
+      cancelText: t['Cancel'](),
+      confirmButtonOptions: { variant: 'error' },
+      onConfirm: async () => {
+        try {
+          await AIProvider.histories?.cleanup(
+            session.workspaceId,
+            session.docId || undefined,
+            [session.sessionId]
+          );
+        } catch (error) {
+          console.error(error);
+          toast(t['com.affine.ai.chat-panel.session.delete.toast.failed']());
+          return;
+        }
+        if (fullChatSessionId$.value === session.sessionId) {
+          pendingNewFullChat$.next(true);
+        }
+        notifyChatHistoryChanged();
+        toast(t['com.affine.ai.chat-panel.session.delete.toast.success']());
+      },
+    });
+  }, [openConfirmModal, session, t]);
+
+  const linkedDocId = session.docId;
+  const menuItems = (
+    <>
+      {linkedDocId && docTitle ? (
+        <MenuOption
+          prefixIcon={<RiFileTextLine size={18} />}
+          onClick={() => workbench.openDoc(linkedDocId, { at: 'active' })}
+        >
+          Open linked note
+        </MenuOption>
+      ) : null}
+      <MenuOption
+        prefixIcon={
+          session.pinned ? (
+            <RiUnpinLine size={18} />
+          ) : (
+            <RiPushpinLine size={18} />
+          )
+        }
+        onClick={togglePin}
+      >
+        {session.pinned ? 'Unpin' : 'Pin'}
+      </MenuOption>
+      <MenuSeparator />
+      <MenuOption
+        type="danger"
+        prefixIcon={<RiDeleteBin6Line size={18} />}
+        onClick={deleteChat}
+      >
+        {t['Delete']()}
+      </MenuOption>
+    </>
+  );
+
   return (
-    <button
-      className={styles.historyItem}
-      data-selected={selected}
-      data-testid="sidebar-chat-history-item"
-      type="button"
-      onClick={() => onOpen(session.sessionId)}
-    >
-      <span className={styles.historyItemTitle}>
-        {session.title || 'New chat'}
-      </span>
-      <span className={styles.historyItemMeta}>
-        {formatHistoryTime(session.updatedAt)}
-        {docTitle ? ` · ${docTitle}` : ''}
-      </span>
-    </button>
+    <div className={styles.historyItemRow} data-menu-open={menuOpen}>
+      <button
+        className={styles.historyItem}
+        data-selected={selected}
+        data-testid="sidebar-chat-history-item"
+        type="button"
+        onClick={() => onOpen(session.sessionId)}
+      >
+        <span className={styles.historyItemTitle}>
+          {session.pinned ? (
+            <RiPushpinFill
+              aria-label="Pinned"
+              className={styles.historyItemPin}
+              size={12}
+            />
+          ) : null}
+          {session.title || 'New chat'}
+        </span>
+        <span className={styles.historyItemMeta}>
+          {formatHistoryTime(session.updatedAt)}
+          {docTitle ? ` · ${docTitle}` : ''}
+        </span>
+      </button>
+      <div className={styles.historyItemMenu}>
+        <Menu
+          items={menuItems}
+          rootOptions={{ open: menuOpen, onOpenChange: setMenuOpen }}
+        >
+          <IconButton
+            size="16"
+            aria-label="More actions"
+            data-testid="sidebar-chat-history-more"
+          >
+            <RiMoreFill size={16} />
+          </IconButton>
+        </Menu>
+      </div>
+    </div>
   );
 };
 
@@ -558,21 +677,57 @@ const ChatHistorySidebar = () => {
  *
  */
 const RecentNoteRow = ({ docId }: { docId: string }) => {
-  const { workbenchService, docDisplayMetaService } = useServices({
-    WorkbenchService,
-    DocDisplayMetaService,
-  });
+  const { workbenchService, docDisplayMetaService, workspaceDialogService } =
+    useServices({
+      WorkbenchService,
+      DocDisplayMetaService,
+      WorkspaceDialogService,
+    });
   const workbench = workbenchService.workbench;
   const title = useLiveData(docDisplayMetaService.title$(docId));
   const Icon = useLiveData(docDisplayMetaService.icon$(docId));
   const active = useLiveData(
     workbench.location$.selector(location => location.pathname === `/${docId}`)
   );
+  const [menuOpen, setMenuOpen] = useState(false);
+  const operations = useNavigationPanelDocNodeOperations(
+    docId,
+    useMemo(
+      () => ({
+        openInfoModal: () => workspaceDialogService.open('doc-info', { docId }),
+        openNodeCollapsed: () => {},
+      }),
+      [docId, workspaceDialogService]
+    )
+  );
+  const menuItems = useMemo(
+    () =>
+      operations
+        .filter(operation => !operation.inline)
+        .sort((a, b) => a.index - b.index)
+        .map((operation, i) => <Fragment key={i}>{operation.view}</Fragment>),
+    [operations]
+  );
   return (
     <MenuItem
       icon={<Icon />}
       active={active}
       onClick={() => workbench.openDoc(docId, { at: 'active' })}
+      postfix={
+        <Menu
+          items={menuItems}
+          rootOptions={{ open: menuOpen, onOpenChange: setMenuOpen }}
+        >
+          <IconButton
+            size="16"
+            aria-label="More actions"
+            data-testid="sidebar-recent-note-more"
+          >
+            <RiMoreFill size={16} />
+          </IconButton>
+        </Menu>
+      }
+      postfixDisplay={menuOpen ? 'always' : 'hover'}
     >
       <span>{title}</span>
     </MenuItem>
@@ -697,20 +852,24 @@ const RAIL_ITEMS: RailItem[] = [
   },
 ];
 
+type TooltipSide = 'right' | 'bottom' | 'top';
+
 const RailButton = ({
   label,
   active,
   onClick,
   children,
   testId,
+  tooltipSide = 'right',
 }: {
   label: string;
   active?: boolean;
   onClick: () => void;
   children: ReactElement;
   testId?: string;
+  tooltipSide?: TooltipSide;
 }) => (
-  <Tooltip content={label} side="right">
+  <Tooltip content={label} side={tooltipSide}>
     <button
       type="button"
       aria-label={label}
@@ -724,19 +883,19 @@ const RailButton = ({
   </Tooltip>
 );
 
-const SidebarRail = ({
+const SidebarNavButtons = ({
   section,
   aiEnabled,
+  tooltipSide,
 }: {
   section: SidebarSection;
   aiEnabled: boolean;
+  tooltipSide?: TooltipSide;
 }) => {
   const workbench = useService(WorkbenchService).workbench;
-  const workspaceDialogService = useService(WorkspaceDialogService);
   const location = useLiveData(workbench.location$);
   const appSidebar = useService(AppSidebarService).sidebar;
   const isJournal = location.pathname.startsWith('/journals');
-  const isTrash = location.pathname.startsWith('/trash');
   const isTasks = location.pathname.startsWith('/tasks');
   const isGraph = location.pathname.startsWith('/graph');
 
@@ -753,102 +912,132 @@ const SidebarRail = ({
   };
 
   return (
-    <div
-      className={styles.rail}
-      data-testid="sidebar-rail"
-      data-electron={BUILD_CONFIG.isElectron}
-    >
-      <div className={styles.railGroup}>
-        {RAIL_ITEMS.filter(item => item.id !== 'ai' || aiEnabled).map(item => {
-          const active =
-            section === item.id ||
-            (item.id === 'ai' &&
-              (section === 'chats' || location.pathname === '/chat'));
-          return (
-            <Fragment key={item.id}>
+    <div className={styles.railGroup}>
+      {RAIL_ITEMS.filter(item => item.id !== 'ai' || aiEnabled).map(item => {
+        const active =
+          section === item.id ||
+          (item.id === 'ai' &&
+            (section === 'chats' || location.pathname === '/chat'));
+        return (
+          <Fragment key={item.id}>
+            <RailButton
+              label={item.label}
+              active={active}
+              testId={`sidebar-rail-${item.id}`}
+              tooltipSide={tooltipSide}
+              onClick={() => select(item.id)}
+            >
+              {active ? item.activeIcon : item.icon}
+            </RailButton>
+            {item.id === 'notes' ? (
               <RailButton
-                label={item.label}
-                active={active}
-                testId={`sidebar-rail-${item.id}`}
-                onClick={() => select(item.id)}
+                label="Journals"
+                active={isJournal}
+                testId="sidebar-rail-journals"
+                tooltipSide={tooltipSide}
+                onClick={() => workbench.open('/journals', { at: 'active' })}
               >
-                {active ? item.activeIcon : item.icon}
+                <RiCalendarTodoLine size={20} />
               </RailButton>
-              {item.id === 'notes' ? (
-                <RailButton
-                  label="Journals"
-                  active={isJournal}
-                  testId="sidebar-rail-journals"
-                  onClick={() => workbench.open('/journals', { at: 'active' })}
-                >
-                  <RiCalendarTodoLine size={20} />
-                </RailButton>
-              ) : null}
-              {item.id === 'notes' ? (
-                <RailButton
-                  label="Tasks"
-                  active={isTasks}
-                  testId="sidebar-rail-tasks"
-                  onClick={() => workbench.open('/tasks', { at: 'active' })}
-                >
-                  {isTasks ? (
-                    <RiTaskFill size={20} />
-                  ) : (
-                    <RiTaskLine size={20} />
-                  )}
-                </RailButton>
-              ) : null}
-              {item.id === 'notes' ? (
-                <RailButton
-                  label="Graph"
-                  active={isGraph}
-                  testId="sidebar-rail-graph"
-                  onClick={() => workbench.open('/graph', { at: 'active' })}
-                >
-                  <RiMindMap size={20} />
-                </RailButton>
-              ) : null}
-            </Fragment>
-          );
-        })}
-        <div className={styles.railDivider} />
-        <RailButton
-          label="Page details"
-          active={section === 'page'}
-          testId="sidebar-rail-page"
-          onClick={() => select('page')}
-        >
-          {section === 'page' ? (
-            <RiFileTextFill size={20} />
-          ) : (
-            <RiFileTextLine size={20} />
-          )}
-        </RailButton>
-      </div>
-      <div className={styles.railGroup}>
-        <RailButton
-          label="Trash"
-          active={isTrash}
-          testId="sidebar-tray-trash"
-          onClick={() => workbench.open('/trash', { at: 'active' })}
-        >
-          <RiDeleteBin6Line size={20} />
-        </RailButton>
-        <RailButton
-          label="Settings"
-          onClick={() =>
-            workspaceDialogService.open('setting', { activeTab: 'appearance' })
-          }
-        >
-          <RiSettings5Line size={20} />
-        </RailButton>
-        <div className={styles.railAvatar}>
-          <UserInfo size={28} />
-        </div>
+            ) : null}
+            {item.id === 'notes' ? (
+              <RailButton
+                label="Tasks"
+                active={isTasks}
+                testId="sidebar-rail-tasks"
+                tooltipSide={tooltipSide}
+                onClick={() => workbench.open('/tasks', { at: 'active' })}
+              >
+                {isTasks ? <RiTaskFill size={20} /> : <RiTaskLine size={20} />}
+              </RailButton>
+            ) : null}
+            {item.id === 'notes' ? (
+              <RailButton
+                label="Graph"
+                active={isGraph}
+                testId="sidebar-rail-graph"
+                tooltipSide={tooltipSide}
+                onClick={() => workbench.open('/graph', { at: 'active' })}
+              >
+                <RiMindMap size={20} />
+              </RailButton>
+            ) : null}
+          </Fragment>
+        );
+      })}
+      <div className={styles.railDivider} />
+      <RailButton
+        label="Page details"
+        active={section === 'page'}
+        testId="sidebar-rail-page"
+        tooltipSide={tooltipSide}
+        onClick={() => select('page')}
+      >
+        {section === 'page' ? (
+          <RiFileTextFill size={20} />
+        ) : (
+          <RiFileTextLine size={20} />
+        )}
+      </RailButton>
+    </div>
+  );
+};
+
+const SidebarFooterButtons = ({
+  tooltipSide,
+}: {
+  tooltipSide?: TooltipSide;
+}) => {
+  const workbench = useService(WorkbenchService).workbench;
+  const workspaceDialogService = useService(WorkspaceDialogService);
+  const isTrash = useLiveData(
+    workbench.location$.selector(location =>
+      location.pathname.startsWith('/trash')
+    )
+  );
+  return (
+    <div className={styles.railGroup}>
+      <RailButton
+        label="Trash"
+        tooltipSide={tooltipSide}
+        active={isTrash}
+        testId="sidebar-tray-trash"
+        onClick={() => workbench.open('/trash', { at: 'active' })}
+      >
+        <RiDeleteBin6Line size={20} />
+      </RailButton>
+      <RailButton
+        label="Settings"
+        tooltipSide={tooltipSide}
+        onClick={() =>
+          workspaceDialogService.open('setting', { activeTab: 'appearance' })
+        }
+      >
+        <RiSettings5Line size={20} />
+      </RailButton>
+      <div className={styles.railAvatar}>
+        <UserInfo size={28} />
       </div>
     </div>
   );
 };
+
+const SidebarRail = ({
+  section,
+  aiEnabled,
+}: {
+  section: SidebarSection;
+  aiEnabled: boolean;
+}) => (
+  <div
+    className={styles.rail}
+    data-testid="sidebar-rail"
+    data-electron={BUILD_CONFIG.isElectron}
+  >
+    <SidebarNavButtons section={section} aiEnabled={aiEnabled} />
+    <SidebarFooterButtons />
+  </div>
+);
 
 /**
  * Root app sidebar: a thin icon rail plus a contextual panel that shows the
@@ -879,6 +1068,11 @@ export const RootAppSidebar = memo((): ReactElement => {
   const aiEnabled = !!enableAI && !!serverFeatures?.copilot;
 
   const workbench = workbenchService.workbench;
+  const appSidebar = useService(AppSidebarService).sidebar;
+  const sidebarOpen = useLiveData(appSidebar.open$);
+  const smallScreenMode = useLiveData(appSidebar.smallScreenMode$);
+  // Matches AppSidebar's "open" state, where the rail is hidden.
+  const docked = !!sidebarOpen && !smallScreenMode;
   const workspaceSelectorOpen = useLiveData(workbench.workspaceSelectorOpen$);
   const storedSection = useLiveData(sidebarSection$);
   const section =
@@ -909,6 +1103,15 @@ export const RootAppSidebar = memo((): ReactElement => {
               {BUILD_CONFIG.isElectron ? <SaveWebPageButton /> : null}
               <ImportButton />
             </div>
+            {docked ? (
+              <div className={styles.navBar} data-testid="sidebar-nav-bar">
+                <SidebarNavButtons
+                  section={section}
+                  aiEnabled={aiEnabled}
+                  tooltipSide="bottom"
+                />
+              </div>
+            ) : null}
             {section === 'notes' ? (
               <>
                 {!BUILD_CONFIG.isElectron && <SearchNavItem />}
@@ -940,6 +1143,11 @@ export const RootAppSidebar = memo((): ReactElement => {
               {section === 'meetings' ? <MeetingHistorySidebar /> : null}
               {section === 'chats' ? <ChatHistorySidebar /> : null}
             </SidebarScrollableContainer>
+          ) : null}
+          {docked ? (
+            <div className={styles.footerBar}>
+              <SidebarFooterButtons tooltipSide="top" />
+            </div>
           ) : null}
         </div>
       </div>

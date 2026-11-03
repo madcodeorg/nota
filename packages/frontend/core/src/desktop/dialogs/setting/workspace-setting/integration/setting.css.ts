@@ -21,7 +21,7 @@ export const headerIcon = style({
   width: 40,
   height: 40,
   fontSize: 30,
-  borderRadius: 5,
+  borderRadius: 'var(--nota-control-radius)',
 });
 export const headerTitle = style({
   fontSize: 15,
@@ -65,7 +65,7 @@ export const settingDesc = style({
 });
 
 export const textRadioGroup = style({
-  borderRadius: 4,
+  borderRadius: 'var(--nota-row-radius)',
   border: `1px solid ${cssVarV2.layer.insideBorder.border}`,
 });
 export const textRadioGroupItem = style({

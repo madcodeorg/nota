@@ -1,6 +1,6 @@
 {
   "name": "@nota/android",
-  "version": "0.1.9",
+  "version": "0.1.12-beta.1",
   "description": "Nota Android application",
   "private": true,
   "scripts": {

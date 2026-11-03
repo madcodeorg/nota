@@ -8,10 +8,12 @@ export const root = style({
   height: '100vh',
   display: 'flex',
   flexDirection: 'column',
-  background: cssVarV2('layer/background/primary'),
+  background: 'var(--nota-frame-background)',
   selectors: {
-    '&[data-translucent="true"]': {
-      background: 'transparent',
+    // Light mode keeps the charcoal frame solid; see app-container styles.
+    'html[data-theme="dark"] &[data-translucent="true"]': {
+      background:
+        'color-mix(in srgb, var(--nota-frame-background) 84%, transparent)',
     },
   },
 });

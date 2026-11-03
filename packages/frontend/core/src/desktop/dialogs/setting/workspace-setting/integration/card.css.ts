@@ -30,7 +30,7 @@ export const cardHeader = style({
 export const cardIcon = style({
   width: 32,
   height: 32,
-  borderRadius: 4,
+  borderRadius: 'var(--nota-control-radius)',
   background: cssVarV2.integrations.background.iconSolid,
   boxShadow: cssVar('buttonShadow'),
   border: `0.5px solid ${cssVarV2.layer.insideBorder.border}`,

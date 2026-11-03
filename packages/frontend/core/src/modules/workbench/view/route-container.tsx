@@ -1,4 +1,4 @@
-import { Loading } from '@nota/component';
+import { Skeleton } from '@nota/component';
 import { AffineErrorBoundary } from '@nota/core/components/affine/affine-error-boundary';
 import { useService, useServiceOptional } from '@nota/infra';
 import { Suspense, useCallback, useEffect, useRef } from 'react';
@@ -16,6 +16,18 @@ export interface Props {
 }
 
 const READY_FALLBACK_TIMEOUT = 3000;
+const FALLBACK_ROW_WIDTHS = ['62%', '48%', '70%', '55%', '40%'];
+
+const RouteFallback = () => (
+  <div className={styles.routeFallback} aria-busy="true">
+    <Skeleton variant="text" animation="wave" width={180} height={24} />
+    {FALLBACK_ROW_WIDTHS.map(width => (
+      <div key={width} className={styles.routeFallbackRow}>
+        <Skeleton variant="text" animation="wave" width={width} height={12} />
+      </div>
+    ))}
+  </div>
+);
 
 // Tells the main process this tab has real content so it can drop the shell
 // view that covers it. Idempotent.
@@ -68,13 +80,7 @@ export const RouteContainer = () => {
       </div>
 
       <AffineErrorBoundary>
-        <Suspense
-          fallback={
-            <div className={styles.routeFallback}>
-              <Loading size={24} />
-            </div>
-          }
-        >
+        <Suspense fallback={<RouteFallback />}>
           <Outlet />
           <ReadyBeacon onReady={pingReady} />
         </Suspense>

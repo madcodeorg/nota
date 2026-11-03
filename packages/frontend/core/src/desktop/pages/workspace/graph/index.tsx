@@ -1,4 +1,4 @@
-import { Checkbox } from '@nota/component';
+import { Checkbox, Skeleton } from '@nota/component';
 import { DocsService } from '@nota/core/modules/doc';
 import {
   ViewBody,
@@ -94,7 +94,7 @@ const GraphCanvas = ({
       text: resolveColor(canvas, cssVarV2.text.primary, '#121212'),
       node: resolveColor(canvas, cssVarV2.text.secondary, '#7a7a7a'),
       edge: resolveColor(canvas, cssVarV2.layer.insideBorder.border, '#e3e2e4'),
-      accent: resolveColor(canvas, cssVarV2.button.primary, '#1e96eb'),
+      accent: resolveColor(canvas, cssVarV2.button.primary, '#e5432f'),
     };
 
     const toWorld = (event: { clientX: number; clientY: number }) => {
@@ -387,7 +387,16 @@ export const GraphPage = () => {
               graph={graph}
               onOpen={docId => workbench.openDoc(docId, { at: 'active' })}
             />
-          ) : null}
+          ) : (
+            <Skeleton
+              variant="rounded"
+              animation="wave"
+              width="auto"
+              height="auto"
+              flex={1}
+              style={{ margin: 16 }}
+            />
+          )}
         </div>
       </ViewBody>
     </>

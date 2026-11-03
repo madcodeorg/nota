@@ -28,12 +28,8 @@ export const settingSlideBar = style({
       transform: 'translateX(-50%)',
       pointerEvents: 'none',
       background:
-        'radial-gradient(circle at 50% 50%, rgba(111, 127, 84, 0.16), transparent 68%)',
+        'radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--nota-accent) 8%, transparent), transparent 68%)',
       filter: 'blur(8px)',
-    },
-    '[data-theme="dark"] &::after': {
-      background:
-        'radial-gradient(circle at 50% 50%, rgba(185, 199, 140, 0.12), transparent 68%)',
     },
   },
 });
@@ -98,7 +94,7 @@ export const sidebarSelectItem = style({
   border: 0,
   background: 'transparent',
   outline: 'none',
-  borderRadius: '10px',
+  borderRadius: 'var(--nota-row-radius)',
   cursor: 'pointer',
   userSelect: 'none',
   transition: 'background 0.16s ease, color 0.16s ease',
@@ -110,8 +106,8 @@ export const sidebarSelectItem = style({
       top: '50%',
       width: '3px',
       height: '16px',
-      borderRadius: '3px',
-      background: cssVar('primaryColor'),
+      borderRadius: 999,
+      background: 'var(--nota-accent)',
       transform: 'translateY(-50%) scaleY(0.4)',
       opacity: 0,
       transition: 'opacity 0.16s ease, transform 0.16s ease',
@@ -188,7 +184,7 @@ export const sidebarSelectItemBeta = style({
   alignItems: 'center',
   justifyContent: 'center',
   padding: '0 8px',
-  borderRadius: '6px',
+  borderRadius: 999,
   transform: 'translateX(2px)',
 });
 
@@ -219,7 +215,7 @@ export const sidebarGroup = style({
 export const accountButton = style({
   width: '100%',
   padding: '10px',
-  borderRadius: '12px',
+  borderRadius: 'var(--nota-row-radius)',
   border: `1px solid ${cssVarV2('layer/insideBorder/border')}`,
   background: cssVarV2('layer/background/primary'),
   color: cssVarV2('text/primary'),

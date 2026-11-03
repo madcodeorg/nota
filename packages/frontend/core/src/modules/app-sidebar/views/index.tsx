@@ -13,6 +13,7 @@ import { useCallback, useContext, useEffect, useMemo } from 'react';
 import { WorkbenchService } from '../../workbench';
 import { allowedSplitViewEntityTypes } from '../../workbench/view/split-view/types';
 import { WorkspaceService } from '../../workspace';
+import { APP_SIDEBAR_MIN_WIDTH } from '../entities/app-sidebar';
 import { AppSidebarService } from '../services/app-sidebar';
 import * as styles from './fallback.css';
 import {
@@ -33,7 +34,7 @@ export type History = {
 };
 
 const MAX_WIDTH = 560;
-const MIN_WIDTH = 300;
+const COLLAPSE_THRESHOLD = 80;
 const RAIL_WIDTH = 52;
 const isMacosDesktop = BUILD_CONFIG.isElectron && environment.isMacOs;
 
@@ -65,6 +66,9 @@ export function AppSidebar({
         : 'close';
 
   const hasRightBorder = !BUILD_CONFIG.isElectron && !clientBorder;
+  // The docked panel carries the rail's buttons itself, so the rail only shows
+  // while the panel is closed or previewing.
+  const showRail = !!rail && sidebarState !== 'open';
 
   const handleOpenChange = useCallback(
     (open: boolean) => {
@@ -104,7 +108,7 @@ export function AppSidebar({
         return;
       }
 
-      if (e.clientX > width + (rail ? RAIL_WIDTH : 0) + 20) {
+      if (e.clientX > width + (showRail ? RAIL_WIDTH : 0) + 20) {
         appSidebarService.setHovering(false);
       }
     };
@@ -112,7 +116,7 @@ export function AppSidebar({
     return () => {
       document.removeEventListener('mousemove', onMouseMove);
     };
-  }, [appSidebarService, rail, resizing, sidebarState, width]);
+  }, [appSidebarService, showRail, resizing, sidebarState, width]);
 
   const resizeHandleDropTargetOptions = useMemo(() => {
     return () => ({
@@ -141,10 +145,11 @@ export function AppSidebar({
 
   return (
     <>
-      {rail ? (
+      {showRail ? (
         <div
           className={railColumnStyle}
           data-testid="app-sidebar-rail-column"
+          data-theme="dark"
           onMouseMove={() => {
             if (
               !open &&
@@ -171,7 +176,8 @@ export function AppSidebar({
         open={sidebarState !== 'close'}
         resizing={resizing}
         maxWidth={MAX_WIDTH}
-        minWidth={MIN_WIDTH}
+        minWidth={APP_SIDEBAR_MIN_WIDTH}
+        collapseThreshold={COLLAPSE_THRESHOLD}
         width={width}
         resizeHandlePos="right"
         onOpen={handleOpenChange}
@@ -191,6 +197,7 @@ export function AppSidebar({
         resizeHandleTooltipShortcut={['$mod', '/']}
         resizeHandleTooltipShortcutClassName={resizeHandleShortcutStyle}
         data-transparent
+        data-theme="dark"
         data-open={sidebarState !== 'close'}
         data-has-border={hasRightBorder}
         data-testid="app-sidebar-wrapper"
@@ -257,9 +264,15 @@ export function FallbackHeaderWithWorkspaceNavigator() {
 export function FallbackHeaderSkeleton() {
   return (
     <>
-      <Skeleton variant="rectangular" width={32} height={32} />
-      <Skeleton variant="rectangular" width={150} height={32} flex={1} />
-      <Skeleton variant="circular" width={25} height={25} />
+      <Skeleton variant="rectangular" animation="wave" width={32} height={32} />
+      <Skeleton
+        variant="rectangular"
+        animation="wave"
+        width={150}
+        height={32}
+        flex={1}
+      />
+      <Skeleton variant="circular" animation="wave" width={25} height={25} />
     </>
   );
 }
@@ -272,9 +285,10 @@ const RandomBar = ({ className }: { className?: string }) => {
   const width = useMemo(() => randomWidth(), []);
   return (
     <Skeleton
-      variant="rectangular"
+      variant="text"
+      animation="wave"
       width={width}
-      height={16}
+      height={14}
       className={className}
     />
   );
@@ -286,9 +300,10 @@ const RandomBars = ({ count, header }: { count: number; header?: boolean }) => {
       {header ? (
         <Skeleton
           className={styles.fallbackItemHeader}
-          variant="rectangular"
+          variant="text"
+          animation="wave"
           width={50}
-          height={16}
+          height={12}
         />
       ) : null}
       {Array.from({ length: count }).map((_, index) => (
@@ -323,6 +338,7 @@ export const AppSidebarFallback = (): ReactElement | null => {
       data-has-border={!BUILD_CONFIG.isElectron && !clientBorder}
       data-is-electron={BUILD_CONFIG.isElectron}
       data-open="true"
+      data-theme="dark"
     >
       <nav className={navStyle}>
         {!BUILD_CONFIG.isElectron ? <div className={navHeaderStyle} /> : null}
@@ -353,6 +369,7 @@ export const ShellAppSidebarFallback = () => {
       data-has-border={!BUILD_CONFIG.isElectron && !clientBorder}
       data-is-electron={BUILD_CONFIG.isElectron}
       data-open="true"
+      data-theme="dark"
     >
       <nav className={navStyle}>
         {!BUILD_CONFIG.isElectron ? <div className={navHeaderStyle} /> : null}

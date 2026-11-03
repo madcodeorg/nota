@@ -26,6 +26,17 @@ const doc = {
   markdown: '# Launch\n\nLaunch checklist approved.',
 };
 
+function useTestEmbeddingLoader() {
+  search.setEmbeddingTransformersLoaderForTesting(async () => ({
+    env: {
+      allowLocalModels: true,
+      allowRemoteModels: false,
+      localModelPath: root,
+    },
+    pipeline: mock.factory,
+  }));
+}
+
 beforeEach(async () => {
   vi.resetModules();
   mock.inference
@@ -45,14 +56,7 @@ beforeEach(async () => {
     embeddingModel: 'test-model',
   } as AiBackendConfig;
   search = await import('./workspace-search');
-  search.setEmbeddingTransformersLoaderForTesting(async () => ({
-    env: {
-      allowLocalModels: true,
-      allowRemoteModels: false,
-      localModelPath: root,
-    },
-    pipeline: mock.factory,
-  }));
+  useTestEmbeddingLoader();
   await search.upsertWorkspaceContentDocuments(config, {
     workspaceId: 'alpha',
     documents: [doc],
@@ -281,6 +285,83 @@ test('rejects corrupt cached vectors rather than coercing or shortening them', a
   const cache = JSON.parse(await readFile(cachePath, 'utf8'));
   cache.entries[0].vector = [1, null, 0, 0, 0, 0, 0, 0, 0];
   await writeFile(cachePath, JSON.stringify(cache));
+  // A restarted backend reuses nothing from memory, so it reads the disk cache.
+  vi.resetModules();
+  search = await import('./workspace-search');
+  useTestEmbeddingLoader();
+  const result = await search.searchWorkspace(config, {
+    ...scope,
+    query: 'Launch',
+  });
+  expect(result.index.embeddingCacheHits).toBe(0);
+  expect(result.index.embeddingCacheMisses).toBe(1);
+});
+
+test('embeds and reads the disk cache only for notes that changed', async () => {
+  await search.searchWorkspace(config, { ...scope, query: 'Launch' });
+  mock.inference.mockClear();
+
+  await search.upsertWorkspaceContentDocuments(config, {
+    workspaceId: 'alpha',
+    documents: [
+      {
+        docId: 'other',
+        title: 'Budget',
+        markdown: '# Budget\n\nQ3 budget review.',
+      },
+    ],
+  });
+  const result = await search.searchWorkspace(config, {
+    ...scope,
+    query: 'Launch',
+  });
+
+  // `note` kept its vector in memory; only `other` needed an embedding.
+  expect(result.index.chunks).toBe(2);
+  expect(result.index.embeddingCacheHits).toBe(0);
+  expect(result.index.embeddingCacheMisses).toBe(1);
+  const embedded = mock.inference.mock.calls
+    .flatMap(([texts]) => texts as string[])
+    .filter(text => text.includes('checklist') || text.includes('Q3 budget'));
+  expect(embedded).toHaveLength(1);
+  expect(embedded[0]).toContain('Q3 budget');
+});
+
+test('keeps the parsed embedding cache in memory and writes it back whole', async () => {
+  await search.searchWorkspace(config, { ...scope, query: 'Launch' });
+  const cachePath = path.join(root, '.nota/search/test-model-embeddings.json');
+  await writeFile(cachePath, 'not json');
+
+  await search.upsertWorkspaceContentDocuments(config, {
+    workspaceId: 'alpha',
+    documents: [
+      {
+        docId: 'other',
+        title: 'Budget',
+        markdown: '# Budget\n\nQ3 budget review.',
+      },
+    ],
+  });
+  await search.searchWorkspace(config, { ...scope, query: 'Launch' });
+
+  // A restarted backend finds both vectors in the rewritten file.
+  vi.resetModules();
+  search = await import('./workspace-search');
+  useTestEmbeddingLoader();
+  mock.inference.mockClear();
+  const restarted = await search.searchWorkspace(config, {
+    ...scope,
+    query: 'Launch',
+  });
+  expect(restarted.index.chunks).toBe(2);
+  expect(restarted.index.embeddingCacheHits).toBe(2);
+  expect(restarted.index.embeddingCacheMisses).toBe(0);
+});
+
+test('does not embed anything when an unchanged note is sent again', async () => {
+  await search.searchWorkspace(config, { ...scope, query: 'Launch' });
+  mock.inference.mockClear();
+
   await search.upsertWorkspaceContentDocuments(config, {
     workspaceId: 'alpha',
     documents: [doc],
@@ -289,8 +370,31 @@ test('rejects corrupt cached vectors rather than coercing or shortening them', a
     ...scope,
     query: 'Launch',
   });
-  expect(result.index.embeddingCacheHits).toBe(0);
+
+  expect(result.index.embeddingCacheMisses).toBe(0);
+  expect(result.index.embeddingDimensions).toBe(vector.length);
+  const embedded = mock.inference.mock.calls
+    .flatMap(([texts]) => texts as string[])
+    .filter(text => text.includes('checklist'));
+  expect(embedded).toHaveLength(0);
+});
+
+test('never scores vectors from a different embedding model', async () => {
+  await search.searchWorkspace(config, { ...scope, query: 'Launch' });
+  mock.inference.mockClear();
+
+  const result = await search.searchWorkspace(
+    { ...config, embeddingModel: 'other-model' },
+    { ...scope, query: 'Launch' }
+  );
+
+  expect(result.index.embeddingModel).toBe('other-model');
   expect(result.index.embeddingCacheMisses).toBe(1);
+  expect(
+    mock.inference.mock.calls
+      .flatMap(([texts]) => texts as string[])
+      .filter(text => text.includes('checklist'))
+  ).toHaveLength(1);
 });
 
 test('fallback mode never loads a model and suppresses unrelated results', async () => {

@@ -233,6 +233,7 @@ vi.mock('@nota/component', () => ({
   Menu: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   MenuItem: () => null,
   MenuSeparator: () => null,
+  Skeleton: () => null,
   Tooltip: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 }));
 vi.mock('@nota/i18n', () => ({

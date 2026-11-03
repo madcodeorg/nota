@@ -18,7 +18,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('@nota/component', () => ({
-  Loading: () => <div data-testid="route-loading" />,
+  Skeleton: () => <div data-testid="route-loading" />,
 }));
 vi.mock('@nota/core/components/affine/affine-error-boundary', () => ({
   AffineErrorBoundary: ({ children }: { children: ReactNode }) => children,
@@ -86,7 +86,7 @@ describe('route container ready signal', () => {
     mocks.outlet.current = () => <Page />;
     render(<RouteContainer />);
 
-    expect(screen.getByTestId('route-loading')).toBeTruthy();
+    expect(screen.getAllByTestId('route-loading').length).toBeGreaterThan(0);
     await flushFrames();
     expect(mocks.pingAppLayoutReady).not.toHaveBeenCalled();
 

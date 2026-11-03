@@ -17,6 +17,8 @@ import * as styles from './split-view.css';
 import { draggingOverResizeHandleAtom } from './state';
 import { allowedSplitViewEntityTypes, inferToFromEntity } from './types';
 
+const MIN_PANEL_SIZE = 240;
+
 export interface SplitViewProps extends HTMLAttributes<HTMLDivElement> {
   /**
    * ⚠️ `vertical` orientation is not supported yet
@@ -59,20 +61,37 @@ export const SplitView = ({
     });
   }, [views]);
 
+  // views present on first render skip the enter animation
+  const [initialViewIds] = useState(() => new Set(views.map(v => v.id)));
+
   const onResizing = useCallback(
     (index: number, { x, y }: { x: number; y: number }) => {
       const rootEl = rootRef.current;
-      if (!rootEl) return;
+      const view = views[index];
+      const nextView = views[index + 1];
+      if (!rootEl || !view || !nextView) return;
 
-      const rootRect = rootEl.getBoundingClientRect();
-      const offset = orientation === 'horizontal' ? x : y;
-      const total =
-        orientation === 'horizontal' ? rootRect.width : rootRect.height;
+      const panelRect = (id: string) =>
+        rootEl
+          .querySelector(`[data-view-id="${CSS.escape(id)}"]`)
+          ?.getBoundingClientRect();
+      const a = panelRect(view.id);
+      const b = panelRect(nextView.id);
+      if (!a || !b) return;
 
-      const percent = offset / total;
-      workbench.resize(index, percent);
+      const horizontal = orientation === 'horizontal';
+      const start = horizontal ? a.left : a.top;
+      const sizeA = horizontal ? a.width : a.height;
+      const sizeB = horizontal ? b.width : b.height;
+      const gap = (horizontal ? b.left : b.top) - (start + sizeA);
+      const pairSize = sizeA + sizeB;
+      if (pairSize <= 0) return;
+
+      const pointer = horizontal ? x : y;
+      const ratio = (pointer - start - gap / 2) / pairSize;
+      workbench.resize(index, ratio, MIN_PANEL_SIZE / pairSize);
     },
-    [orientation, workbench]
+    [orientation, views, workbench]
   );
 
   const handleOnMove = useCallback(
@@ -95,22 +114,16 @@ export const SplitView = ({
         if (!BUILD_CONFIG.isElectron) {
           return false;
         }
-        // allow dropping doc && tab view to split view panel
+        // docs, collections, tags, links, and tabs that show a doc
         const from = data.source.data.from;
         const entity = data.source.data.entity;
-        if (from?.at === 'app-header:tabs') {
-          return false;
-        } else if (
-          entity?.type &&
-          (allowedSplitViewEntityTypes.has(entity?.type) ||
-            // will show a toast warning for folder for now
-            entity?.type === 'folder')
-        ) {
-          return true;
-        } else if (from?.at === 'workbench:link') {
-          return true;
-        }
-        return false;
+        return (
+          (!!entity?.type &&
+            (allowedSplitViewEntityTypes.has(entity.type) ||
+              // will show a toast warning for folder for now
+              entity.type === 'folder')) ||
+          from?.at === 'workbench:link'
+        );
       },
       onDragStart() {
         setDraggingEntity(true);
@@ -240,8 +253,9 @@ export const SplitView = ({
             index={order}
             key={view.id}
             onMove={handleOnMove}
-            onResizing={dxy => onResizing(order, dxy)}
+            onResizing={pos => onResizing(order, pos)}
             draggingEntity={draggingEntity}
+            animateIn={!initialViewIds.has(view.id)}
           >
             {renderer(view)}
           </SplitViewPanel>

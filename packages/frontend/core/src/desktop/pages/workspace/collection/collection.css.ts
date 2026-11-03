@@ -17,7 +17,7 @@ export const placeholderButton = style({
 });
 export const button = style({
   userSelect: 'none',
-  borderRadius: 4,
+  borderRadius: 'var(--nota-control-radius)',
   cursor: 'pointer',
   ':hover': {
     backgroundColor: cssVar('hoverColor'),

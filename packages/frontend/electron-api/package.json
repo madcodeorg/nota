@@ -1,6 +1,6 @@
 {
   "name": "@nota/electron-api",
-  "version": "0.1.9",
+  "version": "0.1.12-beta.1",
   "type": "module",
   "private": true,
   "main": "./src/index.ts",

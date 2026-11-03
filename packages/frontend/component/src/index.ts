@@ -1,6 +1,7 @@
 export * from './hooks';
 export * from './lit-react';
 export * from './styles';
+export * from './theme/brand';
 export * from './ui/audio-player';
 export * from './ui/avatar';
 export * from './ui/button';

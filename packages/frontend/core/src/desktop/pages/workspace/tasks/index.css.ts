@@ -15,48 +15,53 @@ export const content = style({
 });
 
 export const header = style({
-  marginBottom: 24,
+  marginBottom: 28,
 });
 
 export const title = style({
   fontSize: 28,
-  fontWeight: 600,
+  fontWeight: 700,
   lineHeight: '36px',
+  letterSpacing: '-0.01em',
   color: cssVarV2.text.primary,
 });
 
 export const subtitle = style({
   marginTop: 6,
   fontSize: cssVar('fontSm'),
+  lineHeight: '20px',
   color: cssVarV2.text.secondary,
 });
 
 export const empty = style({
-  padding: '32px 0',
+  padding: '20px 16px',
+  borderRadius: 'var(--nota-row-radius)',
+  backgroundColor: 'var(--nota-row-background)',
   fontSize: cssVar('fontSm'),
   color: cssVarV2.text.secondary,
 });
 
 export const group = style({
-  marginTop: 20,
+  marginTop: 24,
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 6,
 });
 
 export const groupHeader = style({
   display: 'flex',
   alignItems: 'center',
   gap: 8,
-  padding: '4px 0',
-  borderBottom: `0.5px solid ${cssVarV2.layer.insideBorder.border}`,
-  marginBottom: 4,
+  padding: '0 4px 4px',
 });
 
 export const groupLabel = style({
-  fontSize: cssVar('fontSm'),
-  fontWeight: 600,
+  fontSize: cssVar('fontBase'),
+  fontWeight: 700,
   color: cssVarV2.text.primary,
   selectors: {
-    '&[data-overdue="true"]': {
-      color: cssVarV2.status.error,
+    '&[data-overdue="true"], &[data-today="true"]': {
+      color: 'var(--nota-accent)',
     },
   },
 });
@@ -66,6 +71,7 @@ export const groupToggle = style({
   fontWeight: 600,
   color: cssVarV2.text.secondary,
   cursor: 'pointer',
+  transition: 'color .14s ease',
   ':hover': {
     color: cssVarV2.text.primary,
   },
@@ -73,17 +79,20 @@ export const groupToggle = style({
 
 export const groupCount = style({
   fontSize: cssVar('fontXs'),
+  fontWeight: 500,
   color: cssVarV2.text.tertiary,
 });
 
 export const row = style({
   display: 'flex',
   alignItems: 'center',
-  gap: 10,
-  padding: '6px 4px',
-  borderRadius: 6,
+  gap: 12,
+  padding: '10px 12px',
+  borderRadius: 'var(--nota-row-radius)',
+  backgroundColor: 'var(--nota-row-background)',
+  transition: 'background-color .14s ease',
   ':hover': {
-    backgroundColor: cssVarV2.layer.background.hoverOverlay,
+    backgroundColor: cssVarV2.layer.background.tertiary,
   },
 });
 
@@ -93,6 +102,7 @@ export const rowMain = style({
   display: 'flex',
   flexDirection: 'column',
   alignItems: 'flex-start',
+  gap: 2,
   textAlign: 'left',
   cursor: 'pointer',
 });
@@ -100,6 +110,7 @@ export const rowMain = style({
 export const rowText = style({
   width: '100%',
   fontSize: cssVar('fontBase'),
+  lineHeight: '22px',
   color: cssVarV2.text.primary,
   overflow: 'hidden',
   textOverflow: 'ellipsis',
@@ -115,6 +126,7 @@ export const rowText = style({
 export const rowSource = style({
   width: '100%',
   fontSize: cssVar('fontXs'),
+  lineHeight: '18px',
   color: cssVarV2.text.tertiary,
   overflow: 'hidden',
   textOverflow: 'ellipsis',
@@ -124,10 +136,11 @@ export const rowSource = style({
 export const due = style({
   flexShrink: 0,
   fontSize: cssVar('fontXs'),
+  fontWeight: 500,
   color: cssVarV2.text.secondary,
   selectors: {
-    '&[data-overdue="true"]': {
-      color: cssVarV2.status.error,
+    '&[data-overdue="true"], &[data-today="true"]': {
+      color: 'var(--nota-accent)',
     },
   },
 });

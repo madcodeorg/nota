@@ -47,6 +47,13 @@ describe('AppSidebar', () => {
     expect(sidebar.resizing$.value).toBe(true);
   });
 
+  test('width never goes below the minimum', () => {
+    sidebar.setWidth(120);
+    expect(sidebar.width$.value).toBe(220);
+    sidebar.setWidth(240);
+    expect(sidebar.width$.value).toBe(240);
+  });
+
   test('getCachedAppSidebarOpenState', () => {
     sidebar.setOpen(false);
     expect(sidebar.getCachedAppSidebarOpenState()).toBe(false);

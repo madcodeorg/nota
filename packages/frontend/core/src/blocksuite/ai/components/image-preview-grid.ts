@@ -31,7 +31,7 @@ export class ImagePreviewGrid extends LitElement {
     .image-container {
       width: 68px;
       height: 68px;
-      border-radius: 4px;
+      border-radius: var(--nota-control-radius, 8px);
       cursor: pointer;
       position: relative;
       display: flex;
@@ -47,7 +47,7 @@ export class ImagePreviewGrid extends LitElement {
     .close-wrapper {
       width: 16px;
       height: 16px;
-      border-radius: 4px;
+      border-radius: var(--nota-control-radius, 8px);
       border: 0.5px solid var(--affine-v2-layer-insideBorder-border);
       justify-content: center;
       align-items: center;

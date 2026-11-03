@@ -7,10 +7,11 @@ export const appStyle = style({
   height: '100dvh',
   flexGrow: '1',
   display: 'flex',
-  backgroundColor: cssVar('backgroundPrimaryColor'),
+  backgroundColor: 'var(--nota-frame-background)',
   selectors: {
     '&.blur-background': {
-      backgroundColor: 'transparent',
+      backgroundColor:
+        'color-mix(in srgb, var(--nota-frame-background) 84%, transparent)',
     },
     '&.noisy-background::before': {
       content: '""',
@@ -28,6 +29,11 @@ globalStyle(`html[data-theme="light"] ${appStyle}`, {
   vars: {
     '--affine-noise-opacity': '0.2',
   },
+});
+// The charcoal frame washes out to gray over the light macOS vibrancy, so the
+// translucent mode only applies in dark mode.
+globalStyle(`html[data-theme="light"] ${appStyle}.blur-background`, {
+  backgroundColor: 'var(--nota-frame-background)',
 });
 globalStyle(`html[data-theme="dark"] ${appStyle}`, {
   vars: {
@@ -75,24 +81,27 @@ export const desktopTabsHeader = style({
 export const headerLeftCluster = style({
   display: 'flex',
   alignItems: 'center',
-  gap: 8,
+  gap: 6,
   minWidth: 0,
-  flexShrink: 1,
+  flex: '1 1 auto',
 });
 
 export const headerSearchPill = style({
   ['WebkitAppRegion' as string]: 'no-drag',
   display: 'inline-flex',
   alignItems: 'center',
-  justifyContent: 'center',
+  justifyContent: 'flex-start',
   gap: 6,
-  height: 30,
-  minWidth: 78,
-  maxWidth: 86,
-  padding: '0 11px 0 10px',
-  border: '1px solid rgba(111, 127, 84, 0.22)',
+  height: 26,
+  flex: '1 1 auto',
+  minWidth: 28,
+  maxWidth: 220,
+  padding: '0 6px 0 8px',
+  // lets the label and shortcut hide when the sidebar is narrow
+  containerType: 'inline-size',
+  border: '1px solid transparent',
   borderRadius: 999,
-  background: 'rgba(111, 127, 84, 0.12)',
+  background: cssVar('hoverColor'),
   color: cssVar('textSecondaryColor'),
   cursor: 'pointer',
   flexShrink: 1,
@@ -106,8 +115,7 @@ export const headerSearchPill = style({
     'background-color .16s ease, border-color .16s ease, color .16s ease, transform .16s ease',
   selectors: {
     '&:hover': {
-      background: 'rgba(111, 127, 84, 0.18)',
-      borderColor: 'rgba(111, 127, 84, 0.34)',
+      background: 'var(--nota-sidebar-active)',
       color: cssVar('textPrimaryColor'),
     },
     '&:active': {
@@ -124,12 +132,41 @@ export const headerSearchPillIcon = style({
   flexShrink: 0,
   width: 15,
   height: 15,
+  '@container': {
+    '(max-width: 52px)': {
+      margin: '0 auto',
+    },
+  },
 });
 
 export const headerSearchPillLabel = style({
+  flex: '1 1 auto',
+  minWidth: 0,
+  textAlign: 'left',
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
+  '@container': {
+    '(max-width: 52px)': {
+      display: 'none',
+    },
+  },
+});
+
+export const headerSearchPillShortcut = style({
+  flexShrink: 0,
+  padding: '2px 5px',
+  borderRadius: 5,
+  background: cssVar('hoverColor'),
+  color: cssVar('textDisableColor'),
+  fontSize: 11,
+  fontWeight: 600,
+  letterSpacing: 0.2,
+  '@container': {
+    '(max-width: 112px)': {
+      display: 'none',
+    },
+  },
 });
 
 export const mainContainerStyle = style({

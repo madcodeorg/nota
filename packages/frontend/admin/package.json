@@ -1,6 +1,6 @@
 {
   "name": "@nota/admin",
-  "version": "0.1.9",
+  "version": "0.1.12-beta.1",
   "private": true,
   "dependencies": {
     "@blocksuite/icons": "^2.2.17",

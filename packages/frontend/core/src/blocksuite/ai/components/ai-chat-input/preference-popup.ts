@@ -62,7 +62,7 @@ export class ChatInputPreference extends SignalWatcher(
       padding: 0px 4px;
       color: var(--affine-v2-icon-primary);
       transition: all 0.23s ease;
-      border-radius: 4px;
+      border-radius: var(--nota-control-radius, 8px);
       background: transparent;
       border: none;
       cursor: pointer;
@@ -111,7 +111,7 @@ export class ChatInputPreference extends SignalWatcher(
       color: ${unsafeCSSVarV2('icon/primary')};
       background: transparent;
       border: none;
-      border-radius: 4px;
+      border-radius: var(--nota-control-radius, 8px);
       cursor: pointer;
     }
     .ai-model-menu-settings:hover {

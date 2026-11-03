@@ -1,7 +1,7 @@
 {
   "name": "@nota/electron",
   "private": true,
-  "version": "0.1.9",
+  "version": "0.1.12-beta.1",
   "main": "./dist/main.js",
   "author": "heyyykk3",
   "repository": {

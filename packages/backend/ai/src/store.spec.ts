@@ -174,6 +174,96 @@ describe('CopilotStore persistence', () => {
     expect(saved.sessions).toHaveLength(2);
   });
 
+  it('writes the same file a single JSON.stringify would, across several chunks', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'nota-copilot-store-'));
+    temporaryRoots.push(root);
+    const filePath = path.join(root, 'copilot-sessions.json');
+    const store = new CopilotStore('local:default', [], filePath);
+    // Enough text to need several write chunks, with characters that must be
+    // escaped or encoded as multi-byte UTF-8.
+    const text = 'quote " backslash \\ newline \n emoji 😀 中文 '.repeat(2000);
+    const sessionIds: string[] = [];
+    for (let index = 0; index < 12; index++) {
+      const sessionId = store.createSession({
+        promptName: 'Chat With Nota AI',
+        workspaceId: 'workspace-a',
+      });
+      sessionIds.push(sessionId);
+      store.createMessage({ content: `${index} ${text}`, sessionId });
+      store.appendAssistantMessage(sessionId, `answer ${index} ${text}`);
+    }
+    store.createContext('workspace-a', sessionIds[0]);
+    await store.flush();
+
+    const onDisk = await readFile(filePath, 'utf8');
+    expect(onDisk.length).toBeGreaterThan(256 * 1024 * 3);
+    expect(onDisk).toBe(
+      JSON.stringify({
+        contexts: [...store['contexts']].map(([key, context]) => ({
+          ...context,
+          key,
+        })),
+        sessions: sessionIds.map(id => store.requireSession(id)),
+        version: 1,
+      })
+    );
+
+    const restored = new CopilotStore('local:default', [], filePath);
+    for (const [index, sessionId] of sessionIds.entries()) {
+      expect(
+        restored.requireSession(sessionId).messages.map(m => m.content)
+      ).toEqual([`${index} ${text}`, `answer ${index} ${text}`]);
+    }
+    expect(restored.listContexts('workspace-a', sessionIds[0])).toHaveLength(1);
+  });
+
+  it('leaves the previous history intact and no temporary file when a write fails', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'nota-copilot-store-'));
+    temporaryRoots.push(root);
+    const filePath = path.join(root, 'copilot-sessions.json');
+    const store = new CopilotStore('local:default', [], filePath);
+    store.createSession({
+      promptName: 'Chat With Nota AI',
+      workspaceId: 'workspace-a',
+    });
+    await store.flush();
+    const before = await readFile(filePath, 'utf8');
+
+    // `store.ts` imports `rename` by name, so replace it at the module level.
+    vi.resetModules();
+    vi.doMock('node:fs/promises', async importOriginal => ({
+      ...(await importOriginal<typeof import('node:fs/promises')>()),
+      rename: vi.fn().mockRejectedValue(new Error('disk full')),
+    }));
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const failing = await import('./store');
+      const failingStore = new failing.CopilotStore(
+        'local:default',
+        [],
+        filePath
+      );
+      failingStore.createSession({
+        promptName: 'Chat With Nota AI',
+        workspaceId: 'workspace-a',
+      });
+      await failingStore.flush();
+      expect(error).toHaveBeenCalledWith(
+        '[copilot-store] failed to persist local chat history',
+        expect.objectContaining({ message: 'disk full' })
+      );
+    } finally {
+      error.mockRestore();
+      vi.doUnmock('node:fs/promises');
+      vi.resetModules();
+    }
+
+    await expect(readFile(filePath, 'utf8')).resolves.toBe(before);
+    await expect(fsPromises.readdir(root)).resolves.toEqual([
+      'copilot-sessions.json',
+    ]);
+  });
+
   it('flushAllCopilotStores persists pending state', async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), 'nota-copilot-store-'));
     temporaryRoots.push(root);

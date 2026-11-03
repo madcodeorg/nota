@@ -57,49 +57,60 @@ export const ResizeHandle = ({
     };
   }, [edge, view.id]);
 
-  // TODO(@catsjuice): touch support
-  const onMouseDown = useCallback(
-    (e: React.MouseEvent) => {
-      if (!onResizing || !onResizeStart || !onResizeEnd) {
-        return;
-      }
-
-      e.preventDefault();
-
-      onResizeStart?.();
-      const prevPos = { x: e.clientX, y: e.clientY };
-
-      function onMouseMove(e: MouseEvent) {
-        e.preventDefault();
-        const dx = e.clientX - prevPos.x;
-        const dy = e.clientY - prevPos.y;
-        onResizing?.({ x: dx, y: dy });
-        prevPos.x = e.clientX;
-        prevPos.y = e.clientY;
-      }
-
-      function onMouseUp(e: MouseEvent) {
-        e.preventDefault();
-        onResizeEnd?.();
-        document.removeEventListener('mousemove', onMouseMove);
-      }
-
-      document.addEventListener('mousemove', onMouseMove);
-      document.addEventListener('mouseup', onMouseUp, { once: true });
-    },
-    [onResizeEnd, onResizeStart, onResizing]
-  );
-
   const canResize =
-    state === 'idle' &&
+    state !== 'drop-indicator' &&
     !(isLast && edge === 'right') &&
     !(isFirst && edge === 'left');
+
+  const onPointerDown = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (!canResize || !onResizing || !onResizeStart || !onResizeEnd) {
+        return;
+      }
+      if (e.button !== 0) return;
+
+      e.preventDefault();
+      onResizeStart();
+
+      let latest = { x: e.clientX, y: e.clientY };
+      let frame = 0;
+      const flush = () => {
+        frame = 0;
+        onResizing(latest);
+      };
+      const listeners = new AbortController();
+      const onPointerMove = (e: PointerEvent) => {
+        latest = { x: e.clientX, y: e.clientY };
+        if (!frame) frame = requestAnimationFrame(flush);
+      };
+      const onEnd = () => {
+        if (frame) {
+          cancelAnimationFrame(frame);
+          flush();
+        }
+        listeners.abort();
+        onResizeEnd();
+      };
+
+      const { signal } = listeners;
+      window.addEventListener('pointermove', onPointerMove, { signal });
+      window.addEventListener('pointerup', onEnd, { signal });
+      window.addEventListener('pointercancel', onEnd, { signal });
+      window.addEventListener('blur', onEnd, { signal });
+    },
+    [canResize, onResizeEnd, onResizeStart, onResizing]
+  );
+
+  const onDoubleClick = useCallback(() => {
+    if (canResize && onResizing) workbench.equalizeSizes();
+  }, [canResize, onResizing, workbench]);
 
   return (
     <div
       ref={dropTargetRef}
       data-edge={edge}
-      onMouseDown={onMouseDown}
+      onPointerDown={onPointerDown}
+      onDoubleClick={onDoubleClick}
       data-is-last={isLast}
       data-is-first={isFirst}
       data-state={state}

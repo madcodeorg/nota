@@ -14,7 +14,7 @@ import { createTextRenderer } from '../../components/text-renderer';
 export class ActionText extends WithDisposable(LitElement) {
   static override styles = css`
     .original-text {
-      border-radius: 4px;
+      border-radius: var(--nota-row-radius, 10px);
       margin-bottom: 12px;
       font-size: var(--affine-font-sm);
       line-height: 22px;

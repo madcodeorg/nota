@@ -21,7 +21,7 @@ export const body = style({
   height: '100%',
   borderTop: `0.5px solid ${cssVarV2.layer.insideBorder.border}`,
   selectors: {
-    '&[data-mobile]': {
+    '&[data-mobile="true"]': {
       borderTop: 'none',
     },
   },
@@ -32,7 +32,7 @@ export const content = style({
   padding: '0px 50px',
   margin: '0 auto',
   selectors: {
-    '[data-mobile] &': {
+    '[data-mobile="true"] &': {
       padding: '0 24px',
     },
   },
@@ -45,7 +45,7 @@ export const docTitleContainer = style({
   fontWeight: 700,
   padding: '38px 0',
   selectors: {
-    '[data-mobile] &': {
+    '[data-mobile="true"] &': {
       color: '#ebe4d5',
     },
   },
@@ -59,17 +59,17 @@ export const placeholder = style({
   alignItems: 'center',
   justifyContent: 'center',
   border: `1px dashed ${cssVarV2.layer.insideBorder.border}`,
-  borderRadius: 8,
+  borderRadius: 'var(--nota-panel-radius)',
   padding: '26px 32px',
   gap: 28,
   selectors: {
     '&[data-has-events="true"]': {
       alignItems: 'stretch',
       justifyContent: 'space-between',
-      background: 'rgba(90, 138, 85, 0.08)',
-      borderColor: 'rgba(118, 142, 84, 0.44)',
+      borderStyle: 'solid',
+      background: 'var(--nota-row-background)',
     },
-    '[data-mobile] &': {
+    '[data-mobile="true"] &': {
       flexDirection: 'column',
       background: 'rgba(22, 23, 20, 0.82)',
       borderColor: 'rgba(207, 197, 169, 0.36)',
@@ -97,7 +97,7 @@ export const placeholderIcon = style({
   fontSize: 20,
   marginBottom: 4,
   selectors: {
-    '[data-mobile] &': {
+    '[data-mobile="true"] &': {
       backgroundColor: 'rgba(235, 228, 213, 0.08)',
       color: 'rgba(235, 228, 213, 0.58)',
     },
@@ -110,7 +110,7 @@ export const placeholderText = style({
   marginBottom: 16,
   color: cssVarV2.text.tertiary,
   selectors: {
-    '[data-mobile] &': {
+    '[data-mobile="true"] &': {
       color: 'rgba(235, 228, 213, 0.58)',
     },
   },
@@ -125,7 +125,7 @@ export const placeholderEvents = style({
   justifyContent: 'center',
   gap: 10,
   selectors: {
-    '[data-mobile] &': {
+    '[data-mobile="true"] &': {
       width: '100%',
       maxWidth: '100%',
       minWidth: 0,
@@ -139,8 +139,8 @@ export const placeholderEventsHeader = style({
   justifyContent: 'space-between',
   fontSize: 13,
   lineHeight: '20px',
-  fontWeight: 600,
-  color: cssVarV2.text.secondary,
+  fontWeight: 700,
+  color: cssVarV2.text.primary,
 });
 
 export const placeholderEventsList = style({
@@ -154,9 +154,9 @@ export const placeholderEvent = style({
   gridTemplateColumns: '76px minmax(0, 1fr)',
   gap: 12,
   padding: '8px 10px',
-  borderRadius: 8,
-  background: 'rgba(255, 255, 255, 0.04)',
-  boxShadow: 'inset 0 0 0 1px rgba(118, 142, 84, 0.22)',
+  borderRadius: 'var(--nota-row-radius)',
+  background: cssVarV2.layer.background.primary,
+  boxShadow: `inset 0 0 0 1px ${cssVarV2.layer.insideBorder.border}`,
 });
 
 export const placeholderEventTime = style({

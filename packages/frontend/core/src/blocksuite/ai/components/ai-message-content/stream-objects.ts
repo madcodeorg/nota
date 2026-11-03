@@ -135,7 +135,7 @@ export class ChatContentStreamObjects extends WithDisposable(
       gap: 4px;
       padding: 2px 6px;
       border: none;
-      border-radius: 4px;
+      border-radius: var(--nota-control-radius, 8px);
       background: transparent;
       font-size: 12px;
       color: ${unsafeCSSVarV2('text/secondary')};
