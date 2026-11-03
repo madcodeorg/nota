@@ -1,6 +1,6 @@
 {
   "name": "@nota/playstore-auto-bump",
-  "version": "0.1.9",
+  "version": "0.1.12-beta.1",
   "private": true,
   "type": "module",
   "description": "Automatically bump the versionCode and versionName of an Android app from the Google Play Store versions",

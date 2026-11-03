@@ -1,6 +1,6 @@
 {
   "name": "@nota/copilot-result",
-  "version": "0.1.9",
+  "version": "0.1.12-beta.1",
   "type": "module",
   "main": "index.js",
   "private": true,
