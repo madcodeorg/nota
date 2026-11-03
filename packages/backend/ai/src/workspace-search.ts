@@ -1,16 +1,11 @@
-import { createHash, randomUUID } from 'node:crypto';
-import {
-  mkdir,
-  readFile,
-  realpath,
-  rename,
-  rm,
-  writeFile,
-} from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { readFile, realpath } from 'node:fs/promises';
 import path from 'node:path';
+import { performance } from 'node:perf_hooks';
 
 import type { AiBackendConfig } from './config';
 import { availableMemoryBytes } from './device-memory';
+import { writeJsonItemsFile } from './json-file';
 
 const MAX_SNIPPET_CHARS = 520;
 const MAX_VECTOR_FEATURES = 384;
@@ -21,6 +16,7 @@ const NEURAL_EMBEDDING_STANDARD_BATCH_SIZE = 8;
 const NEURAL_EMBEDDING_LOW_RAM_BATCH_SIZE = 2;
 const MAX_EMBEDDING_CACHE_ENTRIES = 6000;
 const MAX_INDEX_CACHE_ENTRIES = 32;
+const MAX_CACHED_DOCUMENT_CHUNKS = 40_000;
 const INDEX_CACHE_TTL_MS = 60_000;
 const CHUNK_LINE_COUNT = 36;
 const CHUNK_LINE_OVERLAP = 6;
@@ -137,7 +133,7 @@ interface WorkspaceSearchChunk {
   startLine: number;
   title: string;
   updatedAt?: string;
-  vector: Map<number, number>;
+  vector: Float64Array;
   vectorNorm: number;
   visibility: WorkspaceContentVisibility;
   workspaceId?: string;
@@ -155,6 +151,14 @@ interface WorkspaceSearchIndex {
 }
 
 const indexCache = new Map<string, WorkspaceSearchIndex>();
+// Chunking and vectorizing dominate an index build, and an edit touches one
+// document. Each document's chunks (with their vectors) are kept so a rebuild
+// only redoes the documents whose stored content changed.
+const documentChunkCache = new Map<
+  string,
+  { chunks: WorkspaceSearchChunk[]; document: StoredWorkspaceContentDocument }
+>();
+let documentChunkCacheModelId = '';
 let indexRevision = 0;
 const indexBuilds = new Map<string, Promise<WorkspaceSearchIndex>>();
 const embeddingPipelineUsers = new Map<string, number>();
@@ -301,38 +305,61 @@ function tokenize(value: string) {
     .filter(term => term.length > 1 && term.length < 80);
 }
 
+const FNV_OFFSET = 2166136261;
+const FNV_PRIME = 16777619;
+
 function hashFeature(value: string) {
-  let hash = 2166136261;
+  let hash = FNV_OFFSET;
   for (let index = 0; index < value.length; index++) {
     hash ^= value.charCodeAt(index);
-    hash = Math.imul(hash, 16777619);
+    hash = Math.imul(hash, FNV_PRIME);
   }
   return Math.abs(hash) % MAX_VECTOR_FEATURES;
 }
 
-function vectorize(value: string) {
-  const tokens = tokenize(value);
-  const vector = new Map<number, number>();
+// The hash state after the constant `gram:` prefix. Hashing an n-gram from this
+// state gives the same key as `hashFeature(`gram:${gram}`)` without building
+// that string and a slice for every n-gram of every token.
+const GRAM_PREFIX_HASH = (() => {
+  let hash = FNV_OFFSET;
+  for (const character of 'gram:') {
+    hash ^= character.charCodeAt(0);
+    hash = Math.imul(hash, FNV_PRIME);
+  }
+  return hash;
+})();
 
-  for (const token of tokens) {
-    const key = hashFeature(token);
-    vector.set(key, (vector.get(key) ?? 0) + 1);
+function hashGram(token: string, start: number, size: number) {
+  let hash = GRAM_PREFIX_HASH;
+  for (let offset = 0; offset < size; offset++) {
+    hash ^= token.charCodeAt(start + offset);
+    hash = Math.imul(hash, FNV_PRIME);
+  }
+  return Math.abs(hash) % MAX_VECTOR_FEATURES;
+}
+
+// Hashed term weights: one slot per feature bucket. Nearly every bucket is used
+// by a chunk of ordinary text, so this is smaller than a sparse map and faster
+// to build and compare.
+function vectorize(value: string) {
+  const vector = new Float64Array(MAX_VECTOR_FEATURES);
+
+  for (const token of tokenize(value)) {
+    vector[hashFeature(token)] += 1;
 
     for (let size = 3; size <= 4; size++) {
       if (token.length <= size) {
         continue;
       }
       for (let index = 0; index <= token.length - size; index++) {
-        const gram = token.slice(index, index + size);
-        const gramKey = hashFeature(`gram:${gram}`);
-        vector.set(gramKey, (vector.get(gramKey) ?? 0) + 0.18);
+        vector[hashGram(token, index, size)] += 0.18;
       }
     }
   }
 
   let norm = 0;
-  for (const value of vector.values()) {
-    norm += value * value;
+  for (const weight of vector) {
+    norm += weight * weight;
   }
 
   return {
@@ -342,9 +369,9 @@ function vectorize(value: string) {
 }
 
 function cosineSimilarity(
-  left: Map<number, number>,
+  left: Float64Array,
   leftNorm: number,
-  right: Map<number, number>,
+  right: Float64Array,
   rightNorm: number
 ) {
   if (!leftNorm || !rightNorm) {
@@ -352,9 +379,8 @@ function cosineSimilarity(
   }
 
   let dot = 0;
-  const [small, large] = left.size < right.size ? [left, right] : [right, left];
-  for (const [key, value] of small) {
-    dot += value * (large.get(key) ?? 0);
+  for (let index = 0; index < left.length; index++) {
+    dot += left[index] * right[index];
   }
   return dot / leftNorm / rightNorm;
 }
@@ -554,17 +580,44 @@ function cacheEntryKey(entry: Pick<EmbeddingCacheEntry, 'id' | 'docId'>) {
   return `${entry.docId}:${entry.id}`;
 }
 
+// Cached vectors are the raw Float32 bytes as base64: several times smaller and
+// much faster to parse and write than JSON number arrays, which older caches
+// still use and which are read as before.
+function encodeVector(vector: Float32Array) {
+  return Buffer.from(
+    vector.buffer,
+    vector.byteOffset,
+    vector.byteLength
+  ).toString('base64');
+}
+
+function decodeVector(value: string) {
+  const bytes = Buffer.from(value, 'base64');
+  if (bytes.length % Float32Array.BYTES_PER_ELEMENT !== 0) {
+    return null;
+  }
+  // Copy: a Buffer can start at an offset that is not aligned for Float32Array.
+  return new Float32Array(
+    bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.length)
+  );
+}
+
 // Float32 halves the memory of every cached chunk vector; an empty result
 // means the input was not a usable embedding.
 function validCachedVector(value: unknown) {
+  const numbers = typeof value === 'string' ? decodeVector(value) : value;
   if (
-    !Array.isArray(value) ||
-    value.length < 8 ||
-    !value.every(item => typeof item === 'number' && Number.isFinite(item))
+    !(Array.isArray(numbers) || numbers instanceof Float32Array) ||
+    numbers.length < 8
   ) {
     return new Float32Array(0);
   }
-  const vector = Float32Array.from(value);
+  for (const item of numbers) {
+    if (typeof item !== 'number' || !Number.isFinite(item)) {
+      return new Float32Array(0);
+    }
+  }
+  const vector = Float32Array.from(numbers);
   const norm = denseNorm(vector);
   return norm > 0 && Number.isFinite(norm) ? vector : new Float32Array(0);
 }
@@ -607,35 +660,46 @@ async function readEmbeddingCache(config: AiBackendConfig, modelId: string) {
   }
 }
 
-async function writeEmbeddingCache(
-  config: AiBackendConfig,
-  modelId: string,
-  entries: EmbeddingCacheEntry[]
-) {
-  const ordered = entries
+// Parsed embedding caches by file. The vectors are the same arrays the live
+// chunks hold, so keeping them costs little, and an edit then does not re-read
+// and re-decode every vector on disk. A restart reads the file once.
+const embeddingCacheMemo = new Map<string, Map<string, EmbeddingCacheEntry>>();
+
+async function loadEmbeddingCache(config: AiBackendConfig, modelId: string) {
+  const filePath = embeddingCachePath(config, modelId);
+  const memoized = embeddingCacheMemo.get(filePath);
+  if (memoized) return memoized;
+
+  const entries = await readEmbeddingCache(config, modelId);
+  // A concurrent build may have loaded the same file first; share its map.
+  const winner = embeddingCacheMemo.get(filePath) ?? entries;
+  embeddingCacheMemo.set(filePath, winner);
+  return winner;
+}
+
+function retainEmbeddingEntries(entries: EmbeddingCacheEntry[]) {
+  return entries
     .slice()
     .sort((a, b) => (b.updatedAt ?? '').localeCompare(a.updatedAt ?? ''))
     .slice(0, MAX_EMBEDDING_CACHE_ENTRIES);
-  const filePath = embeddingCachePath(config, modelId);
-  const temporaryPath = `${filePath}.${randomUUID()}.tmp`;
-  await mkdir(path.dirname(filePath), { recursive: true });
-  await writeFile(
-    temporaryPath,
-    JSON.stringify({
-      entries: ordered.map(entry => ({
-        ...entry,
-        vector: Array.from(entry.vector),
-      })),
-      modelId,
-      updatedAt: new Date().toISOString(),
-      version: 1,
-    } satisfies EmbeddingCacheFile)
-  );
-  try {
-    await rename(temporaryPath, filePath);
-  } finally {
-    await rm(temporaryPath, { force: true }).catch(() => {});
-  }
+}
+
+async function writeEmbeddingCache(
+  config: AiBackendConfig,
+  modelId: string,
+  retained: EmbeddingCacheEntry[]
+) {
+  await writeJsonItemsFile(embeddingCachePath(config, modelId), {
+    head: '{"entries":[',
+    items: (function* () {
+      for (const entry of retained) {
+        yield { ...entry, vector: encodeVector(entry.vector) };
+      }
+    })(),
+    tail: `],"modelId":${JSON.stringify(modelId)},"updatedAt":${JSON.stringify(
+      new Date().toISOString()
+    )},"version":1}`,
+  });
 }
 
 function normalizeStoredSource(
@@ -842,18 +906,12 @@ async function writeWorkspaceContent(
   documents: StoredWorkspaceContentDocument[]
 ) {
   const filePath = workspaceContentPath(config);
-  const temporaryPath = `${filePath}.tmp`;
   workspaceContentCache.delete(filePath);
-  await mkdir(path.dirname(filePath), { recursive: true });
-  await writeFile(
-    temporaryPath,
-    JSON.stringify({
-      documents,
-      updatedAt: new Date().toISOString(),
-      version: 1,
-    } satisfies WorkspaceContentFile)
-  );
-  await rename(temporaryPath, filePath);
+  await writeJsonItemsFile(filePath, {
+    head: '{"documents":[',
+    items: documents,
+    tail: `],"updatedAt":${JSON.stringify(new Date().toISOString())},"version":1}`,
+  });
   workspaceContentCache.set(filePath, documents);
 }
 
@@ -1575,7 +1633,14 @@ async function attachNeuralEmbeddings(
   }
 
   const modelId = embeddingModelId(config);
-  const cache = await readEmbeddingCache(config, modelId);
+  // Chunks reused from an earlier build already carry their vector.
+  const unembedded = chunks.filter(
+    chunk => !chunk.denseVector || chunk.embeddingModel !== modelId
+  );
+  const alreadyEmbedded = chunks.length - unembedded.length;
+  const cache = unembedded.length
+    ? await loadEmbeddingCache(config, modelId)
+    : new Map<string, EmbeddingCacheEntry>();
   const missing: Array<{
     contentHash: string;
     chunk: WorkspaceSearchChunk;
@@ -1583,7 +1648,7 @@ async function attachNeuralEmbeddings(
   }> = [];
   let hits = 0;
 
-  for (const chunk of chunks) {
+  for (const chunk of unembedded) {
     const text = embeddingText(chunk);
     const hash = contentHash(text);
     const cached = cache.get(cacheEntryKey(chunk));
@@ -1610,7 +1675,7 @@ async function attachNeuralEmbeddings(
     : null;
 
   if (missing.length && !embeddings) {
-    return hits
+    return hits || alreadyEmbedded
       ? {
           cacheHits: hits,
           cacheMisses: missing.length,
@@ -1636,9 +1701,14 @@ async function attachNeuralEmbeddings(
         vector,
       });
     }
-    await writeEmbeddingCache(config, embeddings.modelId, [
-      ...cache.values(),
-    ]).catch(() => {});
+    const retained = retainEmbeddingEntries([...cache.values()]);
+    embeddingCacheMemo.set(
+      embeddingCachePath(config, embeddings.modelId),
+      new Map(retained.map(entry => [cacheEntryKey(entry), entry]))
+    );
+    await writeEmbeddingCache(config, embeddings.modelId, retained).catch(
+      () => {}
+    );
   }
 
   const firstDenseVector = chunks.find(chunk => chunk.denseVector)?.denseVector;
@@ -1648,6 +1718,120 @@ async function attachNeuralEmbeddings(
     dimensions: firstDenseVector?.length ?? 0,
     modelId: embeddings?.modelId ?? modelId,
   };
+}
+
+// Index builds and scoring are synchronous CPU work on the event loop that also
+// serves chat streaming and meeting audio. They hand the loop back between
+// short slices instead of holding it for the whole run.
+const MAX_SLICE_MS = 15;
+
+function createLoopYielder() {
+  let sliceStart = performance.now();
+  return async () => {
+    if (performance.now() - sliceStart < MAX_SLICE_MS) return;
+    await new Promise<void>(resolve => setImmediate(resolve));
+    sliceStart = performance.now();
+  };
+}
+
+interface ScoredChunk {
+  chunk: WorkspaceSearchChunk;
+  order: number;
+  score: number;
+}
+
+function ranksBefore(left: ScoredChunk, right: ScoredChunk) {
+  return (
+    (right.score - left.score ||
+      left.chunk.docId.localeCompare(right.chunk.docId) ||
+      left.order - right.order) < 0
+  );
+}
+
+function sameStrings(left: string[] | undefined, right: string[] | undefined) {
+  if (!left || !right) return left === right;
+  return (
+    left.length === right.length &&
+    left.every((value, index) => value === right[index])
+  );
+}
+
+function sameDocumentContent(
+  left: StoredWorkspaceContentDocument,
+  right: StoredWorkspaceContentDocument
+) {
+  return (
+    left === right ||
+    (left.markdown === right.markdown &&
+      left.title === right.title &&
+      left.source === right.source &&
+      left.visibility === right.visibility &&
+      left.updatedAt === right.updatedAt &&
+      left.workspaceId === right.workspaceId &&
+      sameStrings(left.allowedUserIds, right.allowedUserIds))
+  );
+}
+
+function chunksForDocument(document: StoredWorkspaceContentDocument) {
+  const key = `${document.workspaceId}:${document.docId}`;
+  const cached = documentChunkCache.get(key);
+  if (cached && sameDocumentContent(cached.document, document)) {
+    return cached.chunks;
+  }
+
+  const chunks: WorkspaceSearchChunk[] = [];
+  for (const chunk of chunkFile(document.docId, document.markdown)) {
+    pushChunk(chunks, {
+      content: chunk.content,
+      allowedUserIds: document.allowedUserIds,
+      blockId: chunk.blockId,
+      docId: document.docId,
+      endLine: chunk.endLine,
+      id: chunk.blockId
+        ? `nota://${document.workspaceId}/${document.docId}#${chunk.blockId}`
+        : `nota://${document.workspaceId}/${document.docId}#line:${chunk.startLine}-${chunk.endLine}`,
+      section: chunk.section,
+      source: document.source,
+      startLine: chunk.startLine,
+      title: document.title,
+      updatedAt: document.updatedAt,
+      visibility: document.visibility,
+      workspaceId: document.workspaceId,
+    });
+  }
+  // Re-inserting moves the document to the back of the eviction order.
+  documentChunkCache.delete(key);
+  documentChunkCache.set(key, { chunks, document });
+  return chunks;
+}
+
+// Drops documents that no longer exist, and the oldest ones past the cap.
+function trimDocumentChunkCache(
+  documents: StoredWorkspaceContentDocument[],
+  modelId: string
+) {
+  if (documentChunkCacheModelId !== modelId) {
+    // Vectors from another embedding model must never be scored together.
+    documentChunkCache.clear();
+    documentChunkCacheModelId = modelId;
+    return;
+  }
+  const live = new Set(
+    documents.map(document => `${document.workspaceId}:${document.docId}`)
+  );
+  let cachedChunks = 0;
+  for (const [key, entry] of documentChunkCache) {
+    if (!live.has(key)) {
+      documentChunkCache.delete(key);
+    } else {
+      cachedChunks += entry.chunks.length;
+    }
+  }
+  for (const [key, entry] of documentChunkCache) {
+    if (cachedChunks <= MAX_CACHED_DOCUMENT_CHUNKS) break;
+    documentChunkCache.delete(key);
+    cachedChunks -= entry.chunks.length;
+  }
 }
 
 async function buildWorkspaceIndex(
@@ -1676,32 +1860,19 @@ async function buildWorkspaceIndex(
     // workspace, and scanning it could mix unrelated local data into answers or
     // hosted prompts. Attachments and meeting transcripts arrive through this
     // same access-checked content store with their explicit source metadata.
-    const storedDocuments = readableWorkspaceDocuments(
-      await readWorkspaceContent(config),
-      { workspaceId, userId }
-    );
+    const allDocuments = await readWorkspaceContent(config);
+    const storedDocuments = readableWorkspaceDocuments(allDocuments, {
+      workspaceId,
+      userId,
+    });
+    trimDocumentChunkCache(allDocuments, embeddingModelId(config));
     const chunks: WorkspaceSearchChunk[] = [];
-
+    const yieldToLoop = createLoopYielder();
     for (const document of storedDocuments) {
-      for (const chunk of chunkFile(document.docId, document.markdown)) {
-        pushChunk(chunks, {
-          content: chunk.content,
-          allowedUserIds: document.allowedUserIds,
-          blockId: chunk.blockId,
-          docId: document.docId,
-          endLine: chunk.endLine,
-          id: chunk.blockId
-            ? `nota://${document.workspaceId}/${document.docId}#${chunk.blockId}`
-            : `nota://${document.workspaceId}/${document.docId}#line:${chunk.startLine}-${chunk.endLine}`,
-          section: chunk.section,
-          source: document.source,
-          startLine: chunk.startLine,
-          title: document.title,
-          updatedAt: document.updatedAt,
-          visibility: document.visibility,
-          workspaceId: document.workspaceId,
-        });
+      for (const chunk of chunksForDocument(document)) {
+        chunks.push(chunk);
       }
+      await yieldToLoop();
     }
 
     const embedding = await attachNeuralEmbeddings(config, chunks);
@@ -1785,71 +1956,82 @@ async function vectorSearch(
     );
   }
   const usesNeuralEmbedding = !!queryDenseVector;
-  const results = index.chunks
-    .filter(chunk => canReadWorkspaceContent(chunk, workspaceId, userId))
-    .map(chunk => {
-      const chunkDenseVector = chunk.denseVector;
-      const chunkDenseNorm = chunk.denseVectorNorm;
-      const hasDenseVector =
-        !!queryDenseVector &&
-        !!chunkDenseVector &&
-        queryDenseVector.length === chunkDenseVector.length &&
-        typeof chunkDenseNorm === 'number';
-      const vectorScore = hasDenseVector
-        ? denseCosineSimilarity(
-            queryDenseVector,
-            queryDenseNorm,
-            chunkDenseVector,
-            chunkDenseNorm
-          )
-        : cosineSimilarity(
-            queryVector.vector,
-            queryVector.norm,
-            chunk.vector,
-            chunk.vectorNorm
-          );
-      const lexicalScore = scoreMatch(chunk.content, terms, chunk.startLine);
-      const score = Number(
-        (
-          vectorScore * (hasDenseVector ? 0.82 : 0.74) +
-          lexicalScore * (hasDenseVector ? 0.18 : 0.26)
-        ).toFixed(4)
-      );
-      const matched = hasDenseVector || lexicalScore > 0 || vectorScore >= 0.42;
-      const blockId = chunk.blockId ?? `line:${chunk.startLine}`;
-      const citation = citationFor({
-        blockId,
-        docId: chunk.docId,
-        endLine: chunk.endLine,
-        section: chunk.section,
-        source: chunk.source,
-        startLine: chunk.startLine,
-        title: chunk.title,
-        updatedAt: chunk.updatedAt,
-        workspaceId,
-      });
-      return {
-        blockId,
-        citation,
-        docId: chunk.docId,
-        endLine: chunk.endLine,
-        id: chunk.id,
-        matched,
-        score,
-        section: chunk.section,
-        snippet: trimSnippet(chunk.content),
-        source: chunk.source,
-        sourceRef: citation.ref,
-        startLine: chunk.startLine,
-        title: chunk.title,
-        updatedAt: chunk.updatedAt,
-        workspaceId,
-      };
-    })
-    .filter(result => result.matched && result.score > 0)
-    .sort((a, b) => b.score - a.score || a.docId.localeCompare(b.docId))
-    .slice(0, limit)
-    .map(({ matched: _matched, ...result }) => result);
+  // Keep only the best `limit` chunks while scanning; building a citation and
+  // snippet for every chunk of the workspace would dominate the search.
+  const top: ScoredChunk[] = [];
+  const yieldToLoop = createLoopYielder();
+  for (const [position, chunk] of index.chunks.entries()) {
+    if (position % 256 === 0) await yieldToLoop();
+    if (!canReadWorkspaceContent(chunk, workspaceId, userId)) continue;
+    const chunkDenseVector = chunk.denseVector;
+    const chunkDenseNorm = chunk.denseVectorNorm;
+    const hasDenseVector =
+      !!queryDenseVector &&
+      !!chunkDenseVector &&
+      queryDenseVector.length === chunkDenseVector.length &&
+      typeof chunkDenseNorm === 'number';
+    const vectorScore = hasDenseVector
+      ? denseCosineSimilarity(
+          queryDenseVector,
+          queryDenseNorm,
+          chunkDenseVector,
+          chunkDenseNorm
+        )
+      : cosineSimilarity(
+          queryVector.vector,
+          queryVector.norm,
+          chunk.vector,
+          chunk.vectorNorm
+        );
+    const lexicalScore = scoreMatch(chunk.content, terms, chunk.startLine);
+    const score = Number(
+      (
+        vectorScore * (hasDenseVector ? 0.82 : 0.74) +
+        lexicalScore * (hasDenseVector ? 0.18 : 0.26)
+      ).toFixed(4)
+    );
+    const matched = hasDenseVector || lexicalScore > 0 || vectorScore >= 0.42;
+    if (!matched || score <= 0) continue;
+
+    const candidate = { chunk, order: position, score };
+    if (top.length === limit && !ranksBefore(candidate, top[limit - 1])) {
+      continue;
+    }
+    let at = top.length;
+    while (at > 0 && ranksBefore(candidate, top[at - 1])) at--;
+    top.splice(at, 0, candidate);
+    if (top.length > limit) top.pop();
+  }
+  const results = top.map(({ chunk, score }) => {
+    const blockId = chunk.blockId ?? `line:${chunk.startLine}`;
+    const citation = citationFor({
+      blockId,
+      docId: chunk.docId,
+      endLine: chunk.endLine,
+      section: chunk.section,
+      source: chunk.source,
+      startLine: chunk.startLine,
+      title: chunk.title,
+      updatedAt: chunk.updatedAt,
+      workspaceId,
+    });
+    return {
+      blockId,
+      citation,
+      docId: chunk.docId,
+      endLine: chunk.endLine,
+      id: chunk.id,
+      score,
+      section: chunk.section,
+      snippet: trimSnippet(chunk.content),
+      source: chunk.source,
+      sourceRef: citation.ref,
+      startLine: chunk.startLine,
+      title: chunk.title,
+      updatedAt: chunk.updatedAt,
+      workspaceId,
+    };
+  });
 
   return {
     index: {

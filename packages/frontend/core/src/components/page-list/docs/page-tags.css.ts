@@ -88,8 +88,9 @@ export const tagInnerWrapper = style({
 export const tagInline = style([
   tagInnerWrapper,
   {
-    fontSize: 'inherit',
-    borderRadius: '10px',
+    fontSize: 11,
+    fontWeight: 600,
+    borderRadius: 999,
     columnGap: '4px',
     borderWidth: '1px',
     borderStyle: 'solid',

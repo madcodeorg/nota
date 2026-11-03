@@ -53,7 +53,7 @@ export const snapshot = style({
   width: '100%',
   height: '180px',
   border: `1px solid ${cssVarV2('layer/insideBorder/border')}`,
-  borderRadius: '4px',
+  borderRadius: 'var(--nota-row-radius)',
   display: 'flex',
   justifyContent: 'center',
   alignItems: 'center',
@@ -71,7 +71,7 @@ export const snapshotLabel = style({
   display: 'inline-flex',
   alignItems: 'center',
   justifyContent: 'center',
-  borderRadius: '4px',
+  borderRadius: 999,
   zIndex: 1,
   height: '24px',
 });

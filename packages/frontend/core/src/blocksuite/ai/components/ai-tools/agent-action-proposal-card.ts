@@ -132,7 +132,7 @@ export class AgentActionProposalCard extends ShadowlessElement {
       margin: 0;
       padding: 10px;
       overflow: auto;
-      border-radius: 6px;
+      border-radius: var(--nota-row-radius, 10px);
       background: var(--affine-background-primary-color);
       color: var(--affine-text-secondary-color);
       font-family: var(--affine-font-mono-family);
@@ -159,7 +159,7 @@ export class AgentActionProposalCard extends ShadowlessElement {
     .agent-action-button {
       height: 30px;
       padding: 0 12px;
-      border-radius: 6px;
+      border-radius: var(--nota-control-radius, 8px);
       border: 1px solid var(--affine-border-color);
       background: var(--affine-background-primary-color);
       color: var(--affine-text-primary-color);

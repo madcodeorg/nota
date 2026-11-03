@@ -54,7 +54,7 @@ export class PlaygroundModal extends ShadowlessElement {
       justify-content: center;
       width: 28px;
       height: 28px;
-      border-radius: 4px;
+      border-radius: var(--nota-control-radius, 8px);
     }
 
     .playground-modal-close:hover {

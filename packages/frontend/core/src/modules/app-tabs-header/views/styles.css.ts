@@ -8,13 +8,15 @@ export const tabMaxWidth = createVar('200px');
 
 export const root = style({
   width: '100%',
-  height: '44px',
+  // Matches the 40px header slot so the tab sits centered with room below.
+  height: '40px',
   display: 'flex',
   alignItems: 'center',
   flexDirection: 'row',
   gap: '8px',
   overflow: 'clip',
   pointerEvents: 'auto',
+  color: cssVarV2('text/primary'),
   ['WebkitAppRegion' as string]: 'drag',
   selectors: {
     '&[data-is-windows="false"]': {
@@ -28,8 +30,8 @@ export const headerLeft = style({
   flexFlow: 'row',
   alignItems: 'center',
   justifyContent: 'space-between',
-  paddingRight: 12,
-  gap: 10,
+  paddingRight: 8,
+  gap: 6,
   flexShrink: 0,
   selectors: {
     [`${root}[data-mode="app"] &`]: {
@@ -78,7 +80,7 @@ export const tabWrapper = style({
 });
 
 export const tab = style({
-  height: 32,
+  height: 26,
   minWidth: 38,
   maxWidth: tabMaxWidth,
   width: 200,
@@ -89,21 +91,21 @@ export const tab = style({
   alignItems: 'center',
   color: cssVarV2('tab/fontColor/default'),
   userSelect: 'none',
-  borderRadius: 15,
-  border: '1px solid rgba(111, 127, 84, 0.16)',
-  boxShadow: '0 1px 2px rgba(16, 24, 12, 0.08)',
+  borderRadius: 8,
+  border: '1px solid transparent',
+  transition: 'background-color .14s ease, box-shadow .14s ease',
   position: 'relative',
   ['WebkitAppRegion' as string]: 'no-drag',
   selectors: {
     [`${tabWrapper} &`]: {
       marginRight: 8,
     },
+    '&:hover': {
+      background: cssVarV2('tab/tabBackground/hover'),
+    },
     '&[data-active="true"]': {
-      background:
-        'linear-gradient(180deg, rgba(111, 127, 84, 0.18), rgba(111, 127, 84, 0.08)), ' +
-        cssVarV2('tab/tabBackground/active'),
-      borderColor: 'rgba(111, 127, 84, 0.34)',
-      boxShadow: '0 8px 20px rgba(16, 24, 12, 0.14)',
+      background: cssVarV2('tab/tabBackground/active'),
+      boxShadow: 'var(--nota-panel-shadow)',
     },
     [`${tabWrapper}[data-dragging="true"] &`]: {
       boxShadow: `0 0 0 1px ${cssVar('primaryColor')}`,
@@ -121,12 +123,10 @@ export const splitViewLabel = style({
   alignItems: 'center',
   cursor: 'default',
   flex: 1,
-  borderRadius: 15,
+  borderRadius: 8,
   selectors: {
     '&[data-active="true"]': {
-      background:
-        'linear-gradient(180deg, rgba(111, 127, 84, 0.2), rgba(111, 127, 84, 0.1)), ' +
-        cssVarV2('tab/tabBackground/active'),
+      background: cssVarV2('tab/tabBackground/active'),
     },
   },
 });
@@ -241,8 +241,8 @@ export const spacer = style({
     '&[data-dragged-over=true]:after': {
       content: '""',
       position: 'absolute',
-      top: 10,
-      height: 32,
+      top: 7,
+      height: 26,
       left: -5,
       right: 0,
       width: 2,
@@ -260,8 +260,8 @@ export const windowsAppControlsPlaceholder = style({
 
 export const dropIndicator = style({
   position: 'absolute',
-  height: 32,
-  top: 10,
+  height: 26,
+  top: 7,
   width: 2,
   borderRadius: 2,
   opacity: 0,

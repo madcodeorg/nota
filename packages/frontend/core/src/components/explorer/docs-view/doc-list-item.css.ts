@@ -1,3 +1,4 @@
+import { cssVar } from '@toeverything/theme';
 import { cssVarV2 } from '@toeverything/theme/v2';
 import { globalStyle, style } from '@vanilla-extract/css';
 
@@ -9,7 +10,7 @@ export const root = style({
   outlineOffset: 3,
   selectors: {
     '&:focus-visible': {
-      outline: '2px solid rgba(185, 199, 140, 0.72)',
+      outline: `2px solid ${cssVar('primaryColor')}`,
     },
   },
 });
@@ -20,10 +21,10 @@ export const dragPreview = style({
   gap: 8,
   padding: '10px 18px 10px 14px',
   background: cssVarV2.layer.background.primary,
-  borderRadius: 18,
-  border: '1px solid rgba(111, 127, 84, 0.18)',
+  borderRadius: 'var(--nota-row-radius)',
+  border: `1px solid ${cssVarV2.layer.insideBorder.border}`,
   fontSize: 14,
-  boxShadow: '0 14px 34px rgba(16, 24, 12, 0.18)',
+  boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)',
 });
 export const dragPreviewIcon = style({
   fontSize: 24,
@@ -37,7 +38,7 @@ export const listViewRoot = style({
   flexDirection: 'row',
   alignItems: 'center',
   gap: 12,
-  borderRadius: 10,
+  borderRadius: 'var(--nota-row-radius)',
   overflow: 'hidden',
   background: 'transparent',
   transition: 'background-color .12s ease',
@@ -48,7 +49,7 @@ export const listViewRoot = style({
       backgroundColor: cssVarV2.layer.background.hoverOverlay,
     },
     [`${root}[data-selected="true"] &`]: {
-      backgroundColor: 'rgba(111, 127, 84, 0.16)',
+      backgroundColor: 'var(--nota-row-background)',
     },
   },
 });
@@ -107,7 +108,7 @@ export const listThumb = style({
   alignItems: 'center',
   justifyContent: 'center',
   flexShrink: 0,
-  borderRadius: 7,
+  borderRadius: 'var(--nota-control-radius)',
   overflow: 'hidden',
   background: cssVarV2.layer.background.secondary,
   boxShadow: `inset 0 0 0 1px ${cssVarV2.layer.insideBorder.border}`,
@@ -226,41 +227,36 @@ export const cardViewRoot = style({
   vars: {
     '--ring-color': 'transparent',
     '--light-shadow':
-      '0px 0px 0px 1px var(--ring-color), 0px 10px 28px rgba(16,24,12,.08)',
-    '--dark-shadow':
-      '0px 0px 0px 1px var(--ring-color), 0px 10px 28px rgba(0,0,0,.22)',
+      '0px 0px 0px 1px var(--ring-color), 0px 1px 3px rgba(0,0,0,.05)',
+    '--dark-shadow': '0px 0px 0px 1px var(--ring-color)',
     '--light-shadow-hover':
-      '0px 0px 0px 1px var(--ring-color), 0px 16px 40px rgba(16,24,12,.14)',
+      '0px 0px 0px 1px var(--ring-color), 0px 8px 24px rgba(0,0,0,.08)',
     '--dark-shadow-hover':
-      '0px 0px 0px 1px var(--ring-color), 0px 16px 40px rgba(0,0,0,.32)',
+      '0px 0px 0px 1px var(--ring-color), 0px 8px 24px rgba(0,0,0,.32)',
   },
   width: '100%',
   height: '100%',
   display: 'flex',
   flexDirection: 'column',
-  gap: 14,
-  padding: 18,
-  borderRadius: 28,
+  gap: 12,
+  padding: 16,
+  borderRadius: 'var(--nota-panel-radius)',
   background: BUILD_CONFIG.isMobileEdition
     ? 'linear-gradient(180deg, rgba(34, 35, 30, 0.98), rgba(21, 22, 19, 0.98))'
-    : 'linear-gradient(180deg, rgba(111, 127, 84, 0.12), rgba(111, 127, 84, 0.04)), ' +
-      cssVarV2.layer.background.mobile.secondary,
-  border: '1px solid rgba(111, 127, 84, 0.18)',
-  // TODO: use variable
-  boxShadow:
-    '0px 0px 0px 1px var(--ring-color), 0px 10px 28px rgba(16,24,12,.1)',
+    : cssVarV2.layer.background.primary,
+  border: `1px solid ${cssVarV2.layer.insideBorder.border}`,
+  boxShadow: '0px 0px 0px 1px var(--ring-color)',
   overflow: 'hidden',
   transition:
-    'box-shadow 0.23s ease, border-color 0.23s ease, transform .18s ease, background-color .18s ease',
+    'box-shadow .16s ease, border-color .16s ease, transform .16s ease, background-color .16s ease',
   selectors: {
     [`${root}[data-selected="true"] &`]: {
       vars: {
-        '--ring-color': 'rgba(111, 127, 84, 0.5)',
+        '--ring-color': cssVar('primaryColor'),
       },
     },
     '&:hover': {
-      borderColor: 'rgba(111, 127, 84, 0.36)',
-      transform: 'translateY(-2px)',
+      transform: 'translateY(-1px)',
     },
     '[data-theme="light"] &': {
       boxShadow: 'var(--light-shadow)',
@@ -287,11 +283,10 @@ export const cardViewIcon = style({
   width: 40,
   height: 40,
   fontSize: 22,
-  color: '#b9c78c',
+  color: cssVarV2.icon.primary,
   lineHeight: 0,
-  borderRadius: 18,
-  background: 'rgba(111, 127, 84, 0.14)',
-  boxShadow: 'inset 0 0 0 1px rgba(111, 127, 84, 0.18)',
+  borderRadius: 'var(--nota-row-radius)',
+  background: 'var(--nota-row-background)',
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
@@ -316,13 +311,12 @@ export const cardViewActions = style({
   gap: 4,
   padding: 3,
   borderRadius: 999,
-  background: 'rgba(255, 255, 255, 0.035)',
-  boxShadow: 'inset 0 0 0 1px rgba(111, 127, 84, 0.1)',
+  background: 'transparent',
   flexShrink: 0,
+  transition: 'background-color .14s ease',
   selectors: {
     [`${cardViewRoot}:hover &`]: {
-      background: 'rgba(111, 127, 84, 0.1)',
-      boxShadow: 'inset 0 0 0 1px rgba(111, 127, 84, 0.18)',
+      background: 'var(--nota-row-background)',
     },
   },
 });

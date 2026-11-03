@@ -1,8 +1,6 @@
 import { cssVarV2 } from '@toeverything/theme/v2';
 import { style } from '@vanilla-extract/css';
 
-const accent = '#6f7f54';
-
 export const root = style({
   width: '100%',
   height: '100%',
@@ -19,7 +17,7 @@ export const card = style({
   gap: 8,
   padding: '12px 14px 10px',
   boxSizing: 'border-box',
-  borderRadius: 14,
+  borderRadius: 'var(--nota-panel-radius, 16px)',
   background: cssVarV2('layer/background/primary'),
   border: `1px solid ${cssVarV2('layer/insideBorder/border')}`,
   boxShadow: '0 18px 48px rgba(0, 0, 0, 0.22)',
@@ -81,14 +79,17 @@ export const saveButton = style({
   padding: '0 12px',
   border: 'none',
   borderRadius: 999,
-  background: accent,
-  color: '#fff',
+  background: 'var(--nota-solid-background, #18181b)',
+  color: 'var(--nota-solid-text, #ffffff)',
   fontFamily: 'inherit',
   fontSize: 12,
   fontWeight: 600,
   cursor: 'pointer',
+  transition: 'background 140ms ease',
   selectors: {
-    '&:hover:not(:disabled)': { background: '#5f6e47' },
+    '&:hover:not(:disabled)': {
+      background: 'var(--nota-solid-background-hover, #2c2c31)',
+    },
     '&:disabled': { opacity: 0.45, cursor: 'default' },
   },
 });

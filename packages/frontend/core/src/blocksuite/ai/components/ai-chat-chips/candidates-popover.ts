@@ -19,7 +19,7 @@ export class ChatPanelCandidatesPopover extends SignalWatcher(
       max-height: 450px;
       overflow-y: auto;
       border: 0.5px solid ${unsafeCSSVarV2('layer/insideBorder/border')};
-      border-radius: 4px;
+      border-radius: var(--affine-popover-radius, 12px);
       background: ${unsafeCSSVarV2('layer/background/overlayPanel')};
       box-shadow: ${unsafeCSSVar('overlayPanelShadow')};
       padding: 8px;

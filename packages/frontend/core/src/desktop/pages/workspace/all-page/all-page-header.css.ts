@@ -31,7 +31,7 @@ export const viewToggleItem = style({
   fontSize: 16,
   width: 32,
   height: 32,
-  borderRadius: 6,
+  borderRadius: 'var(--nota-control-radius)',
   color: cssVarV2.icon.primary,
   selectors: {
     '&[data-state=checked]': {
@@ -64,7 +64,7 @@ export const displayMenuButton = style({
   background: 'transparent',
   boxShadow: 'none',
   padding: 0,
-  borderRadius: 6,
+  borderRadius: 'var(--nota-control-radius)',
 });
 
 export const newPageButtonCompact = style({});
@@ -75,7 +75,7 @@ globalStyle(`${newPageButtonCompact} button`, {
   background: 'transparent',
   boxShadow: 'none',
   paddingLeft: 8,
-  borderRadius: 6,
+  borderRadius: 'var(--nota-control-radius)',
 });
 
 globalStyle(`${newPageButtonCompact} button > span:nth-child(2)`, {

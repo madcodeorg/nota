@@ -68,7 +68,7 @@ export const tagsLabel = style({
 
 export const tagsEditor = style({
   padding: '6px 8px',
-  borderRadius: 4,
+  borderRadius: 'var(--nota-control-radius)',
   border: `1px solid ${cssVarV2.layer.insideBorder.border}`,
   fontSize: 14,
 });

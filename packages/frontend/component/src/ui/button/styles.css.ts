@@ -10,24 +10,20 @@ export const dropdownBtn = style({
   paddingRight: 0,
   color: cssVar('textPrimaryColor'),
   fontWeight: 600,
-  background: 'rgba(111, 127, 84, 0.08)',
-  border: '1px solid rgba(111, 127, 84, 0.22)',
-  borderRadius: '14px',
+  background: 'var(--nota-row-background)',
+  border: '1px solid transparent',
+  borderRadius: 'var(--nota-control-radius, 8px)',
   fontSize: cssVar('fontSm'),
   // width: '100%',
   height: '36px',
   userSelect: 'none',
   whiteSpace: 'nowrap',
   cursor: 'pointer',
-  boxShadow: '0 1px 2px rgba(16, 24, 12, 0.08)',
   transition:
     'background-color .16s ease, border-color .16s ease, box-shadow .16s ease, transform .16s ease',
   selectors: {
     '&:hover': {
-      background: 'rgba(111, 127, 84, 0.16)',
-      borderColor: 'rgba(111, 127, 84, 0.34)',
-      boxShadow: '0 6px 18px rgba(16, 24, 12, 0.12)',
-      transform: 'translateY(-1px)',
+      background: cssVar('backgroundTertiaryColor'),
     },
     '&:active': {
       transform: 'translateY(0)',
@@ -44,7 +40,7 @@ export const dropdownBtn = style({
 export const divider = style({
   width: '0.5px',
   height: '16px',
-  background: 'rgba(111, 127, 84, 0.24)',
+  background: cssVar('borderColor'),
   // fix dropdown button click area
   margin: '0 6px',
   marginRight: 0,

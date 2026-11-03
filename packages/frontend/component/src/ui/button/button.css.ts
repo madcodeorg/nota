@@ -38,7 +38,7 @@ export const button = style({
   userSelect: 'none',
   outline: 0,
   overflow: 'hidden',
-  borderRadius: 14,
+  borderRadius: 'var(--nota-control-radius, 8px)',
   transition:
     'background-color .16s ease, border-color .16s ease, box-shadow .16s ease, color .16s ease, transform .16s ease',
   ['WebkitAppRegion' as string]: 'no-drag',
@@ -125,12 +125,11 @@ export const button = style({
     // type
     '&[data-variant="primary"]': {
       vars: {
-        [bgVar]: '#6f7f54',
-        [textVar]: cssVarV2('button/pureWhiteText'),
-        [iconColorVar]: cssVarV2('button/pureWhiteText'),
-        [borderColorVar]: 'rgba(16, 24, 12, 0.22)',
-        [shadowVar]:
-          '0 1px 2px rgba(16, 24, 12, 0.18), 0 8px 18px rgba(111, 127, 84, 0.24)',
+        [bgVar]: 'var(--nota-solid-background)',
+        [textVar]: 'var(--nota-solid-text)',
+        [iconColorVar]: 'var(--nota-solid-text)',
+        [borderColorVar]: 'transparent',
+        [shadowVar]: '0 1px 2px rgba(0, 0, 0, 0.12)',
       },
     },
     '&[data-variant="secondary"]': {
@@ -138,7 +137,7 @@ export const button = style({
         [bgVar]: cssVarV2('button/secondary'),
         [textVar]: cssVarV2('text/primary'),
         [iconColorVar]: cssVarV2('icon/primary'),
-        [borderColorVar]: 'rgba(111, 127, 84, 0.22)',
+        [borderColorVar]: cssVarV2('layer/insideBorder/border'),
       },
     },
     '&[data-variant="plain"]': {
@@ -193,7 +192,7 @@ export const button = style({
       top: 0,
       left: 0,
       borderRadius: 'inherit',
-      boxShadow: `0 0 0 2px rgba(111, 127, 84, 0.36)`,
+      boxShadow: 'inset 0 0 0 2px var(--nota-accent)',
     },
     '&[data-mobile=true]:focus-visible::after': {
       content: 'none',
@@ -233,7 +232,7 @@ export const iconButton = style({
     '--shadow':
       '0px 0px 1px 0px rgba(0, 0, 0, 0.12), 0px 1px 5px 0px rgba(0, 0, 0, 0.12)',
   },
-  borderRadius: 12,
+  borderRadius: 'var(--nota-control-radius, 8px)',
   selectors: {
     '[data-theme="dark"] &': {
       vars: {
@@ -271,7 +270,7 @@ export const iconButton = style({
       vars: {
         [bgVar]: cssVarV2('button/iconButtonSolid'),
         [iconColorVar]: cssVarV2('icon/primary'),
-        [borderColorVar]: 'rgba(111, 127, 84, 0.18)',
+        [borderColorVar]: cssVarV2('layer/insideBorder/border'),
         [shadowVar]: 'var(--shadow)',
       },
     },

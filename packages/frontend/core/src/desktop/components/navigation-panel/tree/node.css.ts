@@ -8,7 +8,7 @@ export const linkItemRoot = style({
 export const itemRoot = style({
   display: 'inline-flex',
   alignItems: 'center',
-  borderRadius: 12,
+  borderRadius: 9,
   textAlign: 'left',
   color: 'inherit',
   width: '100%',
@@ -21,10 +21,10 @@ export const itemRoot = style({
   marginTop: '0px',
   selectors: {
     '&:hover': {
-      background: 'rgba(111, 127, 84, 0.12)',
+      background: cssVar('hoverColor'),
     },
     '&[data-active="true"]': {
-      background: 'rgba(111, 127, 84, 0.18)',
+      background: 'var(--nota-sidebar-active)',
     },
     '&[data-disabled="true"]': {
       cursor: 'default',
@@ -121,7 +121,7 @@ export const collapsedIconContainer = style({
       pointerEvents: 'none',
     },
     '&:hover': {
-      background: 'rgba(111, 127, 84, 0.12)',
+      background: cssVar('hoverColor'),
     },
     [`${itemRoot}[data-collapsible="true"]:hover &`]: {
       opacity: 1,

@@ -9,8 +9,7 @@ export const chatShell = style({
   '@media': {
     '(max-width: 720px)': {
       flexDirection: 'column',
-      background:
-        'linear-gradient(180deg, #171914 0%, #10110f 52%, #0d0d0c 100%)',
+      background: 'var(--affine-background-primary-color)',
     },
   },
 });

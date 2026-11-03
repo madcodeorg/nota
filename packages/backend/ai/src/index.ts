@@ -1,3 +1,5 @@
+import { refreshAvailableMemory } from './device-memory';
+import { startEventLoopMonitor } from './event-loop-monitor';
 import { finalizeMeetingsBeforeShutdown } from './meetings';
 import { createServer } from './server';
 import { flushAllCopilotStores } from './store';
@@ -15,6 +17,8 @@ function messageData(event: unknown) {
 }
 
 async function start() {
+  startEventLoopMonitor();
+  refreshAvailableMemory().catch(() => {});
   const { app, config, ready } = createServer();
   await ready;
 

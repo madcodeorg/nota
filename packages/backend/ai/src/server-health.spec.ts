@@ -55,6 +55,7 @@ describe('AI backend health ownership', () => {
       });
       expect(response.ok).toBe(true);
       await expect(response.json()).resolves.toMatchObject({
+        eventLoopLag: { maxMs: expect.any(Number), p99Ms: expect.any(Number) },
         instanceId: 'test-instance',
         ok: true,
         workspaceRoot,

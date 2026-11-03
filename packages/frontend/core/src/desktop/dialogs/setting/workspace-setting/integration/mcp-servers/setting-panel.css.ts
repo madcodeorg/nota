@@ -73,7 +73,7 @@ export const serverIcon = style({
   width: 32,
   height: 32,
   flexShrink: 0,
-  borderRadius: 6,
+  borderRadius: 'var(--nota-control-radius)',
   objectFit: 'cover',
 });
 
@@ -155,7 +155,7 @@ export const pillState = styleVariants({
 export const tag = style({
   flexShrink: 0,
   padding: '0 6px',
-  borderRadius: 4,
+  borderRadius: 999,
   border: `1px solid ${cssVarV2('layer/insideBorder/border')}`,
   fontSize: 11,
   lineHeight: '16px',

@@ -124,7 +124,7 @@ export class DocEditTool extends WithDisposable(ShadowlessElement) {
             display: flex;
             align-items: center;
             justify-content: center;
-            border-radius: 4px;
+            border-radius: var(--nota-control-radius, 8px);
           }
 
           button:hover {
@@ -152,7 +152,7 @@ export class DocEditTool extends WithDisposable(ShadowlessElement) {
           align-items: center;
           gap: 4px;
           padding: 4px;
-          border-radius: 4px;
+          border-radius: var(--nota-control-radius, 8px);
         }
 
         button:hover {
@@ -166,7 +166,7 @@ export class DocEditTool extends WithDisposable(ShadowlessElement) {
       }
 
       .doc-edit-tool-result-card-diff {
-        border-radius: 4px;
+        border-radius: var(--nota-row-radius, 10px);
         padding: 8px;
         width: 100%;
       }

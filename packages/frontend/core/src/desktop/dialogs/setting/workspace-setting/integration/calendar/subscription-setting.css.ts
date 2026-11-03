@@ -6,7 +6,7 @@ export const item = style({
   alignItems: 'center',
   gap: 10,
   padding: '6px 8px',
-  borderRadius: 6,
+  borderRadius: 'var(--nota-row-radius)',
   cursor: 'pointer',
   selectors: {
     '&:hover': {

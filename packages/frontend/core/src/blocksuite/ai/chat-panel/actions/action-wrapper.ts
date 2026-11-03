@@ -96,7 +96,7 @@ export class ActionWrapper extends WithDisposable(LitElement) {
       color: ${unsafeCSSVarV2('text/primary')};
       max-height: 500px;
       overflow-y: auto;
-      border-radius: 4px;
+      border-radius: var(--nota-row-radius, 10px);
 
       .subtitle {
         font-size: 12px;

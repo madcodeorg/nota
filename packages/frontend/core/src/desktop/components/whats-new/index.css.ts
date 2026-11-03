@@ -46,7 +46,7 @@ globalStyle(`${item}::before`, {
   width: 6,
   height: 6,
   borderRadius: '50%',
-  background: 'var(--affine-primary-color, #6f7f54)',
+  background: 'var(--nota-accent)',
 });
 
 export const footer = style({

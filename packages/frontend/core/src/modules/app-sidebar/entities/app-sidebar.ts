@@ -9,6 +9,8 @@ enum APP_SIDEBAR_STATE {
   ACTIVE_TAB = 'activeTab',
 }
 
+export const APP_SIDEBAR_MIN_WIDTH = 220;
+
 export class AppSidebar extends Entity {
   constructor(private readonly appSidebarState: AppSidebarState) {
     super();
@@ -28,10 +30,10 @@ export class AppSidebar extends Entity {
   width$ = LiveData.from(
     this.appSidebarState
       .watch<number>(APP_SIDEBAR_STATE.WIDTH)
-      .pipe(map(value => Math.max(value ?? 320, 300))),
+      .pipe(map(value => Math.max(value ?? 320, APP_SIDEBAR_MIN_WIDTH))),
     Math.max(
       this.appSidebarState.get<number>(APP_SIDEBAR_STATE.WIDTH) ?? 320,
-      300
+      APP_SIDEBAR_MIN_WIDTH
     )
   );
 

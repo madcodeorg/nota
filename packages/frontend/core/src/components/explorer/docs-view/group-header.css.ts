@@ -9,9 +9,10 @@ export const groupHeader = style({
   justifyContent: 'space-between',
   position: 'relative',
   padding: '0px 8px',
-  borderRadius: 999,
+  borderRadius: 'var(--nota-row-radius)',
+  transition: 'background-color .14s ease',
   ':hover': {
-    background: 'rgba(111, 127, 84, 0.1)',
+    background: cssVarV2.layer.background.hoverOverlay,
   },
 });
 export const space = style({
@@ -82,9 +83,10 @@ export const selectInfo = style({
 
 export const content = style({
   flexShrink: 0,
-  fontSize: 15,
+  fontSize: 14,
   lineHeight: '24px',
-  color: cssVarV2.text.secondary,
+  fontWeight: 600,
+  color: cssVarV2.text.primary,
 });
 
 export const selectAllButton = style([
@@ -97,7 +99,7 @@ export const selectAllButton = style([
     borderRadius: 999,
     selectors: {
       '&:hover': {
-        background: 'rgba(111, 127, 84, 0.12)',
+        background: cssVarV2.layer.background.hoverOverlay,
       },
     },
   },

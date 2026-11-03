@@ -17,7 +17,7 @@ export class ChatPanelChip extends SignalWatcher(
       align-items: center;
       justify-content: center;
       padding: 0 4px;
-      border-radius: 4px;
+      border-radius: 999px;
       border: 0.5px solid ${unsafeCSSVarV2('layer/insideBorder/border')};
       background: ${unsafeCSSVarV2('layer/background/primary')};
       box-sizing: border-box;
@@ -70,7 +70,7 @@ export class ChatPanelChip extends SignalWatcher(
       align-items: center;
       justify-content: center;
       cursor: pointer;
-      border-radius: 4px;
+      border-radius: 999px;
     }
     .chip-card-close:hover {
       background: ${unsafeCSSVarV2('layer/background/hoverOverlay')};

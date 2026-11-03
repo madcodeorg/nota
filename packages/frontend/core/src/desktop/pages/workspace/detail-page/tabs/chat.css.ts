@@ -44,7 +44,7 @@ export const linkedNote = style({
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
   border: 'none',
-  borderRadius: '4px',
+  borderRadius: 'var(--nota-control-radius)',
   background: 'transparent',
   color: cssVarV2('text/tertiary'),
   fontSize: '12px',

@@ -18,6 +18,8 @@ export type AppSetting = {
   enableTelemetry: boolean;
   showLinkedDocInSidebar: boolean;
   disableImageAntialiasing: boolean;
+  // Keys of ACCENT_PRESETS in @nota/component.
+  accentColor: 'coral' | 'indigo' | 'green';
 };
 export const windowFrameStyleOptions: AppSetting['windowFrameStyle'][] = [
   'frameless',
@@ -37,6 +39,7 @@ const appSettingBaseAtom = atomWithStorage<AppSetting>(
     enableTelemetry: false,
     showLinkedDocInSidebar: true,
     disableImageAntialiasing: false,
+    accentColor: 'coral',
   },
   undefined,
   {

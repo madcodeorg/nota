@@ -14,7 +14,7 @@ export const header = style({
   alignItems: 'center',
   padding: '4px 4px',
   fontSize: 12,
-  fontWeight: 500,
+  fontWeight: 600,
   lineHeight: '20px',
   color: cssVarV2.text.secondary,
 });
@@ -32,8 +32,9 @@ export const task = style({
   display: 'flex',
   alignItems: 'center',
   gap: 8,
-  padding: '4px 4px',
-  borderRadius: 4,
+  padding: '4px 8px',
+  borderRadius: 'var(--nota-row-radius)',
+  transition: 'background-color .14s ease',
   ':hover': {
     backgroundColor: cssVarV2.layer.background.hoverOverlay,
   },
@@ -61,7 +62,8 @@ export const taskText = style({
 export const overdue = style({
   flexShrink: 0,
   fontSize: 12,
-  color: cssVarV2.status.error,
+  fontWeight: 500,
+  color: 'var(--nota-accent)',
 });
 
 export const more = style({
@@ -74,9 +76,10 @@ export const meeting = style({
   display: 'flex',
   alignItems: 'center',
   gap: 8,
-  padding: '4px 4px',
+  padding: '4px 8px',
   minHeight: 30,
-  borderRadius: 4,
+  borderRadius: 'var(--nota-row-radius)',
+  transition: 'background-color .14s ease',
   overflow: 'hidden',
   whiteSpace: 'nowrap',
   ':hover': {

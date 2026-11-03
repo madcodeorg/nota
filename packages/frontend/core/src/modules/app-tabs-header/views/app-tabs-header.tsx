@@ -497,6 +497,7 @@ export const AppTabsHeader = ({
       style={style}
       data-mode={mode}
       data-is-windows={isWindowsDesktop}
+      data-theme="dark"
     >
       <div
         style={{

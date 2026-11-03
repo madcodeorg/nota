@@ -15,9 +15,10 @@ export const event = style({
   display: 'flex',
   gap: 8,
   alignItems: 'flex-start',
-  padding: '6px 4px',
-  borderRadius: 4,
+  padding: '6px 8px',
+  borderRadius: 'var(--nota-row-radius)',
   cursor: 'pointer',
+  transition: 'background-color .14s ease',
   selectors: {
     '&:hover': {
       backgroundColor: cssVarV2.layer.background.hoverOverlay,

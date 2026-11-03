@@ -39,8 +39,9 @@ export interface SplitViewPanelProps extends PropsWithChildren<
   index: number;
   resizeHandle?: React.ReactNode;
   onMove: (from: number, to: number) => void;
-  onResizing: (dxy: { x: number; y: number }) => void;
+  onResizing: (pointer: { x: number; y: number }) => void;
   draggingEntity: boolean;
+  animateIn?: boolean;
 }
 
 export const SplitViewPanelContainer = ({
@@ -100,6 +101,7 @@ export const SplitViewPanel = memo(function SplitViewPanel({
   onResizing,
   draggingEntity,
   index,
+  animateIn,
 }: SplitViewPanelProps) {
   const size = useLiveData(view.size$);
   const workbench = useService(WorkbenchService).workbench;
@@ -234,6 +236,8 @@ export const SplitViewPanel = memo(function SplitViewPanel({
       data-is-active={isActive && views.length > 1}
       data-is-first={isFirst}
       data-is-last={isLast}
+      data-animate-in={animateIn}
+      data-view-id={view.id}
       data-testid="split-view-panel"
     >
       {isFirst ? (

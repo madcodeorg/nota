@@ -7,7 +7,7 @@ export const linkItemRoot = style({
 export const root = style({
   display: 'inline-flex',
   alignItems: 'center',
-  borderRadius: '12px',
+  borderRadius: '9px',
   textAlign: 'left',
   color: 'inherit',
   width: '100%',
@@ -20,29 +20,13 @@ export const root = style({
   position: 'relative',
   transition:
     'background-color .16s ease, color .16s ease, box-shadow .16s ease, transform .16s ease',
-  ':before': {
-    content: '""',
-    position: 'absolute',
-    left: '4px',
-    width: '3px',
-    height: '16px',
-    borderRadius: '999px',
-    opacity: 0,
-    background: '#6f7f54',
-    transition: 'opacity .16s ease',
-  },
   selectors: {
     '&:hover': {
-      background: 'rgba(111, 127, 84, 0.11)',
-      boxShadow: 'inset 0 0 0 1px rgba(111, 127, 84, 0.12)',
+      background: cssVar('hoverColor'),
     },
     '&[data-active="true"]': {
-      background: 'rgba(111, 127, 84, 0.17)',
+      background: 'var(--nota-sidebar-active)',
       color: cssVarV2('text/primary'),
-      boxShadow: 'inset 0 0 0 1px rgba(111, 127, 84, 0.18)',
-    },
-    '&[data-active="true"]::before': {
-      opacity: 1,
     },
     '&[data-disabled="true"]': {
       cursor: 'default',
@@ -94,7 +78,7 @@ export const icon = style({
   fontSize: '19px',
   selectors: {
     [`${root}[data-active="true"] &`]: {
-      color: '#6f7f54',
+      color: 'var(--nota-accent)',
     },
   },
 });
@@ -116,7 +100,7 @@ export const collapsedIconContainer = style({
       pointerEvents: 'none',
     },
     '&:hover': {
-      background: 'rgba(111, 127, 84, 0.14)',
+      background: cssVar('hoverColor'),
     },
   },
 });

@@ -74,7 +74,7 @@ export const card = style({
   padding: '12px 0px 14px 12px',
   width: '100%',
   height: 124,
-  borderRadius: 12,
+  borderRadius: 'var(--nota-panel-radius)',
   border: `1px solid ${cssVarV2.layer.insideBorder.border}`,
   backgroundColor: cssVarV2.layer.background.secondary,
   overflow: 'hidden',

@@ -89,7 +89,7 @@ export class SectionEditTool extends WithDisposable(ShadowlessElement) {
             display: flex;
             align-items: center;
             justify-content: center;
-            border-radius: 4px;
+            border-radius: var(--nota-control-radius, 8px);
             cursor: pointer;
             &:hover {
               background-color: ${unsafeCSSVarV2(

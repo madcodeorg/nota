@@ -1,4 +1,4 @@
-import { execFileSync } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import os from 'node:os';
 
 const MACOS_MEMORY_CACHE_MS = 5_000;
@@ -29,12 +29,53 @@ export function parseMacOSMemoryPressure(
   return Math.round(totalMemoryBytes * (percentage / 100));
 }
 
+function readMemoryPressure() {
+  return new Promise<string>((resolve, reject) => {
+    execFile(
+      '/usr/bin/memory_pressure',
+      ['-Q'],
+      { encoding: 'utf8', maxBuffer: 64 * 1024, timeout: 1_000 },
+      (error, stdout) => (error ? reject(error) : resolve(stdout))
+    );
+  });
+}
+
+let refreshing: Promise<void> | undefined;
+
+/**
+ * Re-reads the macOS usable-memory estimate without blocking the event loop.
+ * The backend calls this once at startup so the first request already has a
+ * reading; `availableMemoryBytes` triggers it again when the reading is stale.
+ */
+export function refreshAvailableMemory() {
+  if (process.platform !== 'darwin') return Promise.resolve();
+  refreshing ??= readMemoryPressure()
+    .then(output => parseMacOSMemoryPressure(output, os.totalmem()))
+    .catch(() => null)
+    .then(availableBytes => {
+      // A failed read is cached as 0 so a missing or restricted utility is
+      // retried at the normal interval instead of on every call.
+      cachedMacOSMemory = {
+        availableBytes: availableBytes ?? 0,
+        checkedAt: Date.now(),
+      };
+    })
+    .finally(() => {
+      refreshing = undefined;
+    });
+  return refreshing;
+}
+
 /**
  * `os.freemem()` only reports immediately unused pages on macOS. It excludes
  * reclaimable inactive/compressed memory and can therefore make a healthy Mac
  * look as if it has only a few megabytes available. `memory_pressure -Q`
  * exposes the operating system's usable-memory estimate, which is the value
  * Nota needs when deciding whether a local model can load safely.
+ *
+ * This is called on request paths, so it never waits for that utility: it
+ * returns the last reading (or Node's conservative value before the first one)
+ * and refreshes in the background.
  */
 export function availableMemoryBytes() {
   const fallback = os.freemem();
@@ -42,29 +83,11 @@ export function availableMemoryBytes() {
     return fallback;
   }
 
-  const checkedAt = Date.now();
   if (
-    cachedMacOSMemory &&
-    checkedAt - cachedMacOSMemory.checkedAt < MACOS_MEMORY_CACHE_MS
+    !cachedMacOSMemory ||
+    Date.now() - cachedMacOSMemory.checkedAt >= MACOS_MEMORY_CACHE_MS
   ) {
-    return Math.max(fallback, cachedMacOSMemory.availableBytes);
+    refreshAvailableMemory().catch(() => {});
   }
-
-  try {
-    const output = execFileSync('/usr/bin/memory_pressure', ['-Q'], {
-      encoding: 'utf8',
-      maxBuffer: 64 * 1024,
-      timeout: 1_000,
-    });
-    const availableBytes = parseMacOSMemoryPressure(output, os.totalmem());
-    if (availableBytes !== null) {
-      cachedMacOSMemory = { availableBytes, checkedAt };
-      return Math.max(fallback, availableBytes);
-    }
-  } catch {
-    // Fall back to Node's conservative value when the macOS utility is absent
-    // or unavailable in a restricted runtime.
-  }
-
-  return fallback;
+  return Math.max(fallback, cachedMacOSMemory?.availableBytes ?? 0);
 }

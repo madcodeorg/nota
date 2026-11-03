@@ -28,7 +28,7 @@ export class AIChatEmbeddingStatusTooltip extends SignalWatcher(LitElement) {
     .check-status {
       padding: 4px;
       cursor: pointer;
-      border-radius: 4px;
+      border-radius: var(--nota-control-radius, 8px);
     }
     .check-status:hover {
       background-color: ${unsafeCSSVar('--affine-hover-color')};

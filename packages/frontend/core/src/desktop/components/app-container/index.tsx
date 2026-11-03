@@ -133,6 +133,9 @@ const HeaderQuickSearchPill = () => {
         weight="bold"
       />
       <span className={styles.headerSearchPillLabel}>Search</span>
+      <kbd aria-hidden className={styles.headerSearchPillShortcut}>
+        {environment.isMacOs ? '⌘K' : 'Ctrl K'}
+      </kbd>
     </button>
   );
 };

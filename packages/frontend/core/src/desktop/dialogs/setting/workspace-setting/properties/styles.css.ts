@@ -98,7 +98,7 @@ export const propertyRowNamePopupRow = style({
 
 export const propertyNameIconEditable = style({
   fontSize: cssVar('fontH5'),
-  borderRadius: 4,
+  borderRadius: 'var(--nota-control-radius)',
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',

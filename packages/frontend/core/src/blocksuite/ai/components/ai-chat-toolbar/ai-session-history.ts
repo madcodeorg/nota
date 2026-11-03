@@ -26,7 +26,7 @@ export class AISessionHistory extends WithDisposable(ShadowlessElement) {
       overflow-y: auto;
       border: 0.5px solid ${unsafeCSSVarV2('layer/insideBorder/border')};
       background: ${unsafeCSSVarV2('layer/background/primary')};
-      border-radius: 4px;
+      border-radius: var(--affine-popover-radius, 12px);
       background: ${unsafeCSSVarV2('layer/background/overlayPanel')};
       box-shadow: ${unsafeCSSVar('overlayPanelShadow')};
 
@@ -65,7 +65,7 @@ export class AISessionHistory extends WithDisposable(ShadowlessElement) {
         height: 24px;
         justify-content: space-between;
         align-items: center;
-        border-radius: 4px;
+        border-radius: var(--nota-control-radius, 8px);
         cursor: pointer;
       }
 
@@ -99,7 +99,7 @@ export class AISessionHistory extends WithDisposable(ShadowlessElement) {
         align-items: center;
         gap: 4px;
         flex-shrink: 0;
-        border-radius: 2px;
+        border-radius: var(--nota-control-radius, 8px);
         cursor: pointer;
 
         svg {
@@ -128,7 +128,7 @@ export class AISessionHistory extends WithDisposable(ShadowlessElement) {
         align-items: center;
         justify-content: center;
         background: ${unsafeCSSVarV2('layer/background/primary')};
-        border-radius: 2px;
+        border-radius: var(--nota-control-radius, 8px);
         padding: 2px;
         cursor: pointer;
         opacity: 0;

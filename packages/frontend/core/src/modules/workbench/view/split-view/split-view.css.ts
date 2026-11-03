@@ -13,7 +13,7 @@ const dropIndicatorRadius = createVar();
 const expandDropIndicator = keyframes({
   from: {
     vars: {
-      [resizeHandleWidth]: '50px',
+      [resizeHandleWidth]: '80px',
       [dropIndicatorWidth]: '3px',
       [dropIndicatorOpacity]: '1',
       [dropIndicatorRadius]: '10px',
@@ -29,14 +29,27 @@ const expandDropIndicator = keyframes({
   },
 });
 
+const panelEnter = keyframes({
+  from: { flexGrow: 0, opacity: 0 },
+});
+
+const easeOut = 'cubic-bezier(0.2, 0, 0, 1)';
+
 export const splitViewPanel = style({
   flexShrink: 0,
   flexGrow: fallbackVar(size, '1'),
+  // basis 0 keeps widths proportional to size regardless of content
+  flexBasis: 0,
+  minWidth: 0,
   position: 'relative',
   order: panelOrder,
   display: 'flex',
+  transition: `flex-grow 0.28s ${easeOut}`,
 
   selectors: {
+    '&[data-animate-in="true"]': {
+      animation: `${panelEnter} 0.28s ${easeOut}`,
+    },
     '[data-is-resizing="true"]&': {
       transition: 'none',
     },
@@ -51,7 +64,7 @@ export const splitViewPanel = style({
         borderRight: `0.5px solid ${cssVarV2('layer/insideBorder/border')}`,
       },
     '[data-client-border="true"] &': {
-      border: `0.5px solid ${cssVarV2('layer/insideBorder/border')}`,
+      boxShadow: 'var(--nota-panel-shadow)',
       borderTopLeftRadius: borderRadius,
       borderBottomLeftRadius: borderRadius,
       borderTopRightRadius: borderRadius,
@@ -95,6 +108,13 @@ export const splitViewPanelContent = style({
   height: '100%',
   borderRadius: 'inherit',
   overflow: 'hidden',
+
+  selectors: {
+    '[data-is-resizing="true"] &': {
+      pointerEvents: 'none',
+      userSelect: 'none',
+    },
+  },
 });
 
 export const resizeHandle = style({
@@ -104,6 +124,7 @@ export const resizeHandle = style({
   width: resizeHandleWidth,
   // to make sure it's above all-pages's header
   zIndex: 5,
+  touchAction: 'none',
 
   display: 'flex',
   justifyContent: 'center',
@@ -116,7 +137,7 @@ export const resizeHandle = style({
 
     '&[data-state="drop-indicator"]': {
       vars: {
-        [resizeHandleWidth]: '50px',
+        [resizeHandleWidth]: '80px',
       },
     },
     '&[data-edge="left"]': {
@@ -139,6 +160,9 @@ export const resizeHandle = style({
     '&[data-can-resize="true"]': {
       cursor: 'col-resize',
     },
+    '&[data-state="resizing"]': {
+      zIndex: 6,
+    },
     '[data-client-border="true"] &[data-edge="right"]': {
       right: `calc(${resizeHandleWidth} * -0.5 - 0.5px - ${gap} / 2)`,
     },
@@ -148,8 +172,9 @@ export const resizeHandle = style({
 
     '&[data-state="drop-indicator"][data-dragging-over="true"]': {
       animationName: expandDropIndicator,
-      animationDuration: '0.5s',
-      animationDelay: '1s',
+      animationDuration: '0.3s',
+      animationDelay: '0.25s',
+      animationTimingFunction: easeOut,
       animationFillMode: 'forwards',
       vars: {
         [dropIndicatorOpacity]: '1',
@@ -196,7 +221,7 @@ export const resizeHandle = style({
 export const splitViewRoot = style({
   vars: {
     [gap]: '0px',
-    [borderRadius]: '6px',
+    [borderRadius]: 'var(--nota-panel-radius, 16px)',
     [resizeHandleWidth]: '10px',
     [dropIndicatorWidth]: '2px',
     [dropIndicatorOpacity]: '0',

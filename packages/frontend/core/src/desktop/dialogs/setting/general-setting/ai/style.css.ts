@@ -82,7 +82,7 @@ export const menuTrigger = style({
   maxWidth: '100%',
   minHeight: 36,
   padding: '7px 10px',
-  borderRadius: 6,
+  borderRadius: 'var(--nota-control-radius)',
   border: `1px solid ${cssVar('borderColor')}`,
   background: cssVar('backgroundPrimaryColor'),
   color: cssVar('textPrimaryColor'),
@@ -119,7 +119,7 @@ export const status = style({
   alignItems: 'center',
   minHeight: 24,
   padding: '2px 8px',
-  borderRadius: 4,
+  borderRadius: 999,
   background: cssVarV2('chip/label/blue'),
   color: cssVarV2('text/primary'),
   fontSize: cssVar('fontXs'),
@@ -155,7 +155,7 @@ export const statusNotice = style([
   {
     marginTop: 4,
     padding: '8px 12px',
-    borderRadius: 6,
+    borderRadius: 'var(--nota-control-radius)',
     background: cssVar('hoverColor'),
   },
 ]);
@@ -164,7 +164,7 @@ export const error = style([
   {
     marginTop: 8,
     padding: '8px 12px',
-    borderRadius: 6,
+    borderRadius: 'var(--nota-control-radius)',
     borderLeft: `3px solid ${cssVarV2('status/error')}`,
     background: cssVar('hoverColor'),
     color: cssVarV2('status/error'),

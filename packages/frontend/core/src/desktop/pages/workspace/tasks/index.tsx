@@ -74,7 +74,11 @@ const TaskRow = ({
         <span className={styles.rowSource}>{docTitle}</span>
       </button>
       {task.due ? (
-        <span className={styles.due} data-overdue={group === 'overdue'}>
+        <span
+          className={styles.due}
+          data-overdue={group === 'overdue'}
+          data-today={group === 'today'}
+        >
           {formatDue(task.due, today)}
         </span>
       ) : null}
@@ -191,6 +195,7 @@ export const TasksPage = () => {
                       <span
                         className={styles.groupLabel}
                         data-overdue={group.id === 'overdue'}
+                        data-today={group.id === 'today'}
                       >
                         {group.label}
                       </span>

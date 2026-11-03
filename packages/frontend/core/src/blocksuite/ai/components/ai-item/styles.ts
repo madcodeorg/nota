@@ -16,7 +16,7 @@ export const menuItemStyles = css`
     padding: 4px var(--item-padding, 12px);
     gap: 4px;
     align-self: stretch;
-    border-radius: 4px;
+    border-radius: var(--nota-control-radius, 8px);
     box-sizing: border-box;
   }
 

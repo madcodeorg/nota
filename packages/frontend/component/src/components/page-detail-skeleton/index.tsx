@@ -4,6 +4,7 @@ import { useCallback } from 'react';
 
 import { Button } from '../../ui/button';
 import { Loading } from '../../ui/loading';
+import { Skeleton } from '../../ui/skeleton';
 import { ThemedImg } from '../../ui/themed-img';
 import imageUrlForDarkLoading from './assets/loading.dark.png';
 import imageUrlForLightLoading from './assets/loading.light.png';
@@ -81,10 +82,31 @@ export const EditorLoading = ({
   );
 };
 
+const DOC_PARAGRAPHS = [
+  ['92%', '86%', '95%', '64%'],
+  ['90%', '78%', '45%'],
+];
+
 export const PageDetailLoading = () => {
   return (
-    <div className={styles.pageDetailSkeletonStyle}>
-      <EditorLoading />
+    <div className={styles.pageDetailSkeletonStyle} aria-busy="true">
+      <div className={styles.docSkeleton}>
+        <Skeleton variant="text" animation="wave" width="55%" height={36} />
+        <Skeleton variant="text" animation="wave" width={140} height={14} />
+        {DOC_PARAGRAPHS.map(lines => (
+          <div key={lines.join()} className={styles.docSkeletonParagraph}>
+            {lines.map(width => (
+              <Skeleton
+                key={width}
+                variant="text"
+                animation="wave"
+                width={width}
+                height={14}
+              />
+            ))}
+          </div>
+        ))}
+      </div>
     </div>
   );
 };

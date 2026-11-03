@@ -1,8 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
-import { mkdir, rename, writeFile } from 'node:fs/promises';
-import path from 'node:path';
 
+import { writeJsonItemsFile } from './json-file';
 import type {
   ChatMessage,
   CopilotSession,
@@ -401,19 +400,14 @@ export class CopilotStore {
     const filePath = this.persistencePath;
     if (!filePath) return;
     try {
-      // Serialized at write time so the file always holds the latest state.
-      const json = JSON.stringify({
-        contexts: [...this.contexts].map(([key, context]) => ({
-          ...context,
-          key,
-        })),
-        sessions: [...this.sessions.values()],
-        version: 1,
-      } satisfies PersistedCopilotStore);
-      await mkdir(path.dirname(filePath), { recursive: true });
-      const temporaryPath = `${filePath}.${process.pid}.tmp`;
-      await writeFile(temporaryPath, json, { mode: 0o600 });
-      await rename(temporaryPath, filePath);
+      await writeJsonItemsFile(filePath, {
+        head: `{"contexts":${JSON.stringify(
+          [...this.contexts].map(([key, context]) => ({ ...context, key }))
+        )},"sessions":[`,
+        items: [...this.sessions.values()],
+        mode: 0o600,
+        tail: '],"version":1}',
+      });
     } catch (error) {
       console.error(
         '[copilot-store] failed to persist local chat history',

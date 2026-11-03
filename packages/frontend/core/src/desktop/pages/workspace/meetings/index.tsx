@@ -1,4 +1,4 @@
-import { notify } from '@nota/component';
+import { notify, Skeleton } from '@nota/component';
 import { DesktopApiService } from '@nota/core/modules/desktop-api';
 import { WorkspaceDialogService } from '@nota/core/modules/dialogs';
 import { DocsService } from '@nota/core/modules/doc';
@@ -4691,8 +4691,20 @@ export const Component = () => {
                   </div>
                 ) : null}
                 {calendarEventsLoading && !calendarEventsLoaded ? (
-                  <div className={styles.calendarPreviewStatus}>
-                    Loading today’s events…
+                  <div
+                    className={styles.calendarEventList}
+                    role="status"
+                    aria-label="Loading today’s events"
+                  >
+                    {[0, 1].map(row => (
+                      <Skeleton
+                        key={row}
+                        variant="rectangular"
+                        animation="wave"
+                        height={44}
+                        style={{ borderRadius: 6 }}
+                      />
+                    ))}
                   </div>
                 ) : calendarEventsError ? (
                   <div
@@ -4716,7 +4728,8 @@ export const Component = () => {
                           key={event.id}
                           style={{
                             borderColor:
-                              event.calendarColor ?? 'rgba(111, 127, 84, 0.36)',
+                              event.calendarColor ??
+                              'var(--affine-border-color)',
                           }}
                         >
                           <div className={styles.calendarEventTime}>

@@ -85,10 +85,10 @@ export const cover = style({
   padding: 20,
   overflow: 'hidden',
   border: `1px solid ${cssVar('borderColor')}`,
-  borderRadius: 8,
+  borderRadius: 'var(--nota-panel-radius)',
   boxSizing: 'border-box',
-  background: '#161814',
-  boxShadow: '0 12px 32px rgba(0, 0, 0, 0.18)',
+  background: '#161618',
+  boxShadow: 'var(--nota-panel-shadow)',
   transition: 'height 220ms ease, min-height 220ms ease, padding 220ms ease',
   selectors: {
     '&[data-started="true"]': {
@@ -204,8 +204,8 @@ export const permissionPanel = style({
   width: 'min(100%, 680px)',
   padding: '12px 14px',
   border: `1px solid ${cssVar('borderColor')}`,
-  borderRadius: 8,
-  background: cssVar('backgroundSecondaryColor'),
+  borderRadius: 'var(--nota-row-radius)',
+  background: 'var(--nota-row-background)',
   boxSizing: 'border-box',
   animation: `${snippetIn} 220ms ease both`,
   '@media': {
@@ -278,10 +278,10 @@ export const permissionButton = style({
   height: 32,
   minWidth: 104,
   padding: '0 12px',
-  border: '1px solid rgba(111, 127, 84, 0.32)',
-  borderRadius: 6,
-  background: 'rgba(111, 127, 84, 0.88)',
-  color: 'rgba(247, 249, 239, 0.96)',
+  border: '1px solid transparent',
+  borderRadius: 'var(--nota-control-radius)',
+  background: 'var(--nota-solid-background)',
+  color: 'var(--nota-solid-text)',
   fontFamily: 'inherit',
   fontSize: 13,
   fontWeight: 650,
@@ -295,7 +295,7 @@ export const permissionButton = style({
       color: cssVar('textPrimaryColor'),
     },
     '&:hover': {
-      background: 'rgba(123, 142, 90, 0.94)',
+      background: 'var(--nota-solid-background-hover)',
     },
     '&[data-variant="secondary"]:hover': {
       background: cssVar('hoverColor'),
@@ -341,8 +341,8 @@ export const calendarPreview = style({
   maxHeight: 280,
   padding: '12px 14px',
   border: `1px solid ${cssVar('borderColor')}`,
-  borderRadius: 8,
-  background: cssVar('backgroundSecondaryColor'),
+  borderRadius: 'var(--nota-row-radius)',
+  background: 'var(--nota-row-background)',
   boxSizing: 'border-box',
   overflow: 'hidden',
   animation: `${snippetIn} 220ms ease both`,
@@ -413,7 +413,7 @@ export const calendarEventRow = style({
   borderTop: `1px solid ${cssVar('borderColor')}`,
   borderRight: `1px solid ${cssVar('borderColor')}`,
   borderBottom: `1px solid ${cssVar('borderColor')}`,
-  borderRadius: 6,
+  borderRadius: 'var(--nota-row-radius)',
   background: cssVar('backgroundPrimaryColor'),
   boxSizing: 'border-box',
   '@media': {
@@ -595,7 +595,7 @@ export const recordingDot = style({
   width: 10,
   height: 10,
   borderRadius: '50%',
-  background: '#f05252',
+  background: 'var(--nota-accent)',
 });
 
 export const recordingTime = style({
@@ -737,9 +737,9 @@ const pillButtonBase = {
   height: 42,
   minWidth: 112,
   padding: '0 18px',
-  border: '1px solid rgba(204, 223, 149, 0.18)',
+  border: '1px solid transparent',
   borderRadius: 999,
-  color: 'rgba(247, 249, 239, 0.94)',
+  color: 'var(--nota-solid-text)',
   fontFamily: 'inherit',
   fontSize: 14,
   fontWeight: 650,
@@ -747,10 +747,9 @@ const pillButtonBase = {
   cursor: 'pointer',
   userSelect: 'none',
   outline: 'none',
-  boxShadow:
-    '0 14px 28px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.08)',
+  boxShadow: '0 1px 2px rgba(0, 0, 0, 0.08)',
   transition:
-    'transform 180ms ease, background 180ms ease, border-color 180ms ease, opacity 180ms ease',
+    'transform 160ms ease, background 160ms ease, border-color 160ms ease, opacity 160ms ease',
   selectors: {
     '&:hover': {
       transform: 'translateY(-1px)',
@@ -768,12 +767,11 @@ const pillButtonBase = {
 
 export const startButton = style({
   ...pillButtonBase,
-  background: 'rgba(111, 127, 84, 0.88)',
+  background: 'var(--nota-solid-background)',
   selectors: {
     '&:hover': {
       transform: 'translateY(-1px)',
-      background: 'rgba(123, 142, 90, 0.92)',
-      borderColor: 'rgba(204, 223, 149, 0.28)',
+      background: 'var(--nota-solid-background-hover)',
     },
     '&:active': {
       transform: 'translateY(0)',
@@ -788,12 +786,13 @@ export const startButton = style({
 
 export const summaryButton = style({
   ...pillButtonBase,
-  background: 'rgba(45, 75, 91, 0.9)',
-  borderColor: 'rgba(137, 197, 226, 0.2)',
+  background: 'var(--nota-row-background)',
+  borderColor: cssVar('borderColor'),
+  color: cssVar('textPrimaryColor'),
   selectors: {
     '&:hover': {
       transform: 'translateY(-1px)',
-      background: 'rgba(51, 86, 104, 0.94)',
+      background: cssVar('hoverColorFilled'),
     },
     '&:active': {
       transform: 'translateY(0)',
@@ -808,12 +807,11 @@ export const summaryButton = style({
 
 export const saveButton = style({
   ...pillButtonBase,
-  background: 'rgba(111, 127, 84, 0.92)',
+  background: 'var(--nota-solid-background)',
   selectors: {
     '&:hover': {
       transform: 'translateY(-1px)',
-      background: 'rgba(123, 142, 90, 0.96)',
-      borderColor: 'rgba(204, 223, 149, 0.3)',
+      background: 'var(--nota-solid-background-hover)',
     },
     '&:active': {
       transform: 'translateY(0)',
@@ -831,21 +829,22 @@ export const controlButton = style({
   animation: `${controlIn} 260ms cubic-bezier(0.2, 0.8, 0.2, 1) both`,
   selectors: {
     '&[data-variant="stop"]': {
-      background: 'rgba(118, 59, 55, 0.9)',
-      borderColor: 'rgba(255, 165, 150, 0.18)',
+      background: 'var(--nota-accent)',
+      color: '#ffffff',
     },
     '&[data-variant="pause"]': {
-      background: 'rgba(45, 75, 91, 0.9)',
-      borderColor: 'rgba(137, 197, 226, 0.2)',
+      background: 'var(--nota-row-background)',
+      borderColor: cssVar('borderColor'),
+      color: cssVar('textPrimaryColor'),
       animationDelay: '70ms',
     },
     '&[data-variant="stop"]:hover': {
       transform: 'translateY(-1px)',
-      background: 'rgba(132, 65, 60, 0.94)',
+      filter: 'brightness(0.94)',
     },
     '&[data-variant="pause"]:hover': {
       transform: 'translateY(-1px)',
-      background: 'rgba(51, 86, 104, 0.94)',
+      background: cssVar('hoverColorFilled'),
     },
     '&:active': {
       transform: 'translateY(0)',

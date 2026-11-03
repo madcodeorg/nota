@@ -14,9 +14,9 @@ export const headerCreateNewCollectionIconButton = style({
   fontSize: '16px',
   width: '36px',
   height: '32px',
-  borderRadius: '14px',
-  border: '1px solid rgba(111, 127, 84, 0.18)',
-  background: 'rgba(111, 127, 84, 0.08)',
+  borderRadius: 'var(--nota-control-radius)',
+  border: `1px solid ${cssVarV2('layer/insideBorder/border')}`,
+  background: 'var(--nota-row-background)',
 });
 export const headerCreateNewButtonHidden = style({
   opacity: 0,
@@ -73,13 +73,9 @@ export const filterInnerArea = style({
   display: 'flex',
   flexDirection: 'row',
   gap: 10,
-  padding: '10px',
-  background:
-    'linear-gradient(180deg, rgba(111, 127, 84, 0.12), rgba(111, 127, 84, 0.06)), ' +
-    cssVarV2('layer/background/secondary'),
-  borderRadius: '22px',
-  border: '1px solid rgba(111, 127, 84, 0.16)',
-  boxShadow: '0 10px 24px rgba(16, 24, 12, 0.1)',
+  padding: '8px',
+  background: 'var(--nota-row-background)',
+  borderRadius: 'var(--nota-panel-radius)',
 });
 
 export const filters = style({

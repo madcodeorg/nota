@@ -33,7 +33,7 @@ export class ChatCopyMore extends WithDisposable(LitElement) {
 
       div {
         cursor: pointer;
-        border-radius: 4px;
+        border-radius: var(--nota-control-radius, 8px);
       }
 
       div:hover {

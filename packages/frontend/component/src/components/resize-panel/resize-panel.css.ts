@@ -19,6 +19,7 @@ export const root = style({
   zIndex: 4,
   transform: 'translateX(0)',
   maxWidth: '50%',
+  transition: 'opacity 0.15s',
   selectors: {
     '&[data-open="false"][data-handle-position="right"],&[data-is-floating="true"][data-handle-position="right"]':
       {
@@ -37,7 +38,10 @@ export const root = style({
         transform: `translateX(calc(${panelWidthVar} * -1))`,
       },
     '&[data-enable-animation="true"]': {
-      transition: `margin-left ${animationTimeout}, margin-right ${animationTimeout}, transform ${animationTimeout}, background ${animationTimeout}`,
+      transition: `margin-left ${animationTimeout}, margin-right ${animationTimeout}, transform ${animationTimeout}, background ${animationTimeout}, opacity 0.15s`,
+    },
+    '&[data-will-collapse="true"]': {
+      opacity: 0.5,
     },
     '&[data-transition-state="exited"]': {
       // avoid focus on hidden panel
@@ -62,8 +66,9 @@ export const resizeHandleContainer = style({
   right: resizeHandleOffsetVar,
   top: resizeHandleVerticalPadding,
   bottom: resizeHandleVerticalPadding,
-  width: 8,
+  width: 10,
   zIndex: '1',
+  touchAction: 'none',
   transform: 'translateX(50%)',
   backgroundColor: 'transparent',
   opacity: 0,

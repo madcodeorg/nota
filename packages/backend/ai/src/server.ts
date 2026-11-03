@@ -28,6 +28,7 @@ import {
   saveConfig,
   updateConfig,
 } from './config';
+import { eventLoopLag } from './event-loop-monitor';
 import { registerGoogleCalendarRoutes } from './google-calendar';
 import { createGraphQLHandler } from './graphql';
 import {
@@ -626,6 +627,7 @@ export function createServer() {
       runtime: selected?.runtime ?? null,
       localBaseUrl: config.localBaseUrl,
       workspaceRoot: config.workspaceRoot,
+      eventLoopLag: eventLoopLag(),
     });
   });
 

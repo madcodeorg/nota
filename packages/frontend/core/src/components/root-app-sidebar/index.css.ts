@@ -70,6 +70,42 @@ export const railAvatar = style({
   marginTop: 6,
 });
 
+// The rail's buttons laid out in a row inside the docked panel.
+export const navBar = style({
+  display: 'flex',
+  padding: '2px 2px 6px',
+});
+globalStyle(`${navBar} > ${railGroup}`, {
+  flexDirection: 'row',
+  flexWrap: 'wrap',
+  gap: 2,
+});
+
+export const footerBar = style({
+  marginTop: 'auto',
+  padding: '6px 2px 0',
+  borderTop: `0.5px solid ${cssVarV2('layer/insideBorder/border')}`,
+});
+globalStyle(`${footerBar} > ${railGroup}`, {
+  flexDirection: 'row',
+  gap: 2,
+});
+globalStyle(`${footerBar} ${railAvatar}`, {
+  marginTop: 0,
+  marginLeft: 'auto',
+});
+globalStyle(`${navBar} ${railButton}, ${footerBar} ${railButton}`, {
+  width: 32,
+  height: 32,
+  borderRadius: 'var(--nota-control-radius, 8px)',
+});
+globalStyle(`${navBar} ${railDivider}`, {
+  width: 1,
+  height: 18,
+  margin: '0 4px',
+  alignSelf: 'center',
+});
+
 export const panel = style({
   flex: '1 1 auto',
   minWidth: 0,
@@ -153,7 +189,7 @@ export const historyNewButton = style({
   padding: 0,
   selectors: {
     '&:hover': {
-      background: 'rgba(111, 127, 84, 0.14)',
+      background: cssVar('hoverColor'),
       color: cssVar('textPrimaryColor'),
     },
     '&:disabled': {
@@ -203,7 +239,7 @@ export const historyItem = style({
   minHeight: 66,
   padding: '10px',
   border: '1px solid transparent',
-  borderRadius: 8,
+  borderRadius: 'var(--nota-row-radius, 10px)',
   background: 'transparent',
   color: cssVar('textPrimaryColor'),
   cursor: 'pointer',
@@ -220,7 +256,34 @@ export const historyItem = style({
   },
 });
 
+export const historyItemRow = style({
+  position: 'relative',
+});
+
+export const historyItemMenu = style({
+  position: 'absolute',
+  top: 8,
+  right: 8,
+  opacity: 0,
+  pointerEvents: 'none',
+  transition: 'opacity .12s ease',
+  selectors: {
+    [`${historyItemRow}:is(:hover, :focus-within, [data-menu-open="true"]) &`]:
+      {
+        opacity: 1,
+        pointerEvents: 'auto',
+      },
+  },
+});
+
+export const historyItemPin = style({
+  marginRight: 4,
+  verticalAlign: '-1px',
+  color: cssVar('textSecondaryColor'),
+});
+
 export const historyItemTitle = style({
+  paddingRight: 24,
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
@@ -277,7 +340,7 @@ export const searchBar = style({
   margin: '2px 0 6px',
   padding: '0 6px 0 10px',
   border: `1px solid ${cssVarV2('layer/insideBorder/border')}`,
-  borderRadius: 8,
+  borderRadius: 999,
   background: cssVarV2('layer/background/primary'),
   color: cssVarV2('text/tertiary'),
   fontSize: 13,
@@ -310,8 +373,8 @@ export const searchBarLabel = style({
 
 export const searchBarShortcut = style({
   flexShrink: 0,
-  padding: '1px 5px',
-  borderRadius: 4,
+  padding: '1px 6px',
+  borderRadius: 6,
   border: `1px solid ${cssVarV2('layer/insideBorder/border')}`,
   color: cssVarV2('text/tertiary'),
   fontFamily: 'inherit',

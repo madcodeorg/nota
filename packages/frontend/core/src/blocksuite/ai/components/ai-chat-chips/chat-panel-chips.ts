@@ -49,7 +49,7 @@ export class ChatPanelChips extends SignalWatcher(
         width: 24px;
         height: 24px;
         border: 0.5px solid ${unsafeCSSVarV2('layer/insideBorder/border')};
-        border-radius: 4px;
+        border-radius: 999px;
         box-sizing: border-box;
         cursor: pointer;
         font-size: 12px;

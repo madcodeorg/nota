@@ -1,5 +1,10 @@
-import type { RadioItem } from '@nota/component';
-import { RadioGroup, Switch } from '@nota/component';
+import type { AccentColor, RadioItem } from '@nota/component';
+import {
+  ACCENT_PRESETS,
+  DEFAULT_ACCENT_COLOR,
+  RadioGroup,
+  Switch,
+} from '@nota/component';
 import {
   SettingHeader,
   SettingRow,
@@ -16,7 +21,7 @@ import { useCallback, useMemo } from 'react';
 import { useAppSettingHelper } from '../../../../../components/hooks/nota/use-app-setting-helper';
 import { OpenInAppLinksMenu } from './links';
 import { QuickCaptureSetting } from './quick-capture-setting';
-import { settingWrapper } from './style.css';
+import { accentOptions, accentSwatch, settingWrapper } from './style.css';
 import { ThemeEditorSetting } from './theme-editor-setting';
 
 export const getThemeOptions = (t: ReturnType<typeof useI18n>) =>
@@ -57,6 +62,33 @@ export const ThemeSettings = () => {
         [setTheme]
       )}
     />
+  );
+};
+
+const AccentColorSettings = () => {
+  const { resolvedTheme } = useTheme();
+  const { appSettings, updateSettings } = useAppSettingHelper();
+  const current = appSettings.accentColor ?? DEFAULT_ACCENT_COLOR;
+  const mode = resolvedTheme === 'dark' ? 'dark' : 'light';
+
+  return (
+    <div className={accentOptions} role="radiogroup" aria-label="Accent color">
+      {(Object.keys(ACCENT_PRESETS) as AccentColor[]).map(name => (
+        <button
+          key={name}
+          type="button"
+          role="radio"
+          aria-checked={current === name}
+          aria-label={ACCENT_PRESETS[name].label}
+          title={ACCENT_PRESETS[name].label}
+          className={accentSwatch}
+          data-selected={current === name}
+          data-testid={`accent-color-${name}`}
+          style={{ background: ACCENT_PRESETS[name][mode] }}
+          onClick={() => updateSettings('accentColor', name)}
+        />
+      ))}
+    </div>
   );
 };
 
@@ -180,6 +212,12 @@ export const AppearanceSettings = () => {
           desc={t['com.affine.appearanceSettings.color.description']()}
         >
           <ThemeSettings />
+        </SettingRow>
+        <SettingRow
+          name="Accent color"
+          desc="Used for buttons, selection and highlights across Nota."
+        >
+          <AccentColorSettings />
         </SettingRow>
         <SettingRow
           name={t['com.affine.appearanceSettings.language.title']()}

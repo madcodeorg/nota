@@ -6,8 +6,7 @@ const arrive = keyframes({
   to: { opacity: 1, transform: 'translateY(0)' },
 });
 
-// Theme tokens keep onboarding readable in both light and dark themes. Only
-// the Nota accent is a fixed brand color, matching the app's primary button.
+// Theme tokens keep onboarding readable in both light and dark themes.
 const text = cssVarV2('text/primary');
 const secondary = cssVarV2('text/secondary');
 const tertiary = cssVarV2('text/tertiary');
@@ -15,10 +14,8 @@ const border = cssVarV2('layer/insideBorder/border');
 const surface = cssVarV2('layer/background/primary');
 const raised = cssVarV2('layer/background/secondary');
 const hover = cssVarV2('layer/background/hoverOverlay');
-const accent = 'var(--affine-primary-color, #6f7f54)';
-// Matches the app's primary button, which keeps white text on a fixed green.
-const primaryFill = '#6f7f54';
-const onAccent = cssVarV2('button/pureWhiteText');
+const accent = 'var(--nota-accent, #e5432f)';
+const primaryFill = 'var(--nota-solid-background, #18181b)';
 const serif = "var(--affine-font-serif-family, 'Lora', serif)";
 
 export const header = style({
@@ -101,13 +98,12 @@ export const primary = style([
   button,
   {
     background: primaryFill,
-    color: onAccent,
+    color: 'var(--nota-solid-text, #ffffff)',
     borderColor: 'transparent',
     padding: '6px 16px',
     selectors: {
       '&:hover:not(:disabled)': {
-        background: primaryFill,
-        filter: 'brightness(.92)',
+        background: 'var(--nota-solid-background-hover, #2c2c31)',
       },
     },
   },
@@ -241,7 +237,7 @@ export const importPreview = style({
 export const importSource = style({
   fontSize: 12,
   padding: '3px 8px',
-  borderRadius: 4,
+  borderRadius: 999,
   color: secondary,
   background: hover,
 });

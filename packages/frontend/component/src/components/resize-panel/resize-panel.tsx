@@ -19,6 +19,7 @@ export interface ResizeHandleProps extends React.HtmlHTMLAttributes<HTMLDivEleme
   onResizing: (resizing: boolean) => void;
   onWidthChange: (width: number) => void;
   onWidthChanged?: (width: number) => void;
+  collapseThreshold?: number;
   tooltip?: TooltipProps['content'];
   tooltipShortcut?: TooltipProps['shortcut'];
   tooltipOptions?: Partial<Omit<TooltipProps, 'content' | 'shortcut'>>;
@@ -43,6 +44,8 @@ export interface ResizePanelProps extends React.HtmlHTMLAttributes<HTMLDivElemen
   >;
   resizeHandleDropTargetOptions?: Parameters<typeof useDropTarget>[0];
   enableAnimation?: boolean;
+  /** dragging this many px below minWidth closes the panel on release */
+  collapseThreshold?: number;
   width: number;
   unmountOnExit?: boolean;
   onOpen: (open: boolean) => void;
@@ -65,6 +68,7 @@ const ResizeHandle = ({
   onResizing,
   onWidthChange,
   onWidthChanged,
+  collapseThreshold,
   tooltip,
   tooltipShortcut,
   tooltipOptions,
@@ -73,54 +77,78 @@ const ResizeHandle = ({
 }: ResizeHandleProps) => {
   const ref = useRef<HTMLDivElement>(null);
   const onResizeStart = useCallback(
-    (event: React.MouseEvent<HTMLDivElement>) => {
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      if (event.button !== 0) return;
       event.preventDefault();
-      let resized = false;
       const panelContainer = ref.current?.parentElement;
       if (!panelContainer) return;
 
-      // add cursor style to body
       document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
 
       const { left: anchorLeft, right: anchorRight } =
         panelContainer.getBoundingClientRect();
+      const startX = event.clientX;
 
-      let lastWidth: number;
-      function onMouseMove(e: MouseEvent) {
-        e.preventDefault();
-        if (!panelContainer) return;
-        const newWidth = Math.min(
-          maxWidth,
-          Math.max(
-            resizeHandlePos === 'right'
-              ? e.clientX - anchorLeft
-              : anchorRight - e.clientX,
-            minWidth
-          )
-        );
-        lastWidth = newWidth;
-        onWidthChange(newWidth);
-        onResizing(true);
-        resized = true;
-      }
+      let resized = false;
+      let willCollapse = false;
+      let lastWidth: number | undefined;
+      let latestX = startX;
+      let frame = 0;
 
-      document.addEventListener('mousemove', onMouseMove);
-      document.addEventListener(
-        'mouseup',
-        () => {
-          // if not resized, toggle sidebar
-          if (!resized) {
-            onOpen(false);
-          }
-          onResizing(false);
-          lastWidth && onWidthChanged?.(lastWidth);
-          document.removeEventListener('mousemove', onMouseMove);
-          document.body.style.cursor = '';
-        },
-        { once: true }
-      );
+      const apply = () => {
+        frame = 0;
+        const rawWidth =
+          resizeHandlePos === 'right'
+            ? latestX - anchorLeft
+            : anchorRight - latestX;
+        willCollapse =
+          collapseThreshold !== undefined &&
+          rawWidth < minWidth - collapseThreshold;
+        panelContainer.dataset.willCollapse = String(willCollapse);
+        const newWidth = Math.min(maxWidth, Math.max(rawWidth, minWidth));
+        if (newWidth !== lastWidth) {
+          lastWidth = newWidth;
+          onWidthChange(newWidth);
+        }
+      };
+
+      const listeners = new AbortController();
+      const onPointerMove = (e: PointerEvent) => {
+        latestX = e.clientX;
+        // a few pixels of jitter on click should still count as a click
+        if (!resized && Math.abs(latestX - startX) < 3) return;
+        if (!resized) {
+          resized = true;
+          onResizing(true);
+        }
+        if (!frame) frame = requestAnimationFrame(apply);
+      };
+      const onEnd = () => {
+        listeners.abort();
+        if (frame) {
+          cancelAnimationFrame(frame);
+          apply();
+        }
+        delete panelContainer.dataset.willCollapse;
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+        onResizing(false);
+        // a plain click, or dragging well past the minimum, closes the panel
+        if (!resized || willCollapse) {
+          onOpen(false);
+        }
+        if (lastWidth) onWidthChanged?.(lastWidth);
+      };
+
+      const { signal } = listeners;
+      window.addEventListener('pointermove', onPointerMove, { signal });
+      window.addEventListener('pointerup', onEnd, { signal });
+      window.addEventListener('pointercancel', onEnd, { signal });
+      window.addEventListener('blur', onEnd, { signal });
     },
     [
+      collapseThreshold,
       maxWidth,
       resizeHandlePos,
       minWidth,
@@ -159,7 +187,7 @@ const ResizeHandle = ({
         data-handle-position={resizeHandlePos}
         data-resizing={resizing}
         data-open={open}
-        onMouseDown={onResizeStart}
+        onPointerDown={onResizeStart}
       >
         <div className={styles.resizerInner} />
       </div>
@@ -180,6 +208,7 @@ export const ResizePanel = forwardRef<HTMLDivElement, ResizePanelProps>(
       width,
       floating,
       enableAnimation = true,
+      collapseThreshold,
       open,
       unmountOnExit,
       onOpen,
@@ -237,6 +266,7 @@ export const ResizePanel = forwardRef<HTMLDivElement, ResizePanelProps>(
           onResizing={onResizing}
           onWidthChange={onWidthChange}
           onWidthChanged={onWidthChanged}
+          collapseThreshold={collapseThreshold}
           open={open}
           resizing={resizing}
           dropTargetOptions={resizeHandleDropTargetOptions}

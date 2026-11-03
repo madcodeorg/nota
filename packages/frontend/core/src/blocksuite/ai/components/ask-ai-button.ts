@@ -25,7 +25,7 @@ export type AskAIButtonOptions = {
 export class AskAIButton extends WithDisposable(LitElement) {
   static override styles = css`
     .ask-ai-button {
-      border-radius: 4px;
+      border-radius: var(--nota-control-radius, 8px);
       position: relative;
       user-select: none;
     }

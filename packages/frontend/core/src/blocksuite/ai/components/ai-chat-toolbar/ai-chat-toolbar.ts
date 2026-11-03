@@ -82,7 +82,7 @@ export class AIChatToolbar extends WithDisposable(ShadowlessElement) {
         align-items: center;
         width: 24px;
         height: 24px;
-        border-radius: 4px;
+        border-radius: var(--nota-control-radius, 8px);
         &:hover {
           background-color: ${unsafeCSSVarV2('layer/background/hoverOverlay')};
         }

@@ -273,39 +273,32 @@ export class Workbench extends Entity {
     to = Math.max(0, Math.min(to, this.views$.value.length - 1));
     if (from === to) return;
     const views = [...this.views$.value];
-    const fromView = views[from];
-    const toView = views[to];
-    views[to] = fromView;
-    views[from] = toView;
+    const [moved] = views.splice(from, 1);
+    views.splice(to, 0, moved);
     this.views$.next(views);
     this.active(to);
   }
 
   /**
-   * resize specified view and the next view
-   * @param view
-   * @param percent from 0 to 1
-   * @returns
+   * Split the combined size of the view at `index` and the next view.
+   * @param ratio share given to the first view, from 0 to 1
+   * @param minRatio smallest share either view may get, clamped to 0.5
    */
-  resize(index: number, percent: number) {
+  resize(index: number, ratio: number, minRatio = 0.2) {
     const view = this.views$.value[index];
     const nextView = this.views$.value[index + 1];
-    if (!nextView) return;
+    if (!view || !nextView || !Number.isFinite(ratio)) return;
 
-    const totalViewSize = this.views$.value.reduce(
-      (sum, v) => sum + v.size$.value,
-      0
-    );
-    const percentOfTotal = totalViewSize * percent;
-    const newSize = Number((view.size$.value + percentOfTotal).toFixed(4));
-    const newNextSize = Number(
-      (nextView.size$.value - percentOfTotal).toFixed(4)
-    );
-    // TODO(@catsjuice): better strategy to limit size
-    if (newSize / totalViewSize < 0.2 || newNextSize / totalViewSize < 0.2)
-      return;
-    view.setSize(newSize);
-    nextView.setSize(newNextSize);
+    const min = Math.min(Math.max(minRatio, 0), 0.5);
+    const clamped = Math.min(Math.max(ratio, min), 1 - min);
+    const pairSize = view.size$.value + nextView.size$.value;
+    const size = Number((pairSize * clamped).toFixed(4));
+    view.setSize(size);
+    nextView.setSize(Number((pairSize - size).toFixed(4)));
+  }
+
+  equalizeSizes() {
+    this.views$.value.forEach(view => view.setSize(100));
   }
 
   private indexAt(positionIndex: WorkbenchPosition): number {

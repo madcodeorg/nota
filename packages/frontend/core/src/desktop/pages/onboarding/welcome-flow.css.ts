@@ -6,12 +6,12 @@ import * as shared from './nota-welcome.css';
 
 // The first-launch window floats over the desktop, so the intro and card use
 // one fixed dark palette regardless of the app theme.
-const white = '#f4f5f0';
-const dim = 'rgba(244, 245, 240, .68)';
-const faint = 'rgba(244, 245, 240, .44)';
+const white = '#f4f4f5';
+const dim = 'rgba(244, 244, 245, .68)';
+const faint = 'rgba(244, 244, 245, .44)';
 const line = 'rgba(255, 255, 255, .11)';
-const cardFill = '#0e0f0d';
-const accent = '#b9c78c';
+const cardFill = '#0f0f10';
+const accent = '#f2604f';
 const serif = "var(--affine-font-serif-family, 'Lora', serif)";
 const sans = "var(--affine-font-family, 'Inter', sans-serif)";
 const ease = 'cubic-bezier(.2, .7, .2, 1)';
@@ -102,7 +102,7 @@ export const screen = style({
   color: white,
   fontFamily: sans,
   isolation: 'isolate',
-  background: '#11130f',
+  background: '#0f0f10',
   selectors: {
     // The native window is transparent: darken the real desktop. CSS cannot
     // blur pixels outside the window, so the dim carries the contrast.
@@ -113,14 +113,14 @@ export const backdrop = style({
   position: 'absolute',
   inset: 0,
   zIndex: -1,
-  background: 'rgba(7, 9, 6, .6)',
+  background: 'rgba(8, 8, 9, .6)',
   backdropFilter: 'blur(22px) saturate(1.15)',
   transition: 'background 900ms ease',
   animation: `${fadeIn} 700ms ease both`,
   selectors: {
     // Lighter dim behind the card so the desktop stays visible.
     [`${screen}[data-phase="setup"] &, ${screen}[data-phase="done"] &`]: {
-      background: 'rgba(9, 11, 8, .42)',
+      background: 'rgba(9, 9, 10, .42)',
     },
   },
 });
@@ -148,7 +148,7 @@ export const horizon = style({
   height: 260,
   translate: '0 -50%',
   background:
-    'radial-gradient(50% 50% at 50% 50%, rgba(244, 245, 240, .16) 0%, rgba(185, 199, 140, .08) 35%, rgba(185, 199, 140, 0) 100%)',
+    'radial-gradient(50% 50% at 50% 50%, rgba(244, 244, 245, .16) 0%, rgba(242, 96, 79, .08) 35%, rgba(242, 96, 79, 0) 100%)',
   opacity: 0,
   animation: `${horizonGlow} 2.3s ease .45s both`,
 });
@@ -159,8 +159,8 @@ export const stroke = style({
   marginTop: -1,
   borderRadius: 2,
   background:
-    'linear-gradient(90deg, rgba(244, 245, 240, 0), rgba(214, 226, 184, .75) 45%, #ffffff)',
-  boxShadow: '0 0 16px 1px rgba(214, 226, 184, .55)',
+    'linear-gradient(90deg, rgba(244, 244, 245, 0), rgba(255, 196, 186, .75) 45%, #ffffff)',
+  boxShadow: '0 0 16px 1px rgba(255, 196, 186, .55)',
   opacity: 0,
   animation: `${penStroke} 2.2s cubic-bezier(.65, 0, .35, 1) .3s both`,
 });
@@ -176,7 +176,7 @@ globalStyle(`${stroke}::after`, {
   borderRadius: '50%',
   background: '#ffffff',
   boxShadow:
-    '0 0 18px 6px rgba(255, 255, 255, .65), 0 0 46px 14px rgba(185, 199, 140, .4)',
+    '0 0 18px 6px rgba(255, 255, 255, .65), 0 0 46px 14px rgba(242, 96, 79, .4)',
 });
 export const lockup = style({
   gridArea: '1 / 1',
@@ -191,7 +191,7 @@ export const lockupMark = style({
   height: 76,
   borderRadius: 18,
   display: 'block',
-  boxShadow: '0 12px 48px rgba(185, 199, 140, .35)',
+  boxShadow: '0 12px 48px rgba(242, 96, 79, .35)',
   animation: `${markIn} 700ms ${ease} 2.05s both`,
 });
 export const lockupWordmark = style({
@@ -257,7 +257,7 @@ export const askSend = style({
   height: 36,
   borderRadius: '50%',
   background: white,
-  color: '#141611',
+  color: '#18181b',
   flexShrink: 0,
 });
 globalStyle(`${askSend} svg`, { width: 20, height: 20, rotate: '-90deg' });
@@ -305,7 +305,7 @@ export const chip = style({
   padding: '0 12px',
   borderRadius: 8,
   border: '1px solid rgba(255, 255, 255, .16)',
-  background: 'rgba(30, 33, 27, .72)',
+  background: 'rgba(30, 30, 33, .72)',
   backdropFilter: 'blur(10px)',
   color: white,
   fontSize: 13,
@@ -342,7 +342,7 @@ export const skip = style({
   right: 28,
   bottom: 24,
   border: 0,
-  borderRadius: 6,
+  borderRadius: 8,
   padding: '6px 10px',
   background: 'transparent',
   color: faint,
@@ -376,7 +376,7 @@ export const card = style({
     [token('text/secondary')]: dim,
     [token('text/tertiary')]: faint,
     [token('layer/insideBorder/border')]: line,
-    [token('layer/background/primary')]: '#171915',
+    [token('layer/background/primary')]: '#18181a',
     [token('layer/background/secondary')]: 'rgba(255, 255, 255, .035)',
     [token('layer/background/hoverOverlay')]: 'rgba(255, 255, 255, .07)',
     [token('status/error')]: '#ff9180',
@@ -389,7 +389,7 @@ export const card = style({
   display: 'flex',
   flexDirection: 'column',
   overflow: 'hidden',
-  borderRadius: 8,
+  borderRadius: 16,
   border: `1px solid ${line}`,
   background: cardFill,
   color: white,
@@ -406,16 +406,15 @@ export const cardProgress = style({
   height: 3,
   flexShrink: 0,
   margin: '14px 20px 0',
-  borderRadius: 3,
+  borderRadius: 999,
   background: 'rgba(255, 255, 255, .08)',
   overflow: 'hidden',
 });
 export const cardProgressFill = style({
   position: 'absolute',
   inset: '0 auto 0 0',
-  borderRadius: 3,
-  background:
-    'linear-gradient(90deg, #7fb7a4, #b9c78c 38%, #e3c46f 68%, #f09a6b)',
+  borderRadius: 999,
+  background: 'linear-gradient(90deg, #f09a6b, #f2604f)',
   transition: `width 520ms ${ease}`,
 });
 export const cardBody = style({
@@ -492,12 +491,12 @@ globalStyle(`${card} ${shared.bottom}`, {
 globalStyle(`${card} ${shared.caption}`, { display: 'none' });
 globalStyle(`${card} ${shared.choice}`, { padding: 16 });
 globalStyle(`${card} ${shared.primary}`, {
-  background: accent,
-  color: '#141a0f',
+  background: white,
+  color: '#18181b',
   fontWeight: 600,
 });
 globalStyle(`${card} ${shared.primary}:hover:not(:disabled)`, {
-  background: '#c8d59d',
+  background: '#dcdce0',
   filter: 'none',
 });
 export const enterHint = style({ opacity: 0.6, fontWeight: 400 });
@@ -532,7 +531,7 @@ export const featureIcon = style({
   width: 32,
   height: 32,
   borderRadius: 8,
-  background: 'rgba(185, 199, 140, .12)',
+  background: 'rgba(242, 96, 79, .12)',
   color: accent,
 });
 globalStyle(`${featureIcon} svg`, { width: 18, height: 18 });
@@ -552,7 +551,7 @@ export const option = style({
   gap: 12,
   alignItems: 'start',
   padding: '12px 14px',
-  borderRadius: 8,
+  borderRadius: 10,
   border: `1px solid ${line}`,
   background: 'rgba(255, 255, 255, .025)',
   cursor: 'pointer',
@@ -562,8 +561,8 @@ export const option = style({
   transition: 'border-color 150ms ease, background 150ms ease',
   selectors: {
     '&:has(input:checked)': {
-      borderColor: 'rgba(185, 199, 140, .6)',
-      background: 'rgba(185, 199, 140, .07)',
+      borderColor: 'rgba(242, 96, 79, .6)',
+      background: 'rgba(242, 96, 79, .07)',
     },
     '&:has(input:disabled)': { cursor: 'default', opacity: 0.6 },
     '&:has(input:focus-visible)': {
@@ -598,7 +597,7 @@ export const accountBadge = style({
   width: 22,
   height: 22,
   borderRadius: '50%',
-  background: 'rgba(185, 199, 140, .16)',
+  background: 'rgba(242, 96, 79, .16)',
   color: accent,
 });
 globalStyle(`${accountBadge} svg`, { width: 16, height: 16 });
@@ -609,7 +608,7 @@ export const preview = style({
   overflow: 'hidden',
   borderLeft: `1px solid ${line}`,
   background:
-    'linear-gradient(160deg, rgba(185, 199, 140, .12), rgba(127, 183, 164, .05) 45%, rgba(240, 154, 107, .08))',
+    'linear-gradient(160deg, rgba(242, 96, 79, .12), rgba(255, 255, 255, .02) 45%, rgba(242, 96, 79, .05))',
   '@media': { '(max-width: 760px)': { display: 'none' } },
 });
 export const previewWindow = style({
@@ -618,10 +617,10 @@ export const previewWindow = style({
   left: 32,
   right: -70,
   bottom: -40,
-  borderRadius: 8,
+  borderRadius: 12,
   overflow: 'hidden',
-  background: '#f7f6f1',
-  color: '#2a2d26',
+  background: '#ffffff',
+  color: '#18181b',
   boxShadow: '0 24px 70px rgba(0, 0, 0, .45)',
   animation: `${floatIn} 560ms ${ease} 120ms both`,
 });
@@ -631,15 +630,15 @@ export const previewBar = style({
   gap: 6,
   height: 30,
   padding: '0 12px',
-  borderBottom: '1px solid rgba(42, 45, 38, .1)',
+  borderBottom: '1px solid rgba(24, 24, 27, .1)',
   fontSize: 11,
-  color: 'rgba(42, 45, 38, .6)',
+  color: 'rgba(24, 24, 27, .6)',
 });
 globalStyle(`${previewBar} i`, {
   width: 8,
   height: 8,
   borderRadius: '50%',
-  background: 'rgba(42, 45, 38, .16)',
+  background: 'rgba(24, 24, 27, .16)',
 });
 export const previewLayout = style({
   display: 'grid',
@@ -651,14 +650,14 @@ export const previewSidebar = style({
   flexDirection: 'column',
   gap: 9,
   padding: '16px 12px',
-  background: '#efeee7',
+  background: '#f4f4f5',
 });
 globalStyle(`${previewSidebar} span`, {
   display: 'block',
   height: 6,
   width: '78%',
   borderRadius: 3,
-  background: 'rgba(42, 45, 38, .14)',
+  background: 'rgba(24, 24, 27, .14)',
 });
 export const previewPage = style({
   display: 'flex',
@@ -670,14 +669,14 @@ export const previewPage = style({
 export const previewHeading = style({
   fontFamily: serif,
   fontSize: 19,
-  color: '#22251f',
+  color: '#18181b',
   marginBottom: 2,
 });
 export const previewLine = style({
   display: 'block',
   height: 6,
   borderRadius: 3,
-  background: 'rgba(42, 45, 38, .14)',
+  background: 'rgba(24, 24, 27, .14)',
   selectors: {
     '&[data-width="l"]': { width: '88%' },
     '&[data-width="m"]': { width: '70%' },
@@ -690,9 +689,9 @@ export const previewChip = style({
   alignItems: 'center',
   gap: 6,
   padding: '5px 9px',
-  borderRadius: 6,
-  background: 'rgba(111, 127, 84, .14)',
-  color: '#4c5a36',
+  borderRadius: 999,
+  background: 'rgba(229, 67, 47, .1)',
+  color: '#c8381f',
   fontSize: 11,
   fontWeight: 600,
 });
@@ -703,15 +702,15 @@ export const previewBubble = style({
   padding: '8px 11px',
   borderRadius: 8,
   background: '#ffffff',
-  border: '1px solid rgba(42, 45, 38, .1)',
+  border: '1px solid rgba(24, 24, 27, .1)',
   fontSize: 12,
   lineHeight: 1.45,
-  color: '#2a2d26',
+  color: '#18181b',
   selectors: {
     '&[data-from="me"]': {
       alignSelf: 'flex-end',
-      background: '#2a2d26',
-      color: '#f7f6f1',
+      background: '#18181b',
+      color: '#ffffff',
       border: 0,
     },
   },
@@ -726,7 +725,7 @@ globalStyle(`${previewWave} span`, {
   width: 4,
   height: '100%',
   borderRadius: 2,
-  background: '#6f7f54',
+  background: '#e5432f',
   animation: `${wave} 1.1s ease-in-out infinite`,
 });
 for (let index = 1; index <= 16; index++) {
@@ -739,20 +738,20 @@ export const previewFile = style({
   alignItems: 'center',
   gap: 10,
   padding: '9px 11px',
-  borderRadius: 6,
+  borderRadius: 8,
   background: '#ffffff',
-  border: '1px solid rgba(42, 45, 38, .1)',
+  border: '1px solid rgba(24, 24, 27, .1)',
   fontSize: 12,
-  color: '#2a2d26',
+  color: '#18181b',
 });
 globalStyle(`${previewFile} svg`, {
   width: 18,
   height: 18,
-  color: '#6f7f54',
+  color: '#e5432f',
 });
 globalStyle(`${previewFile} small`, {
   marginLeft: 'auto',
-  color: 'rgba(42, 45, 38, .5)',
+  color: 'rgba(24, 24, 27, .5)',
   fontSize: 11,
 });
 
@@ -801,10 +800,10 @@ globalStyle(`${screen}[data-reduced-motion="true"] *`, {
   transitionDuration: '1ms !important',
 });
 globalStyle('html[data-nota-onboarding-platform="windows"] body', {
-  background: '#11130f',
+  background: '#0f0f10',
 });
 globalStyle(`html[data-nota-onboarding-platform="windows"] ${screen}`, {
-  background: '#11130f',
+  background: '#0f0f10',
 });
 globalStyle(`html[data-nota-onboarding-platform="windows"] ${backdrop}`, {
   backdropFilter: 'none',

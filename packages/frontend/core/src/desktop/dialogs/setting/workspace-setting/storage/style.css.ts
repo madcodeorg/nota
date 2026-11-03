@@ -74,7 +74,7 @@ export const blobPreviewGrid = style({
 });
 
 export const blobCard = style({
-  borderRadius: '4px',
+  borderRadius: 'var(--nota-row-radius)',
   overflow: 'hidden',
   position: 'relative',
   userSelect: 'none',
@@ -108,7 +108,7 @@ export const blobPreview = style({
   width: '100%',
   overflow: 'hidden',
   aspectRatio: '1',
-  borderRadius: '4px',
+  borderRadius: 'var(--nota-control-radius)',
   padding: 6,
   backgroundColor: cssVarV2('layer/background/secondary'),
   display: 'flex',
