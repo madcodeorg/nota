@@ -74,6 +74,16 @@ jobs:
           retention-days: 3
           if-no-files-found: error
 
+  # Typecheck and unit tests run alongside the platform builds, so they cost no
+  # wall-clock time. Publishing waits for them: a commit that fails them is
+  # built but never released.
+  checks:
+    name: Checks
+    if: ${{ inputs.desktop_macos || inputs.desktop_windows || inputs.desktop_linux }}
+    uses: ./.github/workflows/ci.yml
+    with:
+      skip_build_renderer: true
+
   make-distribution-macos:
     if: ${{ inputs.desktop_macos }}
     strategy:
@@ -394,6 +404,7 @@ jobs:
       ${{
         !cancelled() &&
         needs.before-make.result == 'success' &&
+        needs.checks.result == 'success' &&
         (needs.make-distribution-macos.result == 'success' ||
           needs.make-distribution-linux.result == 'success' ||
           needs.finalize-installer-windows.result == 'success')
@@ -401,6 +412,7 @@ jobs:
     needs:
       [
         before-make,
+        checks,
         make-distribution-macos,
         make-distribution-linux,
         finalize-installer-windows,
@@ -453,6 +465,19 @@ jobs:
           prerelease: ${{ inputs.build-type != 'stable' }}
           tag_name: v${{ env.RELEASE_VERSION}}
           files: ./release/*
+      # Caches saved by a tag run can only be read by that same tag. Keep the
+      # shared ones (saved on main by warm-caches.yml) and drop this tag's, so
+      # they do not push useful caches out of the repo's 10 GB limit.
+      - name: Drop this tag's caches
+        if: ${{ always() && github.ref_type == 'tag' }}
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          gh cache list -R "$GITHUB_REPOSITORY" --limit 100 --json id,ref \
+            --jq ".[] | select(.ref | endswith(\"$TAG\")) | .id" |
+            xargs -r -n1 gh cache delete -R "$GITHUB_REPOSITORY"
       # Releases created with GITHUB_TOKEN do not fire the Site workflow's
       # release trigger, so start it here. Stable drafts deploy when published.
       - name: Update thenota.app

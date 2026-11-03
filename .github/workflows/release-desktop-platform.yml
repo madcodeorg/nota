@@ -121,17 +121,10 @@ jobs:
         shell: pwsh
         run: Add-Content -Path $env:GITHUB_ENV -Value 'NOTA_LOCAL_ASR_BUILD_ROOT=C:\nvk'
 
-      # whisper.cpp and llama.cpp are compiled from source on every platform
-      # (several minutes, ~400 MB of build tree). Both are pinned by commit in
-      # build-local-asr.ts, so the build tree is reusable until that script or
-      # the helper sources change; cmake then only rebuilds what changed.
-      - name: Cache local ASR build tree
-        uses: actions/cache@v5
+      - uses: ./.github/actions/local-asr-cache
         with:
-          path: ${{ inputs.platform == 'win32' && 'C:\nvk' || 'packages/frontend/apps/electron/native/local-asr-helper/.build' }}
-          key: local-asr-${{ inputs.platform }}-${{ inputs.arch }}-${{ hashFiles('packages/frontend/apps/electron/scripts/build-local-asr.ts', 'packages/frontend/apps/electron/native/local-asr-helper/**') }}
-          restore-keys: |
-            local-asr-${{ inputs.platform }}-${{ inputs.arch }}-
+          platform: ${{ inputs.platform }}
+          arch: ${{ inputs.arch }}
 
       - name: Build Desktop Layers
         run: yarn nota @nota/electron build
@@ -266,6 +259,21 @@ jobs:
           echo "Bundle version: $plist_version (expected $expected)"
           [ "$plist_version" = "$expected" ] || { echo "Version mismatch" >&2; exit 1; }
 
+      - name: Smoke-test packaged macOS app
+        if: ${{ inputs.platform == 'darwin' && inputs.apple_codesign }}
+        # Launches the signed app and waits for the UI to mount. Starts out
+        # non-blocking so a flaky runner cannot stop a release; set the repo
+        # variable SMOKE_TEST_BLOCKING=true once it has passed a few times.
+        continue-on-error: ${{ vars.SMOKE_TEST_BLOCKING != 'true' }}
+        shell: bash
+        run: |
+          shopt -s nullglob
+          app_bundles=(packages/frontend/apps/electron/out/${{ env.BUILD_TYPE }}/*-darwin-${{ inputs.arch }}/*.app)
+          [ -n "${app_bundles[0]:-}" ] || { echo "No packaged macOS app found." >&2; exit 1; }
+          app="$PWD/${app_bundles[0]}"
+          yarn nota @nota/electron node ./scripts/smoke-desktop-app.ts \
+            --app "$app/Contents/MacOS/$(basename "$app" .app)" --timeout 120 -- --disable-gpu
+
       - name: make
         if: ${{ inputs.platform != 'win32' }}
         shell: bash
@@ -354,6 +362,19 @@ jobs:
         with:
           name: nota-${{ inputs.platform }}-${{ inputs.arch }}-builds
           path: builds
+
+      - name: Smoke-test packaged Windows app
+        if: ${{ inputs.platform == 'win32' }}
+        continue-on-error: ${{ vars.SMOKE_TEST_BLOCKING != 'true' }}
+        shell: bash
+        run: |
+          shopt -s nullglob
+          exes=(packages/frontend/apps/electron/out/${{ env.BUILD_TYPE }}/*-win32-${{ inputs.arch }}/Nota*.exe)
+          [ -n "${exes[0]:-}" ] || { echo "No packaged Windows exe found." >&2; exit 1; }
+          # Native (C:/...) path: the script runs under Windows Node, not MSYS.
+          root="$(pwd -W)"
+          yarn nota @nota/electron node ./scripts/smoke-desktop-app.ts \
+            --app "$root/${exes[0]}" --timeout 120 -- --disable-gpu
 
       - name: get all files to be signed
         id: get_files_to_be_signed

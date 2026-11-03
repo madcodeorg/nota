@@ -17,10 +17,29 @@ stable releases only get what has already been proven in a beta.
 Do not push work-in-progress straight to `main`, and do not tag a stable
 release from a commit that has not shipped as a beta first.
 
-Caches: GitHub only lets a tag run read caches saved on the default branch
-(`main`) or on the tag itself. The first beta after a lockfile or native change
-is therefore slower. Pushes to `main` and the `Build renderer` CI job keep the
-shared caches warm.
+## What a release run does
+
+- **Checks** (typecheck and unit tests) run alongside the builds. The release is
+  only published if they pass; a commit that fails them is built but never
+  released.
+- **Smoke test**: the packaged macOS and Windows apps are launched and must
+  show the UI (`scripts/smoke-desktop-app.ts`). It is non-blocking until you set
+  the repo variable `SMOKE_TEST_BLOCKING=true`. Check a couple of runs pass on
+  both platforms, then turn it on.
+- **Caches**: GitHub only lets a run read caches saved by its own ref or by the
+  default branch (`main`). Releases run on tags, so the `Warm caches` workflow
+  (on `main`: pushes that touch native code or lockfiles, plus twice a week)
+  saves the Rust, speech-helper (whisper/llama) and install caches that releases
+  restore. Do not rename release jobs: cache keys include the job id. A release
+  deletes the caches its own tag saved, since nothing else can read them, to stay
+  under the repo's 10 GB cache limit.
+
+## Test build without announcing a beta
+
+Run `Release` from the Actions tab on any branch (no tag), choosing the
+platforms. It builds a `canary` pre-release (`vYYYY.M.D-canary.HHMM`). Only
+stable and beta update feeds are published on thenota.app, so installed apps are
+never offered a canary. Download it from the Releases page.
 
 ## Stable
 
