@@ -1,6 +1,6 @@
 {
   "name": "@nota-tools/cli",
-  "version": "0.1.12-beta.1",
+  "version": "0.1.12",
   "type": "module",
   "private": true,
   "bin": {

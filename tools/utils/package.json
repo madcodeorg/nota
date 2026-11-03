@@ -1,6 +1,6 @@
 {
   "name": "@nota-tools/utils",
-  "version": "0.1.12-beta.1",
+  "version": "0.1.12",
   "type": "module",
   "private": true,
   "exports": {
