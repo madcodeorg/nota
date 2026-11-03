@@ -220,6 +220,10 @@ export class BundleCommand extends PackageCommand {
         return;
       }
       console.log(stats.toString('minimal'));
+      // Flush the persistent cache to disk before moving on.
+      await new Promise<void>((resolve, reject) =>
+        compiler.close(error => (error ? reject(error) : resolve()))
+      );
       await uploadAssetsForPackage(pkg, logger);
     } catch (error) {
       console.error(error);

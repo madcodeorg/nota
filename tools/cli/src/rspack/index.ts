@@ -1,5 +1,8 @@
+import { createHash } from 'node:crypto';
+import { readdirSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { getBuildConfig } from '@nota-tools/utils/build-config';
 import { Path, ProjectRoot } from '@nota-tools/utils/path';
@@ -20,7 +23,83 @@ import {
 
 const require = createRequire(import.meta.url);
 
+/**
+ * Production source maps. The packaged Electron app strips `*.map` (see
+ * forge.config.mjs `ignore`), so generating them only slows the build and
+ * bloats the CI artifact. Keep them for web builds, or opt in for Electron
+ * with `NOTA_SOURCEMAP=true`.
+ */
+function productionDevtool(buildConfig: { isElectron: boolean }) {
+  if (process.env.NOTA_SOURCEMAP === 'true') return 'source-map' as const;
+  if (process.env.NOTA_SOURCEMAP === 'false') return false as const;
+  return buildConfig.isElectron ? (false as const) : ('source-map' as const);
+}
+
+function cacheEnabled() {
+  return process.env.RSPACK_CACHE !== 'false';
+}
+
+/**
+ * Persistent (on-disk) module cache for rspack. Repeated dev starts and CI
+ * builds reuse unchanged modules instead of recompiling the whole graph.
+ * Set `RSPACK_CACHE=false` to opt out. The cache lives in
+ * `node_modules/.cache/rspack` so CI can persist it with actions/cache.
+ */
+function hashDir(dir: string, hash: ReturnType<typeof createHash>) {
+  for (const entry of readdirSync(dir, { withFileTypes: true }).sort((x, y) =>
+    x.name.localeCompare(y.name)
+  )) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      hashDir(full, hash);
+    } else {
+      hash.update(entry.name).update(readFileSync(full));
+    }
+  }
+}
+
+function persistentCache(
+  name: string,
+  buildConfig: object
+): NonNullable<RspackConfiguration['experiments']>['cache'] {
+  if (!cacheEnabled()) {
+    return false;
+  }
+
+  // The bundler config sources (this file, shared helpers, postcss plugins),
+  // DefinePlugin values and env-driven options are not part of the module
+  // identity, so fold them into the cache version. Listing the .ts files as
+  // `buildDependencies` would make rspack try to resolve their `.js` imports.
+  const hash = createHash('sha1').update(
+    JSON.stringify({
+      name,
+      buildConfig,
+      nodeEnv: process.env.NODE_ENV,
+      buildType: process.env.BUILD_TYPE,
+      sourcemap: process.env.NOTA_SOURCEMAP,
+    })
+  );
+  const cliSrc = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
+  for (const dir of ['rspack', 'rspack-shared', 'postcss']) {
+    hashDir(path.join(cliSrc, dir), hash);
+  }
+
+  return {
+    type: 'persistent',
+    version: hash.digest('hex').slice(0, 12),
+    buildDependencies: [
+      ProjectRoot.join('yarn.lock').value,
+      ProjectRoot.join('package.json').value,
+    ],
+    storage: {
+      type: 'filesystem',
+      directory: ProjectRoot.join('node_modules', '.cache', 'rspack').value,
+    },
+  };
+}
+
 const IN_CI = !!process.env.CI;
+const SHOW_PROGRESS = !IN_CI && !!process.stdout.isTTY;
 const availableChannels = ['canary', 'beta', 'stable', 'internal'];
 function getBuildConfigFromEnv(pkg: Package) {
   const channel = process.env.BUILD_TYPE ?? 'canary';
@@ -75,10 +154,12 @@ export function createHTMLTargetConfig(
     name: entry['index'],
     dependencies: deps,
     context: ProjectRoot.value,
+    cache: cacheEnabled(),
     experiments: {
       topLevelAwait: true,
       outputModule: false,
       asyncWebAssembly: true,
+      cache: persistentCache(entry['index'] ?? 'app', buildConfig),
     },
     entry,
     output: {
@@ -97,7 +178,9 @@ export function createHTMLTargetConfig(
     },
     target: ['web', 'es2022'],
     mode: buildConfig.debug ? 'development' : 'production',
-    devtool: buildConfig.debug ? 'cheap-module-source-map' : 'source-map',
+    devtool: buildConfig.debug
+      ? 'cheap-module-source-map'
+      : productionDevtool(buildConfig),
     resolve: {
       symlinks: true,
       extensionAlias: {
@@ -132,12 +215,16 @@ export function createHTMLTargetConfig(
       //#region rules
       rules: [
         { test: /\.m?js?$/, resolve: { fullySpecified: false } },
-        {
-          test: /\.js$/,
-          enforce: 'pre',
-          include: /@blocksuite/,
-          use: ['source-map-loader'],
-        },
+        ...(buildConfig.debug || productionDevtool(buildConfig)
+          ? [
+              {
+                test: /\.js$/,
+                enforce: 'pre' as const,
+                include: /@blocksuite/,
+                use: ['source-map-loader'],
+              },
+            ]
+          : []),
         {
           oneOf: [
             {
@@ -250,7 +337,7 @@ export function createHTMLTargetConfig(
 
     //#region plugins
     plugins: compact([
-      !IN_CI && new rspack.ProgressPlugin(),
+      SHOW_PROGRESS && new rspack.ProgressPlugin(),
       ...createHTMLPlugins(buildConfig, htmlConfig),
       new rspack.DefinePlugin({
         'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV),
@@ -285,6 +372,7 @@ export function createHTMLTargetConfig(
       // replace # sourceMappingURL=76-6370cd185962bc89.js.map
       // to      # sourceMappingURL=assets://./{dir}/76-6370cd185962bc89.js.map
       buildConfig.isElectron &&
+        (buildConfig.debug || productionDevtool(buildConfig)) &&
         new rspack.SourceMapDevToolPlugin({
           append: (pathData: { filename?: string }) => {
             return `\n//# sourceMappingURL=assets://./${pathData.filename ?? ''}.map`;
@@ -374,10 +462,12 @@ export function createWorkerTargetConfig(
   return {
     name: entry,
     context: ProjectRoot.value,
+    cache: cacheEnabled(),
     experiments: {
       topLevelAwait: true,
       outputModule: false,
       asyncWebAssembly: true,
+      cache: persistentCache(entry, buildConfig),
     },
     entry: { [workerName]: entry },
     output: {
@@ -390,7 +480,9 @@ export function createWorkerTargetConfig(
     },
     target: ['webworker', 'es2022'],
     mode: buildConfig.debug ? 'development' : 'production',
-    devtool: buildConfig.debug ? 'cheap-module-source-map' : 'source-map',
+    devtool: buildConfig.debug
+      ? 'cheap-module-source-map'
+      : productionDevtool(buildConfig),
     resolve: {
       symlinks: true,
       extensionAlias: { '.js': ['.js', '.ts'], '.mjs': ['.mjs', '.mts'] },
@@ -411,12 +503,16 @@ export function createWorkerTargetConfig(
       },
       rules: [
         { test: /\.m?js?$/, resolve: { fullySpecified: false } },
-        {
-          test: /\.js$/,
-          enforce: 'pre',
-          include: /@blocksuite/,
-          use: ['source-map-loader'],
-        },
+        ...(buildConfig.debug || productionDevtool(buildConfig)
+          ? [
+              {
+                test: /\.js$/,
+                enforce: 'pre' as const,
+                include: /@blocksuite/,
+                use: ['source-map-loader'],
+              },
+            ]
+          : []),
         {
           oneOf: [
             {
@@ -503,10 +599,12 @@ export function createNodeTargetConfig(
   return {
     name: entry,
     context: ProjectRoot.value,
+    cache: cacheEnabled(),
     experiments: {
       topLevelAwait: true,
       outputModule: pkg.packageJson.type === 'module',
       asyncWebAssembly: true,
+      cache: persistentCache(entry, { dev }),
     },
     entry: { index: entry },
     output: {

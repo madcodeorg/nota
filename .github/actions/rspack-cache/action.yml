@@ -1,0 +1,19 @@
+name: 'Rspack cache'
+description: 'Restore and save the rspack persistent module cache (node_modules/.cache/rspack)'
+
+runs:
+  using: 'composite'
+  steps:
+    # The key changes with every commit so the cache is refreshed after each
+    # build; restore-keys fall back to the newest cache for the same lockfile
+    # and bundler config, then to any cache for this OS. Rspack keys its own
+    # on-disk entries by config hash, so a stale restore only costs a rebuild
+    # of the modules that changed.
+    - name: Cache rspack
+      uses: actions/cache@v5
+      with:
+        path: node_modules/.cache/rspack
+        key: rspack-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('yarn.lock', 'tools/cli/src/**') }}-${{ github.sha }}
+        restore-keys: |
+          rspack-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('yarn.lock', 'tools/cli/src/**') }}-
+          rspack-${{ runner.os }}-${{ runner.arch }}-

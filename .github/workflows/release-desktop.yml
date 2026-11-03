@@ -48,6 +48,7 @@ jobs:
   before-make:
     if: ${{ inputs.desktop_macos || inputs.desktop_windows || inputs.desktop_linux }}
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     environment: ${{ inputs.build-type }}
     steps:
       - uses: actions/checkout@v7
@@ -57,6 +58,7 @@ jobs:
           app-version: ${{ inputs.app-version }}
       - name: Setup Node.js
         uses: ./.github/actions/setup-node
+      - uses: ./.github/actions/rspack-cache
       - name: generate-assets
         run: yarn nota @nota/electron generate-assets
         env:
@@ -68,6 +70,9 @@ jobs:
         with:
           name: desktop-web
           path: packages/frontend/apps/electron/resources/web-static
+          # Only consumed by the platform jobs of this run.
+          retention-days: 3
+          if-no-files-found: error
 
   make-distribution-macos:
     if: ${{ inputs.desktop_macos }}
@@ -157,6 +162,7 @@ jobs:
           - platform: win32
             arch: x64
     runs-on: windows-latest
+    timeout-minutes: 60
     outputs:
       FILES_TO_BE_SIGNED_x64: ${{ steps.get_files_to_be_signed.outputs.FILES_TO_BE_SIGNED_x64 }}
     steps:
@@ -256,6 +262,7 @@ jobs:
         uses: actions/upload-artifact@v6
         with:
           name: installer-${{ matrix.spec.platform }}-${{ matrix.spec.arch }}
+          retention-days: 3
           path: archive.zip
 
   sign-installer-artifacts-windows-x64:
@@ -282,6 +289,7 @@ jobs:
             platform: win32
             arch: x64
     runs-on: ${{ matrix.spec.runner }}
+    timeout-minutes: 30
     steps:
       - name: Download installer artifacts
         uses: actions/download-artifact@v7
@@ -351,6 +359,7 @@ jobs:
     if: ${{ !cancelled() && inputs.build-type == 'stable' && vars.MSSTORE_IDENTITY_NAME != '' && vars.MSSTORE_PRODUCT_ID != '' && needs.make-windows-installer.result == 'success' }}
     needs: make-windows-installer
     runs-on: windows-latest
+    timeout-minutes: 30
     steps:
       - name: Download Microsoft Store package
         uses: actions/download-artifact@v7
@@ -397,6 +406,7 @@ jobs:
         finalize-installer-windows,
       ]
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
       - uses: actions/checkout@v7
