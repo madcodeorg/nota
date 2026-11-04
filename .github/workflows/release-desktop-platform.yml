@@ -51,6 +51,7 @@ permissions:
 jobs:
   build:
     runs-on: ${{ inputs.runner }}
+    timeout-minutes: 120
     environment: ${{ inputs.build_type }}
     outputs:
       files_to_be_signed: ${{ steps.get_files_to_be_signed.outputs.FILES_TO_BE_SIGNED }}
@@ -119,6 +120,11 @@ jobs:
         if: ${{ inputs.platform == 'win32' }}
         shell: pwsh
         run: Add-Content -Path $env:GITHUB_ENV -Value 'NOTA_LOCAL_ASR_BUILD_ROOT=C:\nvk'
+
+      - uses: ./.github/actions/local-asr-cache
+        with:
+          platform: ${{ inputs.platform }}
+          arch: ${{ inputs.arch }}
 
       - name: Build Desktop Layers
         run: yarn nota @nota/electron build
@@ -196,12 +202,18 @@ jobs:
           rm -rf ~/.cache/yarn ~/.npm
           df -h
 
+      # Linux runners are disk constrained (flatpak), so free the Rust target dir
+      # there. macOS has plenty of space, and cleaning it would throw away what
+      # the rust-cache post step is about to save.
+      - name: Free Rust build output (linux)
+        if: ${{ inputs.platform == 'linux' }}
+        run: cargo clean
+
       - name: Remove nbstore node_modules (darwin/linux)
         if: ${{ inputs.platform != 'win32' }}
         shell: bash
         # node_modules of nbstore is not needed for building, and it will make the build process out of memory
         run: |
-          cargo clean
           rm -rf packages/frontend/apps/electron/node_modules/@nota/nbstore/node_modules/@blocksuite
           rm -rf packages/frontend/apps/electron/node_modules/@nota/native/node_modules
 
@@ -246,6 +258,21 @@ jobs:
           expected="${{ inputs.app_version }}"
           echo "Bundle version: $plist_version (expected $expected)"
           [ "$plist_version" = "$expected" ] || { echo "Version mismatch" >&2; exit 1; }
+
+      - name: Smoke-test packaged macOS app
+        if: ${{ inputs.platform == 'darwin' && inputs.apple_codesign }}
+        # Launches the signed app and waits for the UI to mount. Starts out
+        # non-blocking so a flaky runner cannot stop a release; set the repo
+        # variable SMOKE_TEST_BLOCKING=true once it has passed a few times.
+        continue-on-error: ${{ vars.SMOKE_TEST_BLOCKING != 'true' }}
+        shell: bash
+        run: |
+          shopt -s nullglob
+          app_bundles=(packages/frontend/apps/electron/out/${{ env.BUILD_TYPE }}/*-darwin-${{ inputs.arch }}/*.app)
+          [ -n "${app_bundles[0]:-}" ] || { echo "No packaged macOS app found." >&2; exit 1; }
+          app="$PWD/${app_bundles[0]}"
+          yarn nota @nota/electron node ./scripts/smoke-desktop-app.ts \
+            --app "$app/Contents/MacOS/$(basename "$app" .app)" --timeout 120 -- --disable-gpu
 
       - name: make
         if: ${{ inputs.platform != 'win32' }}
@@ -336,6 +363,19 @@ jobs:
           name: nota-${{ inputs.platform }}-${{ inputs.arch }}-builds
           path: builds
 
+      - name: Smoke-test packaged Windows app
+        if: ${{ inputs.platform == 'win32' }}
+        continue-on-error: ${{ vars.SMOKE_TEST_BLOCKING != 'true' }}
+        shell: bash
+        run: |
+          shopt -s nullglob
+          exes=(packages/frontend/apps/electron/out/${{ env.BUILD_TYPE }}/*-win32-${{ inputs.arch }}/Nota*.exe)
+          [ -n "${exes[0]:-}" ] || { echo "No packaged Windows exe found." >&2; exit 1; }
+          # Native (C:/...) path: the script runs under Windows Node, not MSYS.
+          root="$(pwd -W)"
+          yarn nota @nota/electron node ./scripts/smoke-desktop-app.ts \
+            --app "$root/${exes[0]}" --timeout 120 -- --disable-gpu
+
       - name: get all files to be signed
         id: get_files_to_be_signed
         if: ${{ inputs.platform == 'win32' }}
@@ -355,6 +395,7 @@ jobs:
         uses: actions/upload-artifact@v6
         with:
           name: packaged-${{ inputs.platform }}-${{ inputs.arch }}
+          retention-days: 3
           path: |
             archive.zip
             !**/*.map

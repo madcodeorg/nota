@@ -2,6 +2,10 @@
 
 All notable changes to Nota are recorded here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Installers and release notes are published on [GitHub Releases](https://github.com/madcodeorg/nota/releases).
 
+## 0.1.13
+
+- Behind-the-scenes improvements to how Nota is built and checked before release. Nothing changes in how the app works.
+
 ## 0.1.12
 
 - New Graphite Coral theme with an accent color picker.

@@ -18,8 +18,7 @@ async function buildAiBackend() {
   await esbuild.build(aiBackendConfig());
 }
 
-async function buildLayers() {
-  const common = config();
+async function buildNativeHelpers() {
   await Promise.all([
     fs.rm(path.join(electronDir, 'native/apple-calendar-helper'), {
       force: true,
@@ -34,17 +33,20 @@ async function buildLayers() {
       { force: true }
     ),
   ]);
-  const appleCalendarNative = await buildAppleCalendarNative();
+  const [appleCalendarNative, appleSpeechHelper] = await Promise.all([
+    buildAppleCalendarNative(),
+    buildAppleSpeechHelper(),
+  ]);
   if (!appleCalendarNative.built) {
     console.log(appleCalendarNative.reason);
   }
-  const appleSpeechHelper = await buildAppleSpeechHelper();
   if (!appleSpeechHelper.built) {
     console.log(appleSpeechHelper.reason);
   }
-  await buildLocalAsr();
-  await buildAiBackend();
+}
 
+async function buildMain() {
+  const common = config();
   const define: Record<string, string> = {
     ...common.define,
     'process.env.NODE_ENV': `"${mode}"`,
@@ -70,6 +72,18 @@ async function buildLayers() {
       JSON.stringify(result.metafile, null, 2)
     );
   }
+}
+
+// The native helpers (cmake/swift, minutes on a cold CI runner) and the two
+// esbuild bundles (seconds) do not depend on each other, so run them
+// concurrently and fail the build if any of them fails.
+async function buildLayers() {
+  await Promise.all([
+    buildNativeHelpers(),
+    buildLocalAsr(),
+    buildAiBackend(),
+    buildMain(),
+  ]);
 }
 
 await buildLayers();

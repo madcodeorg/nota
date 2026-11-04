@@ -1,3 +1,5 @@
+import './smoke-early';
+
 import path from 'node:path';
 
 import { app, nativeImage, protocol } from 'electron';
@@ -17,6 +19,7 @@ import { setupQuickCapture } from './quick-capture';
 import { setupAppleSpeechBridge } from './recording/apple-speech-bridge';
 import { setupRecordingFeature } from './recording/feature';
 import { registerSecurityRestrictions } from './security-restrictions';
+import { setupSmokeTest } from './smoke-test';
 import { setupTrayState } from './tray';
 import { registerUpdater } from './updater';
 import { launch } from './windows-manager/launcher';
@@ -24,6 +27,7 @@ import { setupMeetingPopup } from './windows-manager/popup';
 import { launchStage } from './windows-manager/stage';
 
 app.enableSandbox();
+setupSmokeTest();
 
 if (isDev) {
   // In electron the dev server will be resolved to 0.0.0.0, but it

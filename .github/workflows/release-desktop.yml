@@ -48,6 +48,7 @@ jobs:
   before-make:
     if: ${{ inputs.desktop_macos || inputs.desktop_windows || inputs.desktop_linux }}
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     environment: ${{ inputs.build-type }}
     steps:
       - uses: actions/checkout@v7
@@ -57,6 +58,7 @@ jobs:
           app-version: ${{ inputs.app-version }}
       - name: Setup Node.js
         uses: ./.github/actions/setup-node
+      - uses: ./.github/actions/rspack-cache
       - name: generate-assets
         run: yarn nota @nota/electron generate-assets
         env:
@@ -68,6 +70,19 @@ jobs:
         with:
           name: desktop-web
           path: packages/frontend/apps/electron/resources/web-static
+          # Only consumed by the platform jobs of this run.
+          retention-days: 3
+          if-no-files-found: error
+
+  # Typecheck and unit tests run alongside the platform builds, so they cost no
+  # wall-clock time. Publishing waits for them: a commit that fails them is
+  # built but never released.
+  checks:
+    name: Checks
+    if: ${{ inputs.desktop_macos || inputs.desktop_windows || inputs.desktop_linux }}
+    uses: ./.github/workflows/ci.yml
+    with:
+      skip_build_renderer: true
 
   make-distribution-macos:
     if: ${{ inputs.desktop_macos }}
@@ -157,6 +172,7 @@ jobs:
           - platform: win32
             arch: x64
     runs-on: windows-latest
+    timeout-minutes: 60
     outputs:
       FILES_TO_BE_SIGNED_x64: ${{ steps.get_files_to_be_signed.outputs.FILES_TO_BE_SIGNED_x64 }}
     steps:
@@ -256,6 +272,7 @@ jobs:
         uses: actions/upload-artifact@v6
         with:
           name: installer-${{ matrix.spec.platform }}-${{ matrix.spec.arch }}
+          retention-days: 3
           path: archive.zip
 
   sign-installer-artifacts-windows-x64:
@@ -282,6 +299,7 @@ jobs:
             platform: win32
             arch: x64
     runs-on: ${{ matrix.spec.runner }}
+    timeout-minutes: 30
     steps:
       - name: Download installer artifacts
         uses: actions/download-artifact@v7
@@ -351,6 +369,7 @@ jobs:
     if: ${{ !cancelled() && inputs.build-type == 'stable' && vars.MSSTORE_IDENTITY_NAME != '' && vars.MSSTORE_PRODUCT_ID != '' && needs.make-windows-installer.result == 'success' }}
     needs: make-windows-installer
     runs-on: windows-latest
+    timeout-minutes: 30
     steps:
       - name: Download Microsoft Store package
         uses: actions/download-artifact@v7
@@ -385,6 +404,7 @@ jobs:
       ${{
         !cancelled() &&
         needs.before-make.result == 'success' &&
+        needs.checks.result == 'success' &&
         (needs.make-distribution-macos.result == 'success' ||
           needs.make-distribution-linux.result == 'success' ||
           needs.finalize-installer-windows.result == 'success')
@@ -392,11 +412,13 @@ jobs:
     needs:
       [
         before-make,
+        checks,
         make-distribution-macos,
         make-distribution-linux,
         finalize-installer-windows,
       ]
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
       - uses: actions/checkout@v7
@@ -443,6 +465,19 @@ jobs:
           prerelease: ${{ inputs.build-type != 'stable' }}
           tag_name: v${{ env.RELEASE_VERSION}}
           files: ./release/*
+      # Caches saved by a tag run can only be read by that same tag. Keep the
+      # shared ones (saved on main by warm-caches.yml) and drop this tag's, so
+      # they do not push useful caches out of the repo's 10 GB limit.
+      - name: Drop this tag's caches
+        if: ${{ always() && github.ref_type == 'tag' }}
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          gh cache list -R "$GITHUB_REPOSITORY" --limit 100 --json id,ref \
+            --jq ".[] | select(.ref | endswith(\"$TAG\")) | .id" |
+            xargs -r -n1 gh cache delete -R "$GITHUB_REPOSITORY"
       # Releases created with GITHUB_TOKEN do not fire the Site workflow's
       # release trigger, so start it here. Stable drafts deploy when published.
       - name: Update thenota.app
