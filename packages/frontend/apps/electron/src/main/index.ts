@@ -1,3 +1,5 @@
+import './smoke-early';
+
 import path from 'node:path';
 
 import { app, nativeImage, protocol } from 'electron';

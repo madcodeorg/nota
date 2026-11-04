@@ -135,6 +135,24 @@ if (!ok) {
   }
 }
 
+if (!ok && process.platform === 'win32') {
+  // Is the process alive, responding, or did Windows log a crash?
+  const run = (command: string, args: string[]) =>
+    spawnSync(command, args, { encoding: 'utf8', timeout: 60_000 }).stdout;
+  console.error('--- tasklist ---');
+  console.error(
+    run('tasklist', ['/v', '/fo', 'list', '/fi', `pid eq ${child.pid}`])
+  );
+  console.error('--- application event log (last 10 min) ---');
+  console.error(
+    run('powershell', [
+      '-NoProfile',
+      '-Command',
+      "Get-WinEvent -FilterHashtable @{LogName='Application';StartTime=(Get-Date).AddMinutes(-10)} -MaxEvents 12 -ErrorAction SilentlyContinue | Format-List TimeCreated,ProviderName,Message | Out-String -Width 220",
+    ])?.slice(0, 5000)
+  );
+}
+
 killTree(child);
 await sleep(500);
 try {
