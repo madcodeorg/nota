@@ -11,6 +11,7 @@ import type { ChildProcess } from 'node:child_process';
 import { spawn, spawnSync } from 'node:child_process';
 import {
   existsSync,
+  mkdirSync,
   mkdtempSync,
   readdirSync,
   readFileSync,
@@ -55,6 +56,15 @@ function killTree(child: ChildProcess) {
 const realAppData = process.env.APPDATA;
 const home = mkdtempSync(join(tmpdir(), 'nota-smoke-'));
 const resultFile = join(home, 'smoke-result.txt');
+// Electron cannot resolve its userData path when these do not exist.
+for (const dir of [
+  join(home, '.config'),
+  join(home, '.local', 'share'),
+  join(home, 'AppData', 'Roaming'),
+  join(home, 'AppData', 'Local'),
+]) {
+  mkdirSync(dir, { recursive: true });
+}
 const output: string[] = [];
 const child = spawn(app, extraArgs, {
   // Fresh profile and home so the smoke run never touches real user data and
