@@ -66,7 +66,7 @@ jobs:
           NOTA_SKIP_LOCAL_ASR: '1'
 
       - name: Upload web artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: desktop-web
           path: packages/frontend/apps/electron/resources/web-static
@@ -191,7 +191,7 @@ jobs:
         env:
           npm_config_arch: ${{ matrix.spec.arch }}
       - name: Download packaged artifacts
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: packaged-${{ matrix.spec.platform }}-${{ matrix.spec.arch }}
           path: packaged-unsigned
@@ -199,7 +199,7 @@ jobs:
         run: Expand-Archive -Path packaged-unsigned/archive.zip -DestinationPath packages/frontend/apps/electron/out
       - name: Download signed packaged file diff
         if: ${{ vars.WINDOWS_SIGNING == 'true' }}
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: signed-packaged-${{ matrix.spec.platform }}-${{ matrix.spec.arch }}
           path: signed-packaged-diff
@@ -248,7 +248,7 @@ jobs:
 
       - name: Save Microsoft Store package
         if: ${{ inputs.build-type == 'stable' && vars.MSSTORE_IDENTITY_NAME != '' }}
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: msstore-${{ matrix.spec.platform }}-${{ matrix.spec.arch }}
           path: packages/frontend/apps/electron/out/${{ env.BUILD_TYPE }}/make/appx.windows/${{ matrix.spec.arch }}/*.appx
@@ -269,7 +269,7 @@ jobs:
           echo $FILES_TO_BE_SIGNED
 
       - name: Save installer for signing
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: installer-${{ matrix.spec.platform }}-${{ matrix.spec.arch }}
           retention-days: 3
@@ -302,7 +302,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Download installer artifacts
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: installer-${{ matrix.spec.platform }}-${{ matrix.spec.arch }}
           path: installer-unsigned
@@ -310,7 +310,7 @@ jobs:
         run: Expand-Archive -Path installer-unsigned/archive.zip -DestinationPath packages/frontend/apps/electron/out/${{ env.BUILD_TYPE }}/make
       - name: Download signed installer file diff
         if: ${{ vars.WINDOWS_SIGNING == 'true' }}
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: signed-installer-${{ matrix.spec.platform }}-${{ matrix.spec.arch }}
           path: signed-installer-diff
@@ -357,7 +357,7 @@ jobs:
             ./builds/nota-${{ env.RELEASE_VERSION }}-${{ env.BUILD_TYPE }}-windows-${{ matrix.spec.arch }}.nsis.exe
 
       - name: Upload Artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: nota-${{ matrix.spec.platform }}-${{ matrix.spec.arch }}-builds
           path: builds
@@ -372,7 +372,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Download Microsoft Store package
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: msstore-win32-x64
           path: msstore
@@ -424,23 +424,23 @@ jobs:
       - uses: actions/checkout@v7
       - name: Download Artifacts (macos-arm64)
         if: ${{ needs.make-distribution-macos.result == 'success' }}
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: nota-darwin-arm64-builds
           path: ./release
       - name: Download Artifacts (windows-x64)
         if: ${{ needs.finalize-installer-windows.result == 'success' }}
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: nota-win32-x64-builds
           path: ./release
       - name: Download Artifacts (linux-x64)
         if: ${{ needs.make-distribution-linux.result == 'success' }}
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: nota-linux-x64-builds
           path: ./release
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           # Node 22 runs the TypeScript release-notes script directly.
           node-version-file: '.nvmrc'
