@@ -9,7 +9,14 @@
 // (src/main/smoke-test.ts) and exits.
 import type { ChildProcess } from 'node:child_process';
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import {
+  existsSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
@@ -45,6 +52,7 @@ function killTree(child: ChildProcess) {
   }
 }
 
+const realAppData = process.env.APPDATA;
 const home = mkdtempSync(join(tmpdir(), 'nota-smoke-'));
 const resultFile = join(home, 'smoke-result.txt');
 const output: string[] = [];
@@ -93,6 +101,38 @@ while (Date.now() < deadline) {
     break;
   }
   await sleep(500);
+}
+
+// Recent *.log files under a directory, for the failure report. Electron
+// ignores the APPDATA override on Windows, so the app's real logs live there.
+function recentLogs(dir: string | undefined, depth = 0): string[] {
+  if (!dir || depth > 4 || !existsSync(dir)) return [];
+  const found: string[] = [];
+  for (const name of readdirSync(dir)) {
+    const path = join(dir, name);
+    try {
+      const stat = statSync(path);
+      if (stat.isDirectory()) found.push(...recentLogs(path, depth + 1));
+      else if (name.endsWith('.log') && Date.now() - stat.mtimeMs < 15 * 60_000)
+        found.push(path);
+    } catch {
+      // ignore unreadable entries
+    }
+  }
+  return found;
+}
+
+if (!ok) {
+  const trace = `${resultFile}.trace`;
+  console.error('--- app trace ---');
+  console.error(existsSync(trace) ? readFileSync(trace, 'utf8') : '(empty)');
+  for (const log of [
+    ...recentLogs(realAppData),
+    ...recentLogs(join(home, '.config')),
+  ].slice(0, 6)) {
+    console.error(`--- ${log} ---`);
+    console.error(readFileSync(log, 'utf8').slice(-3000));
+  }
 }
 
 killTree(child);
