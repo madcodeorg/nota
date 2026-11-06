@@ -30,6 +30,15 @@
     return node;
   };
 
+  const platformIcon = os =>
+    el('img', {
+      className: 'platform-icon',
+      src: `/launch/icons/${{ macos: 'apple', windows: 'windows', linux: 'linux' }[os]}.svg`,
+      width: 20,
+      height: 20,
+      alt: '',
+    });
+
   const describe = asset => {
     const match = /^nota-.+?-(macos|windows|linux)-(arm64|x64)\.(.+)$/.exec(
       asset.name
@@ -87,10 +96,12 @@
     const row = el(
       'li',
       { className: 'rel-file' },
-      el('span', {
-        className: 'rel-file-os',
-        textContent: `${OS_NAME[info.os]} · ${ARCH_NAME[info.os][info.arch]}`,
-      }),
+      el(
+        'span',
+        { className: 'rel-file-os' },
+        platformIcon(info.os),
+        `${OS_NAME[info.os]} · ${ARCH_NAME[info.os][info.arch]}`
+      ),
       el('a', { href: asset.url, textContent: info.kind.label }),
       el('span', {
         className: 'rel-file-size',
@@ -131,24 +142,41 @@
       .filter(entry => entry.info)
       .sort(
         (a, b) =>
-          a.info.os.localeCompare(b.info.os) || a.info.kind.rank - b.info.kind.rank
+          a.info.os.localeCompare(b.info.os) ||
+          a.info.kind.rank - b.info.kind.rank
       );
     const summary = el(
       'summary',
       {},
-      el('span', { className: 'rel-version', textContent: `v${release.version}` })
+      el('span', {
+        className: 'rel-version',
+        textContent: `v${release.version}`,
+      })
     );
     if (isLatest) {
-      summary.append(el('span', { className: 'rel-badge', textContent: 'Latest' }));
+      summary.append(
+        el('span', { className: 'rel-badge', textContent: 'Latest' })
+      );
     }
     summary.append(
-      el('span', { className: 'rel-date', textContent: formatDate(release.date) })
+      el('span', {
+        className: 'rel-date',
+        textContent: formatDate(release.date),
+      })
     );
 
-    const body = el('div', { className: 'rel-body' }, renderNotes(release.notes));
+    const body = el(
+      'div',
+      { className: 'rel-body' },
+      renderNotes(release.notes)
+    );
     if (files.length > 0) {
       body.append(
-        el('ul', { className: 'rel-files' }, ...files.map(f => renderFile(f.asset)))
+        el(
+          'ul',
+          { className: 'rel-files' },
+          ...files.map(f => renderFile(f.asset))
+        )
       );
       if (files.some(f => f.info.os === 'windows')) {
         body.append(
@@ -161,7 +189,10 @@
       }
     } else {
       body.append(
-        el('p', { className: 'rel-notes-empty', textContent: 'No installers attached.' })
+        el('p', {
+          className: 'rel-notes-empty',
+          textContent: 'No installers attached.',
+        })
       );
     }
     body.append(
@@ -177,7 +208,7 @@
     return details;
   };
 
-  const renderHero = (latest, stable) => {
+  const renderHero = (latest, stable, releases) => {
     const actions = document.querySelector('[data-hero-actions]');
     const meta = document.querySelector('[data-hero-meta]');
     if (!actions || !meta) return;
@@ -190,46 +221,50 @@
           ? 'No beta build is published right now.'
           : 'No release is published yet.';
       actions.append(
-        el('a', { className: 'text-link', href: RELEASES_PAGE, textContent: 'See GitHub Releases' })
+        el('a', {
+          className: 'text-link',
+          href: RELEASES_PAGE,
+          textContent: 'See GitHub Releases',
+        })
       );
       return;
     }
 
     const os = detectOS();
-    const mine = os && primaryAsset(latest, os);
-    if (mine) {
-      actions.append(
-        el(
-          'a',
-          { className: 'button', href: mine.url },
-          `Download for ${OS_NAME[os]}`,
-          el('span', { className: 'button-version', textContent: `v${latest.version}` })
-        )
+    const platforms = Object.keys(OS_NAME);
+    if (os) platforms.sort((a, b) => Number(b === os) - Number(a === os));
+    for (const platform of platforms) {
+      const release = releases.find(item => primaryAsset(item, platform));
+      const asset = release && primaryAsset(release, platform);
+      const link = el(
+        'a',
+        {
+          className: `button${platform === os && asset ? '' : ' button-secondary'}`,
+          href: asset?.url ?? (platform === 'linux' ? '#linux' : RELEASES_PAGE),
+        },
+        platformIcon(platform),
+        `${OS_NAME[platform]}`
       );
-    } else if (os) {
-      meta.append(
-        `${OS_NAME[os]} is not in v${latest.version}. `,
-        channel === 'stable'
-          ? el('a', { href: '/beta/', textContent: 'Check the beta page.' })
-          : ''
-      );
+      if (asset) {
+        link.append(
+          el('span', {
+            className: 'button-version',
+            textContent: `v${release.version}`,
+          })
+        );
+        link.setAttribute(
+          'aria-label',
+          `Download Nota v${release.version} for ${OS_NAME[platform]}`
+        );
+      } else {
+        link.setAttribute(
+          'aria-label',
+          `View ${OS_NAME[platform]} download availability`
+        );
+      }
+      actions.append(link);
     }
-
-    const others = Object.keys(OS_NAME)
-      .filter(key => key !== os && primaryAsset(latest, key))
-      .map(key => {
-        const asset = primaryAsset(latest, key);
-        return el('a', { href: asset.url, textContent: `${OS_NAME[key]} (v${latest.version})` });
-      });
-    if (others.length > 0) {
-      document
-        .querySelector('[data-hero-others]')
-        ?.replaceChildren(...others);
-    }
-
-    if (mine || !os) {
-      meta.append(`Published ${formatDate(latest.date)}.`);
-    }
+    meta.textContent = `Latest ${channel}: v${latest.version} · Published ${formatDate(latest.date)}.`;
 
     if (channel === 'beta' && stable) {
       const ahead = document.querySelector('[data-beta-ahead]');
@@ -264,7 +299,37 @@
         .filter(r => r.prerelease === (channel === 'beta'))
         .sort(byDate);
 
-      renderHero(releases[0], stableReleases[0]);
+      renderHero(releases[0], stableReleases[0], releases);
+
+      const linuxFiles = document.querySelector('[data-linux-files]');
+      if (linuxFiles) {
+        const linuxRelease = all
+          .sort(byDate)
+          .find(release =>
+            release.assets.some(asset => describe(asset)?.os === 'linux')
+          );
+        linuxFiles.replaceChildren(
+          ...(linuxRelease
+            ? [
+                el('p', {
+                  textContent: `Linux files for v${linuxRelease.version}${linuxRelease.prerelease ? ' (pre-release)' : ''}.`,
+                }),
+                el(
+                  'ul',
+                  { className: 'rel-files' },
+                  ...linuxRelease.assets
+                    .filter(asset => describe(asset)?.os === 'linux')
+                    .map(renderFile)
+                ),
+              ]
+            : [
+                el('p', {
+                  textContent:
+                    'No Linux installers are attached to published releases yet.',
+                }),
+              ])
+        );
+      }
 
       const list = document.querySelector('[data-release-list]');
       if (!list) return;

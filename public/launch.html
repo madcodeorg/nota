@@ -35,8 +35,8 @@
       type="font/woff2"
       crossorigin
     />
-    <link rel="stylesheet" href="/launch/site.css?rev=v010" />
-    <script src="/launch/site.js?rev=v010" defer></script>
+    <link rel="stylesheet" href="/launch/site.css?rev=v011" />
+    <script src="/launch/site.js?rev=v011" defer></script>
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
@@ -54,9 +54,7 @@
         ><a href="#capture">Capture</a><a href="#ai">AI</a
         ><a href="https://github.com/madcodeorg/nota">Open source</a>
       </nav>
-      <a
-        class="button button-small header-download"
-        href="/download"
+      <a class="button button-small header-download" href="/download"
         >Download</a
       >
       <button
@@ -95,9 +93,40 @@
             with local AI. One workspace on your device.
           </p>
           <div class="hero-actions">
-            <a class="button" href="/download"
-              >Download <span class="button-version">v<span data-nota-version>0.1.0</span></span></a
-            ><a class="text-link" href="#meetings"
+            <div
+              class="platform-actions"
+              role="group"
+              aria-label="Download Nota for your platform"
+            >
+              <a class="button" href="/download/" data-platform="macos"
+                ><img
+                  class="platform-icon"
+                  src="/launch/icons/apple.svg"
+                  width="20"
+                  height="20"
+                  alt=""
+                />macOS</a
+              >
+              <a class="button" href="/download/" data-platform="windows"
+                ><img
+                  class="platform-icon"
+                  src="/launch/icons/windows.svg"
+                  width="20"
+                  height="20"
+                  alt=""
+                />Windows</a
+              >
+              <a class="button" href="/download/#linux" data-platform="linux"
+                ><img
+                  class="platform-icon"
+                  src="/launch/icons/linux.svg"
+                  width="20"
+                  height="20"
+                  alt=""
+                />Linux</a
+              >
+            </div>
+            <a class="text-link" href="#meetings"
               >See how it works
               <img
                 src="/launch/icons/arrow-right.svg"
@@ -106,9 +135,7 @@
                 alt=""
             /></a>
           </div>
-          <p class="availability">
-            Available now for Apple-silicon Macs and Windows. No account required.
-          </p>
+          <p class="availability">Choose your platform. No account required.</p>
         </div>
         <div class="hero-stage">
           <img
@@ -122,16 +149,16 @@
           <figure class="hero-preview wrap">
             <img
               class="product-image"
-              src="/launch/real-note.webp"
+              src="/launch/ui-note.webp"
               width="1600"
-              height="1040"
+              height="1004"
               srcset="
-                /launch/real-note-small.webp 800w,
-                /launch/real-note.webp       1600w
+                /launch/ui-note-small.webp  800w,
+                /launch/ui-note.webp       1600w
               "
               sizes="(max-width: 760px) calc(100vw - 32px), (max-width: 1430px) 88vw, 1260px"
               fetchpriority="high"
-              alt="Nota desktop workspace displaying a formatted note with a cover image."
+              alt="Nota note editor with the Getting Started page, artwork cover, folders, and workspace sidebar."
             />
             <figcaption class="sr-only">
               Real screenshot of Nota's desktop note workspace.
@@ -182,11 +209,11 @@
         <figure class="feature-preview">
           <img
             class="product-image"
-            src="/launch/real-canvas.webp"
+            src="/launch/ui-canvas.webp"
             width="1600"
-            height="1040"
+            height="1004"
             loading="lazy"
-            alt="Nota canvas with connected notes, sketches, and a Local First label."
+            alt="Nota canvas displaying an editable note on a dotted workspace with drawing tools."
           />
         </figure>
       </section>
@@ -221,14 +248,14 @@
           <figure class="meeting-preview wrap">
             <img
               class="product-image"
-              src="/launch/real-meeting.webp"
+              src="/launch/ui-meeting.webp"
               width="1600"
-              height="1040"
+              height="1004"
               loading="lazy"
-              alt="Nota meeting view showing a saved transcript with timestamps and meeting actions."
+              alt="Nota Meetings with the date artwork, Start recording button, and recording settings."
             />
             <figcaption class="sr-only">
-              Real screenshot of a saved Nota meeting transcript.
+              Real screenshot of Nota's meeting recording screen.
             </figcaption>
           </figure>
         </div>
@@ -288,8 +315,8 @@
                 00:18
               </div>
               <div class="capture-wave" aria-hidden="true">
-                <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i
-                ><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+                <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i
+                ><i></i><i></i><i></i><i></i><i></i><i></i>
               </div>
               <p class="capture-transcript">
                 “Let’s keep the decision next to the conversation, so we can
@@ -357,11 +384,11 @@
         <figure class="feature-preview">
           <img
             class="product-image"
-            src="/launch/real-ai.webp"
+            src="/launch/ui-ai.webp"
             width="1600"
-            height="1040"
+            height="1004"
             loading="lazy"
-            alt="Nota AI showing a workspace-grounded response with source references."
+            alt="Nota AI with a new-chat prompt, message composer, and model selector."
           />
         </figure>
       </section>
@@ -384,11 +411,11 @@
         <figure class="feature-preview">
           <img
             class="product-image"
-            src="/launch/real-calendar.webp"
+            src="/launch/ui-calendar.webp"
             width="1600"
-            height="1040"
+            height="1004"
             loading="lazy"
-            alt="Nota calendar week view with a selected day, meeting list, and daily journal prompt."
+            alt="Nota journal week view with the selected day and Create Daily Journal button."
           />
         </figure>
       </section>
@@ -472,10 +499,10 @@
             <p>
               Yes. Writing, sketching, and reopening your notes and whiteboards
               all work with no connection, because everything is stored on your
-              Mac. Online backup is optional: connect your own Google Drive and
-              Nota syncs when you are online. Local AI works after you install
-              its models, and the initial model downloads need an internet
-              connection.
+              device. Online backup is optional: connect your own Google Drive
+              and Nota syncs when you are online. Local AI works after you
+              install its models, and the initial model downloads need an
+              internet connection.
             </p>
           </details>
           <details open>
@@ -516,12 +543,13 @@
               />
             </summary>
             <p>
-              Download the current installer for Apple-silicon Macs or Windows
-              (x64) from <a href="/download">the download page</a>. For release
-              notes and installer files, visit
+              Choose macOS, Windows, or Linux on
+              <a href="/download/">the download page</a>. Available installers
+              are listed by platform and version. For release notes and
+              installer files, visit
               <a href="https://github.com/madcodeorg/nota/releases"
                 >GitHub Releases</a
-              >. Linux and Intel Mac installers are not currently published.
+              >. Intel Mac installers are not currently published.
             </p>
           </details>
         </div>
@@ -538,10 +566,42 @@
               your next good idea.
             </h2>
             <p>Notes, canvas, meetings, and local AI. Together in Nota.</p>
-            <a class="button" href="/download">Download</a>
+            <div
+              class="platform-actions"
+              role="group"
+              aria-label="Download Nota for your platform"
+            >
+              <a class="button" href="/download/" data-platform="macos"
+                ><img
+                  class="platform-icon"
+                  src="/launch/icons/apple.svg"
+                  width="20"
+                  height="20"
+                  alt=""
+                />macOS</a
+              >
+              <a class="button" href="/download/" data-platform="windows"
+                ><img
+                  class="platform-icon"
+                  src="/launch/icons/windows.svg"
+                  width="20"
+                  height="20"
+                  alt=""
+                />Windows</a
+              >
+              <a class="button" href="/download/#linux" data-platform="linux"
+                ><img
+                  class="platform-icon"
+                  src="/launch/icons/linux.svg"
+                  width="20"
+                  height="20"
+                  alt=""
+                />Linux</a
+              >
+            </div>
             <p class="availability">
-              Version <span data-nota-version>0.1.0</span> for macOS (Apple
-              silicon) and Windows (x64). Linux is coming.
+              Latest stable: <span data-nota-version>0.1.13</span>. Choose a
+              platform for downloads and installation details.
             </p>
           </div>
           <img
@@ -571,7 +631,9 @@
       <nav aria-label="Footer navigation">
         <a href="https://github.com/madcodeorg/nota">GitHub</a
         ><a href="https://github.com/madcodeorg/nota/releases">Release notes</a
-        ><a href="/beta/">Beta</a><a href="/privacy.html">Privacy</a><a href="/terms.html">Terms</a><a href="/download/#code-signing">Code signing policy</a>
+        ><a href="/beta/">Beta</a><a href="/privacy.html">Privacy</a
+        ><a href="/terms.html">Terms</a
+        ><a href="/download/#code-signing">Code signing policy</a>
       </nav>
       <p class="copyright">
         © 2026 Nota · Built and maintained by

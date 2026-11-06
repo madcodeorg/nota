@@ -17,6 +17,29 @@
 .theme-dark .button {
   color: #14160f;
 }
+.theme-dark .platform-icon {
+  filter: invert(1);
+}
+.theme-dark .button .platform-icon {
+  filter: none;
+}
+.button-secondary {
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink);
+}
+.button-secondary:hover {
+  background: var(--sage);
+}
+.button-secondary .platform-icon {
+  filter: none;
+}
+.theme-dark .button-secondary {
+  color: var(--ink);
+}
+.theme-dark .button-secondary .platform-icon {
+  filter: invert(1);
+}
 .theme-dark .skip-link {
   color: var(--ink);
 }
@@ -57,8 +80,11 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
   margin-top: 32px;
+}
+.rel-actions .button {
+  gap: 9px;
 }
 .rel-meta {
   margin-top: 16px;
@@ -197,6 +223,9 @@
   overflow-wrap: anywhere;
 }
 .rel-file-os {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
   min-width: 11ch;
   color: var(--muted);
 }

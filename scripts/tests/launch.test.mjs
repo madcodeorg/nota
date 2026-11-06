@@ -161,10 +161,23 @@ void test('download CTAs point to the download page for every platform', t => {
     link => link.textContent.trim().startsWith('Download')
   );
 
-  assert.equal(downloadLinks.length, 3);
-  for (const link of downloadLinks) {
-    assert.equal(link.getAttribute('href'), '/download');
-    assert.doesNotMatch(link.textContent, /for Mac/);
+  assert.equal(downloadLinks.length, 1);
+  assert.equal(downloadLinks[0].getAttribute('href'), '/download');
+  const groups = document.querySelectorAll('.platform-actions');
+  assert.equal(groups.length, 2);
+  for (const group of groups) {
+    assert.equal(group.getAttribute('role'), 'group');
+    assert.equal(group.querySelectorAll('a').length, 3);
+    for (const [platform, label, href] of [
+      ['macos', 'macOS', '/download/'],
+      ['windows', 'Windows', '/download/'],
+      ['linux', 'Linux', '/download/#linux'],
+    ]) {
+      const link = group.querySelector(`[data-platform="${platform}"]`);
+      assert.equal(link.textContent.trim(), label);
+      assert.equal(link.getAttribute('href'), href);
+      assert.equal(link.querySelector('img').getAttribute('alt'), '');
+    }
   }
 });
 

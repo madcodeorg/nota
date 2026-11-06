@@ -94,6 +94,35 @@ if (
   });
 }
 
+// Resolve each platform independently: a release may contain only some installers.
+// Keep the download-page links when a file is absent; never invent an asset URL.
+fetch('/releases.json', { cache: 'no-cache' })
+  .then(response => {
+    if (!response.ok) throw new Error(String(response.status));
+    return response.json();
+  })
+  .then(releases => {
+    const stable = releases
+      .filter(release => !release.prerelease)
+      .sort((a, b) => new Date(b.date) - new Date(a.date));
+    for (const link of document.querySelectorAll('[data-platform]')) {
+      const os = link.dataset.platform;
+      const kind = { macos: 'dmg', windows: 'nsis.exe', linux: 'appimage' }[os];
+      if (!kind) continue;
+      const asset = stable
+        .flatMap(release => release.assets)
+        .find(file => {
+          const match =
+            /^nota-.+?-(macos|windows|linux)-(arm64|x64)\.(.+)$/i.exec(
+              file.name
+            );
+          return match?.[1] === os && match[3].toLowerCase() === kind;
+        });
+      if (asset) link.href = asset.url;
+    }
+  })
+  .catch(() => {});
+
 // Show the current stable version from the update feed; the HTML holds a fallback.
 fetch('/updates/stable/latest-mac.yml', { cache: 'no-cache' })
   .then(response => (response.ok ? response.text() : ''))
