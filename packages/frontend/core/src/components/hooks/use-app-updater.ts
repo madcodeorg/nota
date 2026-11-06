@@ -14,7 +14,7 @@ import { useAsyncCallback } from './nota-async-hooks';
 function rpcToObservable<
   T,
   H extends () => Promise<T>,
-  E extends (callback: (t: T) => void) => () => void,
+  E extends (callback: (t: T | null) => void) => () => void,
 >(
   initialValue: T | null,
   {
