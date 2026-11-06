@@ -58,7 +58,11 @@ const UpdateButton = () => {
       type="button"
       className={styles.button}
       data-testid="header-update-button"
-      title={`Download Nota ${updateAvailable.version}`}
+      title={
+        updateAvailable.allowAutoUpdate
+          ? `Download Nota ${updateAvailable.version}`
+          : `Open downloads for Nota ${updateAvailable.version} to install manually`
+      }
       onClick={downloadUpdate}
     >
       <DownloadIcon className={styles.icon} />

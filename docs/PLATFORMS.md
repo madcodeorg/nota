@@ -6,8 +6,11 @@
 - Windows (x64): built for stable and beta, with Vulkan GPU support. Installers
   are unsigned and trigger SmartScreen warnings. Windows ARM64 is not supported
   because `sherpa-onnx-node` has no ARM64 binding.
-- Linux: not built or released yet. The workflow has a `desktop_linux` switch,
-  but it has not been run or tested for Nota.
+- Linux (x64): the first canary build passed ZIP/AppImage/Debian launch and
+  installation/removal checks. Normal beta/stable releases now require all
+  desktop platforms and packages together, built on Ubuntu 22.04/GCC11 for Linux.
+  Real-desktop feature and update acceptance is still required before claiming
+  a verified Linux stable release.
 
 ## Before Windows ships
 
@@ -20,15 +23,16 @@
 3. Check that auto-update works from one beta to the next. The feed is
    `updates/beta/latest.yml` and lists only the NSIS installer.
 4. Confirm the Google sign-in redirect and local transcription work on Windows.
-5. The Site workflow already publishes the Windows feed. Add a Windows download
-   link to the download page and `public/launch.html` when Windows goes stable.
+5. The Site workflow publishes the Windows feed and existing platform download
+   links. NSIS installs can update in-app; Squirrel/portable installs notify and
+   offer manual downloads instead of silently switching installation formats.
 
 ## Microsoft Store
 
 Stable releases can also build an MSIX/AppX package (`make-appx`) and upload it
 to the Microsoft Store, which signs it. Store installs are updated by the Store,
-so Nota's own updater is off when `process.windowsStore` is true. Store and
-website installs keep separate app data.
+so Nota checks/notifies but opens the Store update surface rather than replacing
+its installation. Store and website installs keep separate app data.
 
 One-time setup in Partner Center (individual account, free):
 
@@ -51,10 +55,32 @@ Public repo settings:
 
 ## Before Linux ships
 
-1. Pick formats (AppImage and .deb are the usual choices).
-2. Run Release by hand with only `desktop_linux` on, as a beta tag, and test on a real machine.
-3. Check auto-update (`latest-linux.yml`), and note that Linux has no signing step.
-4. Add the Linux downloads to the Site workflow.
+1. The CI targets are ZIP, AppImage and .deb. Flatpak remains available as a
+   separate local Forge maker; the CI release does not download Flatpak SDKs.
+2. Run Release on `beta` with an explicit semantic beta version, or push the
+   corresponding beta tag (see RELEASING.md). All desktop packages are required.
+   Install/test the Linux beta before promoting app changes to stable.
+3. The CI compatibility gate is GLIBC <= 2.35 / GLIBCXX <= 3.4.30, matching
+   Ubuntu 22.04 with current `libstdc++6` security updates (GCC 12 runtime).
+   This checks native requirements, not every distro, display server or CPU. The
+   current helper builds enable AVX2/FMA/F16C; verify the actual target hardware.
+4. Check SQLite persistence, model setup/local AI, meeting capture/save,
+   deep links and AppImage updates separately. Public Linux capture support is
+   not established by a packaging/launch smoke; Linux capture needs separate
+   integration and device tests before promising meeting recording there.
+5. All Linux formats check automatically. Writable AppImages can self-replace
+   after an explicit download/restart. Debian and ZIP/readonly layouts notify
+   and offer manual package downloads; no privileged package commands run from
+   the updater. The SDK supports Debian installation, but its pinned privileged
+   install flags are not exposed through a generic Restart button. Linux has no
+   package signing step.
+6. The Site workflow publishes `latest-linux.yml` for stable/beta releases with
+   AppImage assets and retains other platforms' historical partial feeds.
+   Canaries are available as downloads, not offered on stable/beta update feeds.
+
+Debian installation metadata is package-specific, so stable, beta and canary
+packages do not remove each other's metainfo. Installation tests and headless
+launches are CI evidence, not full desktop acceptance.
 
 ## Release limits
 

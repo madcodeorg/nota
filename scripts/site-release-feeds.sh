@@ -11,7 +11,7 @@ trap 'rm -rf "$work"' EXIT
 
 for platform in macos windows linux; do
   case "$platform" in
-    macos) feed=latest-mac.yml; installer='-macos-(arm64|x64)\.(dmg|zip)$'; check='\.(dmg|zip)([[:space:]]|$)' ;;
+    macos) feed=latest-mac.yml; installer='-macos-(arm64|x64)\.zip$'; check='\.zip([[:space:]]|$)' ;;
     windows) feed=latest.yml; installer='-windows-x64\.nsis\.exe$'; check='\.nsis\.exe([[:space:]]|$)' ;;
     linux) feed=latest-linux.yml; installer='-linux-(arm64|x64)\.appimage$'; check='\.appimage([[:space:]]|$)' ;;
   esac

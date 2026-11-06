@@ -69,6 +69,11 @@ jobs:
             arch: x64
             target: x86_64-pc-windows-msvc
             enable_scripts: true
+          - runner: ubuntu-22.04
+            platform: linux
+            arch: x64
+            target: x86_64-unknown-linux-gnu
+            enable_scripts: false
     env:
       MACOSX_DEPLOYMENT_TARGET: '14.0'
       NOTA_ELECTRON_TARGET_ARCH: ${{ matrix.arch }}
@@ -91,6 +96,10 @@ jobs:
           enableScripts: ${{ matrix.enable_scripts }}
           supported-architecture-os: ${{ matrix.platform }}
           supported-architecture-cpu: ${{ matrix.arch }}
+
+      - name: Setup Linux build tools
+        if: ${{ matrix.platform == 'linux' }}
+        uses: ./.github/actions/setup-linux-desktop
 
       - name: Build Nota native
         uses: ./.github/actions/build-rust

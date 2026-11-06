@@ -1,0 +1,15 @@
+name: 'Setup Linux desktop build'
+description: 'Build tools for ZIP/AppImage/deb and a headless desktop smoke test.'
+runs:
+  using: composite
+  steps:
+    - name: Install Linux build and test dependencies
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y --no-install-recommends \
+          build-essential g++-11 clang cmake pkg-config binutils \
+          dpkg fakeroot squashfs-tools zip unzip \
+          xvfb xauth libgtk-3-0 libnss3 libasound2 libgbm1
+        # Avoid an image-wide compiler alternative raising the libstdc++ floor.
+        echo 'CXX=g++-11' >> "$GITHUB_ENV"

@@ -3,26 +3,16 @@ name: Release
 on:
   workflow_dispatch:
     inputs:
-      desktop_macos:
-        description: 'Desktop - macOS'
-        required: true
-        type: boolean
-        default: false
-      desktop_windows:
-        description: 'Desktop - Windows'
-        required: true
-        type: boolean
-        default: false
-      desktop_linux:
-        description: 'Desktop - Linux'
-        required: true
-        type: boolean
-        default: false
+      version:
+        description: 'Branch release version: X.Y.Z-beta.N (beta) or X.Y.Z (main). Leave empty when dispatching a version tag.'
+        type: string
+        required: false
+        default: ''
 
-# Never run two releases for the same ref at once, but never cancel one that
-# is already publishing.
+# Serialize tagged and branch-dispatched versions together. Never cancel an
+# active publisher or let two refs race to create the same release.
 concurrency:
-  group: release-${{ github.ref }}
+  group: release-desktop
   cancel-in-progress: false
 
 permissions:
@@ -48,87 +38,23 @@ jobs:
       - name: Prepare Release
         id: prepare
         uses: ./.github/actions/prepare-release
-
-  canary-gate:
-    name: Canary Gate
-    runs-on: ubuntu-latest
-    needs:
-      - prepare
-    outputs:
-      SHOULD_RELEASE: ${{ steps.decide.outputs.SHOULD_RELEASE }}
-      LAST_CANARY_TAG: ${{ steps.decide.outputs.LAST_CANARY_TAG }}
-      LAST_CANARY_SHA: ${{ steps.decide.outputs.LAST_CANARY_SHA }}
-    steps:
-      - name: Decide whether to release
-        id: decide
-        uses: actions/github-script@v9
         with:
-          script: |
-            const buildType = '${{ needs.prepare.outputs.BUILD_TYPE }}'
-            if (buildType !== 'canary') {
-              core.setOutput('SHOULD_RELEASE', 'true')
-              return
-            }
-
-            const owner = context.repo.owner
-            const repo = context.repo.repo
-            const currentSha = context.sha
-            const canaryTagRe = /^v\d+\.\d+\.\d+-canary\.[0-9a-f]+$/i
-
-            let page = 1
-            const perPage = 100
-            let lastCanary = null
-
-            while (!lastCanary && page <= 10) {
-              const { data } = await github.rest.repos.listTags({
-                owner,
-                repo,
-                per_page: perPage,
-                page,
-              })
-
-              for (const tag of data) {
-                if (canaryTagRe.test(tag.name)) {
-                  lastCanary = tag
-                  break
-                }
-              }
-
-              if (data.length < perPage) break
-              page++
-            }
-
-            if (!lastCanary) {
-              core.warning('No canary tags found; proceeding with canary release.')
-              core.setOutput('SHOULD_RELEASE', 'true')
-              return
-            }
-
-            core.setOutput('LAST_CANARY_TAG', lastCanary.name)
-            core.setOutput('LAST_CANARY_SHA', lastCanary.commit.sha)
-
-            const shouldRelease = lastCanary.commit.sha !== currentSha
-            core.info(`Latest canary tag ${lastCanary.name} -> ${lastCanary.commit.sha}; current ${currentSha}; should_release=${shouldRelease}`)
-            core.setOutput('SHOULD_RELEASE', shouldRelease ? 'true' : 'false')
+          version: ${{ inputs.version }}
+      - name: Protect published versions
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ steps.prepare.outputs.APP_VERSION }}
+        run: bash scripts/check-release-version.sh
 
   desktop:
     name: Release Desktop
-    if: >-
-      ${{
-        (github.event_name != 'workflow_dispatch' && needs.canary-gate.outputs.SHOULD_RELEASE == 'true') ||
-        inputs.desktop_macos ||
-        inputs.desktop_windows ||
-        inputs.desktop_linux
-      }}
-    needs:
-      - prepare
-      - canary-gate
+    needs: prepare
     uses: ./.github/workflows/release-desktop.yml
     secrets: inherit
     with:
       build-type: ${{ needs.prepare.outputs.BUILD_TYPE }}
       app-version: ${{ needs.prepare.outputs.APP_VERSION }}
       git-short-hash: ${{ needs.prepare.outputs.GIT_SHORT_HASH }}
-      desktop_macos: ${{ github.event_name != 'workflow_dispatch' || inputs.desktop_macos }}
-      desktop_windows: ${{ github.event_name != 'workflow_dispatch' || inputs.desktop_windows }}
-      desktop_linux: ${{ github.event_name != 'workflow_dispatch' || inputs.desktop_linux }}
+      desktop_macos: true
+      desktop_windows: true
+      desktop_linux: true

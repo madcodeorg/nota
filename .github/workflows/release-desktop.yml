@@ -115,7 +115,8 @@ jobs:
       fail-fast: false
       matrix:
         spec:
-          - runner: ubuntu-latest
+          # Build native binaries against the older supported GLIBC baseline.
+          - runner: ubuntu-22.04
             platform: linux
             arch: x64
             target: x86_64-unknown-linux-gnu
@@ -236,6 +237,15 @@ jobs:
 
       - name: Make nsis.windows installer
         run: yarn nota @nota/electron make-nsis --platform=${{ matrix.spec.platform }} --arch=${{ matrix.spec.arch }}
+
+      - name: Make portable Windows ZIP
+        shell: pwsh
+        run: |
+          $Apps = @(Get-ChildItem packages/frontend/apps/electron/out/${{ env.BUILD_TYPE }} -Directory -Filter '*-win32-${{ matrix.spec.arch }}')
+          if ($Apps.Count -ne 1) { throw 'Expected one packaged Windows app.' }
+          $ZipDir = 'packages/frontend/apps/electron/out/${{ env.BUILD_TYPE }}/make/zip/win32/${{ matrix.spec.arch }}'
+          New-Item -ItemType Directory -Force -Path $ZipDir | Out-Null
+          Compress-Archive -Force -Path (Join-Path $Apps[0].FullName '*') -DestinationPath "$ZipDir/$($Apps[0].Name)-${{ env.RELEASE_VERSION }}.zip"
 
       # Store packages are built unsigned; Microsoft signs them on submission.
       - name: Make Microsoft Store package
@@ -397,17 +407,17 @@ jobs:
           if ($env:MSSTORE_AUTO_COMMIT -ne 'true') { $PublishArgs += '--noCommit' }
           msstore @PublishArgs
 
-  # Publish every platform that built, so one failed platform does not hold
-  # back the others. The failed run stays red to flag the missing platform.
+  # Beta and stable are complete desktop releases. A failed platform must not
+  # publish a partial version or advance any update feed.
   release:
     if: >-
       ${{
         !cancelled() &&
         needs.before-make.result == 'success' &&
         needs.checks.result == 'success' &&
-        (needs.make-distribution-macos.result == 'success' ||
-          needs.make-distribution-linux.result == 'success' ||
-          needs.finalize-installer-windows.result == 'success')
+        needs.make-distribution-macos.result == 'success' &&
+        needs.make-distribution-linux.result == 'success' &&
+        needs.finalize-installer-windows.result == 'success'
       }}
     needs:
       [
@@ -449,22 +459,42 @@ jobs:
           cp ./.docker/selfhost/compose.yml ./release/docker-compose.yml
           cp ./.docker/selfhost/.env.example ./release/.env.example
           cp ./.docker/selfhost/schema.json ./release/config.schema.json
-      - name: Generate Release yml
-        run: |
-          node ./scripts/generate-release-yml.mjs
+      - name: Validate all packages and generate update feeds
+        run: node ./scripts/generate-release-yml.mjs --require-all
         env:
           RELEASE_VERSION: ${{ env.RELEASE_VERSION }}
       - name: Release notes from CHANGELOG.md
         run: node tools/utils/src/release-notes.ts "$RELEASE_VERSION" > "$RUNNER_TEMP/release-notes.md"
-      - name: Create GitHub Release
+      - name: Recheck published version immediately before writing
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash scripts/check-release-version.sh
+      - name: Upload draft GitHub Release
+        id: release_upload
         uses: softprops/action-gh-release@v3
         with:
           name: ${{ env.RELEASE_VERSION }}
           body_path: ${{ runner.temp }}/release-notes.md
-          draft: ${{ inputs.build-type == 'stable' }}
+          draft: true
           prerelease: ${{ inputs.build-type != 'stable' }}
           tag_name: v${{ env.RELEASE_VERSION}}
+          # Branch-dispatched beta releases tag the actual build commit,
+          # never the repository's default branch at publication time.
+          target_commitish: ${{ github.sha }}
           files: ./release/*
+      - name: Verify uploaded packages and feeds
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_ID: ${{ steps.release_upload.outputs.id }}
+        run: |
+          # Drafts do not have a published tag endpoint yet. Use the upload ID.
+          gh api "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" --jq .assets > "$RUNNER_TEMP/release-assets.json"
+          node scripts/verify-release-assets.mjs "$RUNNER_TEMP/release-assets.json"
+      - name: Publish complete beta
+        if: ${{ inputs.build-type == 'beta' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release edit "v$RELEASE_VERSION" -R "$GITHUB_REPOSITORY" --draft=false --prerelease --latest=false
       # Caches saved by a tag run can only be read by that same tag. Keep the
       # shared ones (saved on main by warm-caches.yml) and drop this tag's, so
       # they do not push useful caches out of the repo's 10 GB limit.

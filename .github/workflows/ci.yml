@@ -51,7 +51,11 @@ jobs:
           electron-install: false
           full-cache: true
       - run: yarn nota @nota/i18n build
-      - run: yarn vitest --run packages/frontend/apps/electron/test/main packages/frontend/core/src/modules/google-auth
+      - run: >-
+          yarn vitest --run packages/frontend/apps/electron/test/main
+          packages/frontend/core/src/modules/google-auth
+          packages/frontend/core/src/desktop/components/app-container/header-update-button.spec.tsx
+          packages/frontend/core/src/desktop/dialogs/setting/general-setting/about/updates.spec.tsx
       - name: Site and release workflow regression tests
         run: node --test scripts/tests/*.test.mjs
 

@@ -9,20 +9,20 @@ export interface UpdateMeta {
 
 export const updaterSubjects = {
   // means it is ready for restart and install the new version
-  updateAvailable$: new ReplaySubject<UpdateMeta>(1),
+  updateAvailable$: new ReplaySubject<UpdateMeta | null>(1),
   // Replayed so tabs and windows opened after the download still offer restart.
-  updateReady$: new ReplaySubject<UpdateMeta>(1),
+  updateReady$: new ReplaySubject<UpdateMeta | null>(1),
   downloadProgress$: new BehaviorSubject<number>(0),
 };
 
 export const updaterEvents = {
-  onUpdateAvailable: (fn: (versionMeta: UpdateMeta) => void) => {
+  onUpdateAvailable: (fn: (versionMeta: UpdateMeta | null) => void) => {
     const sub = updaterSubjects.updateAvailable$.subscribe(fn);
     return () => {
       sub.unsubscribe();
     };
   },
-  onUpdateReady: (fn: (versionMeta: UpdateMeta) => void) => {
+  onUpdateReady: (fn: (versionMeta: UpdateMeta | null) => void) => {
     const sub = updaterSubjects.updateReady$.subscribe(fn);
     return () => {
       sub.unsubscribe();

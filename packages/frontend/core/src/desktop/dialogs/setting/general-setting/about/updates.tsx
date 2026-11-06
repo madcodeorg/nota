@@ -1,12 +1,10 @@
-import { Button, Switch } from '@nota/component';
+import { Button } from '@nota/component';
 import { SettingRow, SettingWrapper } from '@nota/component/setting-components';
 import { useAppUpdater } from '@nota/core/components/hooks/use-app-updater';
 import { useState } from 'react';
 
 export const UpdateSettings = () => {
   const {
-    autoCheck,
-    toggleAutoCheck,
     checkForUpdates,
     checkingForUpdates,
     updateAvailable,
@@ -39,10 +37,8 @@ export const UpdateSettings = () => {
     <SettingWrapper title="Updates">
       <SettingRow
         name="Check for updates automatically"
-        desc="Nota looks for new versions when it starts. Nothing downloads until you choose."
-      >
-        <Switch checked={autoCheck} onChange={toggleAutoCheck} />
-      </SettingRow>
+        desc="Nota checks at startup and every 30 minutes. Downloads and installation remain your choice."
+      />
       <SettingRow
         name={
           updateReady
@@ -52,9 +48,11 @@ export const UpdateSettings = () => {
               : 'Check now'
         }
         desc={
-          downloading
-            ? `Downloading... ${Math.round(downloadProgress)}%`
-            : message
+          available && !available.allowAutoUpdate
+            ? 'Download the new package and install it using your package manager or replace the portable app. Store installations update through the Store.'
+            : downloading
+              ? `Downloading... ${Math.round(downloadProgress)}%`
+              : message
         }
       >
         {updateReady ? (
@@ -67,7 +65,7 @@ export const UpdateSettings = () => {
             onClick={downloadUpdate}
             disabled={downloading}
           >
-            Download
+            {available.allowAutoUpdate ? 'Download' : 'Open update downloads'}
           </Button>
         ) : (
           <Button onClick={onCheck} disabled={checkingForUpdates}>

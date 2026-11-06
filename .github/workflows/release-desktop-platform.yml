@@ -93,6 +93,10 @@ jobs:
           supported-architecture-os: ${{ inputs.platform }}
           supported-architecture-cpu: ${{ inputs.arch }}
 
+      - name: Setup Linux build tools
+        if: ${{ inputs.platform == 'linux' && inputs.install_linux_deps }}
+        uses: ./.github/actions/setup-linux-desktop
+
       - name: Build Nota native
         uses: ./.github/actions/build-rust
         with:
@@ -184,27 +188,9 @@ jobs:
             exit 1
           fi
 
-      - name: Install additional dependencies on Linux
-        if: ${{ inputs.platform == 'linux' && inputs.install_linux_deps }}
-        run: |
-          df -h
-          sudo add-apt-repository universe
-          sudo apt install -y libfuse2 elfutils flatpak flatpak-builder
-          flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
-          flatpak update
-          # some flatpak deps need git protocol.file.allow
-          git config --global protocol.file.allow always
-          # clean up apt cache to save disk space
-          sudo -E apt-get -y purge azure-cli* zulu* hhvm* llvm* firefox* google* dotnet* aspnetcore* powershell* adoptopenjdk* mysql* php* mongodb* moby* snap* || true
-          sudo -E apt-get -qq autoremove --purge
-          sudo rm -rf /usr/share/dotnet /opt/ghc /opt/hostedtoolcache/CodeQL /usr/local/lib/android
-          sudo apt-get clean
-          rm -rf ~/.cache/yarn ~/.npm
-          df -h
-
-      # Linux runners are disk constrained (flatpak), so free the Rust target dir
-      # there. macOS has plenty of space, and cleaning it would throw away what
-      # the rust-cache post step is about to save.
+      # The addon has already been copied into @nota/native. Free its compiler
+      # output before packaging on disk-constrained Linux runners. The warmer
+      # retains it; macOS/Windows release jobs retain it too.
       - name: Free Rust build output (linux)
         if: ${{ inputs.platform == 'linux' }}
         run: cargo clean
@@ -279,6 +265,11 @@ jobs:
         shell: bash
         run: |
           make_args=()
+          if [ "${{ inputs.platform }}" = "linux" ]; then
+            # Flatpak remains available for local builds, but is not part of
+            # the first CI release (large SDK downloads and separate sandbox QA).
+            make_args+=(--targets=@electron-forge/maker-zip,@reforged/maker-appimage,@electron-forge/maker-deb)
+          fi
           if [ "${{ inputs.platform }}" = "darwin" ] && [ "${{ inputs.apple_codesign }}" = "true" ]; then
             make_args+=(--skip-package)
           fi
@@ -338,7 +329,15 @@ jobs:
           mv packages/frontend/apps/electron/out/*/make/zip/linux/${{ inputs.arch }}/*.zip ./builds/nota-${{ env.RELEASE_VERSION }}-${{ env.BUILD_TYPE }}-linux-${{ inputs.arch }}.zip
           mv packages/frontend/apps/electron/out/*/make/AppImage/${{ inputs.arch }}/*.AppImage ./builds/nota-${{ env.RELEASE_VERSION }}-${{ env.BUILD_TYPE }}-linux-${{ inputs.arch }}.appimage
           mv packages/frontend/apps/electron/out/*/make/deb/${{ inputs.arch }}/*.deb ./builds/nota-${{ env.RELEASE_VERSION }}-${{ env.BUILD_TYPE }}-linux-${{ inputs.arch }}.deb
-          mv packages/frontend/apps/electron/out/*/make/flatpak/*/*.flatpak ./builds/nota-${{ env.RELEASE_VERSION }}-${{ env.BUILD_TYPE }}-linux-${{ inputs.arch }}.flatpak
+
+      - name: Validate and smoke-test Linux installers
+        if: ${{ inputs.platform == 'linux' }}
+        shell: bash
+        env:
+          RELEASE_VERSION: ${{ inputs.app_version }}
+          BUILD_TYPE: ${{ inputs.build_type }}
+          TARGET_ARCH: ${{ inputs.arch }}
+        run: bash scripts/validate-linux-release.sh
 
       - uses: actions/attest-build-provenance@v4
         if: ${{ inputs.platform == 'darwin' }}
@@ -354,7 +353,6 @@ jobs:
             ./builds/nota-${{ env.RELEASE_VERSION }}-${{ env.BUILD_TYPE }}-linux-${{ inputs.arch }}.zip
             ./builds/nota-${{ env.RELEASE_VERSION }}-${{ env.BUILD_TYPE }}-linux-${{ inputs.arch }}.appimage
             ./builds/nota-${{ env.RELEASE_VERSION }}-${{ env.BUILD_TYPE }}-linux-${{ inputs.arch }}.deb
-            ./builds/nota-${{ env.RELEASE_VERSION }}-${{ env.BUILD_TYPE }}-linux-${{ inputs.arch }}.flatpak
 
       - name: Upload Artifact
         if: ${{ inputs.platform == 'darwin' || inputs.platform == 'linux' }}

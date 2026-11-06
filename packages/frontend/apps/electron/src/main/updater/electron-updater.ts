@@ -1,17 +1,18 @@
-import { app } from 'electron';
-import { autoUpdater as defaultAutoUpdater } from 'electron-updater';
+import { app, shell } from 'electron';
+import {
+  autoUpdater as defaultAutoUpdater,
+  DebUpdater,
+} from 'electron-updater';
 
 import { buildType } from '../config';
 import { logger } from '../logger';
+import { canInstallUpdate } from './capabilities';
 import { updaterSubjects } from './event';
 import { WindowsUpdater } from './windows-updater';
 
-const mode = process.env.NODE_ENV;
-const isDev = mode === 'development';
+const isDev = process.env.NODE_ENV === 'development';
 export const UPDATE_FEED_BASE = 'https://thenota.app/updates';
-
-// Packaged builds check by default; set NOTA_DISABLE_AUTO_UPDATE=1 to opt out.
-// NOTA_ENABLE_AUTO_UPDATE=1 still forces it on (dev testing).
+export const UPDATE_CHECK_INTERVAL_MS = 30 * 60 * 1000;
 export const updateFeedEnabled =
   process.env.NOTA_ENABLE_AUTO_UPDATE === '1' ||
   (app.isPackaged && process.env.NOTA_DISABLE_AUTO_UPDATE !== '1');
@@ -23,147 +24,171 @@ export function getUpdateFeedUrl(
   return override || `${UPDATE_FEED_BASE}/${channel}`;
 }
 
-// Microsoft Store installs are updated by the Store, not by Nota.
-const disabled = isDev || !updateFeedEnabled || process.windowsStore;
-
+const disabled = isDev || !updateFeedEnabled;
+const allowAutoUpdate = canInstallUpdate();
+// DebUpdater inherits ordinary packaged-app checking, unlike AppImageUpdater
+// which refuses checks without APPIMAGE. Deliberately CHECK-ONLY for all other
+// Linux formats: its privileged install path must never be invoked here.
 export const autoUpdater =
-  process.platform === 'win32' ? new WindowsUpdater() : defaultAutoUpdater;
+  process.platform === 'win32'
+    ? new WindowsUpdater()
+    : process.platform === 'linux' && !allowAutoUpdate
+      ? new DebUpdater()
+      : defaultAutoUpdater;
 
-export const quitAndInstall = async () => {
-  autoUpdater.quitAndInstall();
-};
+// Safe defaults before the renderer can call any updater IPC.
+autoUpdater.autoDownload = false;
+autoUpdater.autoInstallOnAppQuit = false;
+autoUpdater.allowDowngrade = false;
 
 let downloading = false;
-let configured = false;
+let registered = false;
 let checkingUpdate = false;
+let lastCheckTime = 0;
+let availableVersion: string | undefined;
+let readyToInstall = false;
 
 export type UpdaterConfig = {
   autoCheckUpdate: boolean;
   autoDownloadUpdate: boolean;
 };
-
 const config: UpdaterConfig = {
   autoCheckUpdate: updateFeedEnabled,
-  // Downloads start only when the user asks, so updates stay skippable.
   autoDownloadUpdate: false,
 };
-
-export const getConfig = (): UpdaterConfig => {
-  return { ...config };
-};
-
+export const getConfig = (): UpdaterConfig => ({ ...config });
 export const setConfig = (newConfig: Partial<UpdaterConfig> = {}): void => {
-  configured = true;
-
-  Object.assign(config, newConfig);
-
-  logger.info('Updater configured!', config);
-
-  // if config.autoCheckUpdate is true, trigger a check
-  if (config.autoCheckUpdate) {
-    checkForUpdates().catch(err => {
-      logger.error('Error checking for updates', err);
-    });
-  }
+  // Old saved preferences cannot turn off normal packaged release checks.
+  Object.assign(config, newConfig, { autoCheckUpdate: updateFeedEnabled });
 };
 
 export const checkForUpdates = async () => {
-  if (disabled || checkingUpdate) {
-    return;
-  }
+  if (disabled || !registered || checkingUpdate) return null;
   checkingUpdate = true;
+  lastCheckTime = Date.now();
   try {
-    const info = await autoUpdater.checkForUpdates();
-    return info;
+    return await autoUpdater.checkForUpdates();
   } finally {
     checkingUpdate = false;
   }
 };
 
-export const downloadUpdate = async () => {
-  if (disabled || downloading) {
+export const downloadUpdate = async (userInitiated = true) => {
+  if (disabled || !registered || !availableVersion || downloading) return;
+  if (!allowAutoUpdate || !canInstallUpdate()) {
+    updaterSubjects.updateAvailable$.next({
+      version: availableVersion,
+      allowAutoUpdate: false,
+    });
+    if (!userInitiated) return;
+    // No elevation or installation-format migration behind a Download button.
+    await shell.openExternal(
+      process.windowsStore
+        ? 'ms-windows-store://downloadsandupdates'
+        : `https://github.com/madcodeorg/nota/releases/tag/v${availableVersion}`
+    );
     return;
   }
   downloading = true;
+  readyToInstall = false;
   updaterSubjects.downloadProgress$.next(0);
-  autoUpdater.downloadUpdate().catch(e => {
+  try {
+    await autoUpdater.downloadUpdate();
+  } catch (error) {
     downloading = false;
-    logger.error('Failed to download update', e);
-  });
-  logger.info('Update available, downloading...');
-  return;
+    updaterSubjects.downloadProgress$.next(0);
+    throw error;
+  }
 };
 
-export const registerUpdater = async () => {
-  if (disabled) {
+export const quitAndInstall = async () => {
+  if (disabled || !registered || !allowAutoUpdate || !readyToInstall) return;
+  if (!canInstallUpdate()) {
+    readyToInstall = false;
+    updaterSubjects.updateReady$.next(null);
+    if (availableVersion)
+      updaterSubjects.updateAvailable$.next({
+        version: availableVersion,
+        allowAutoUpdate: false,
+      });
     return;
   }
+  autoUpdater.quitAndInstall();
+};
 
-  const allowAutoUpdate = true;
+function automaticallyCheck() {
+  if (!config.autoCheckUpdate) return;
+  void checkForUpdates().catch(error =>
+    logger.error('Error checking for updates', error)
+  );
+}
 
+export const registerUpdater = async () => {
+  if (disabled || registered) return;
   autoUpdater.logger = logger;
   autoUpdater.autoDownload = false;
-  autoUpdater.allowPrerelease = buildType !== 'stable';
   autoUpdater.autoInstallOnAppQuit = false;
   autoUpdater.autoRunAppAfterInstall = true;
-
+  autoUpdater.allowPrerelease = buildType === 'beta';
+  autoUpdater.allowDowngrade = false;
+  // Keep the default "latest" filenames inside separate beta/stable folders.
+  // Setting updater.channel='beta' would request nonexistent beta-linux.yml.
   autoUpdater.setFeedURL({
     provider: 'generic',
     url: getUpdateFeedUrl(buildType),
   });
-
-  // register events for checkForUpdates
-  autoUpdater.on('checking-for-update', () => {
-    logger.info('Checking for update');
-  });
   autoUpdater.on('update-available', info => {
-    logger.info('Update available', info);
-    if (config.autoDownloadUpdate && allowAutoUpdate) {
-      downloadUpdate().catch(err => {
-        console.error(err);
-      });
-    }
+    availableVersion = info.version;
+    const canInstall = allowAutoUpdate && canInstallUpdate();
     updaterSubjects.updateAvailable$.next({
       version: info.version,
-      allowAutoUpdate,
+      allowAutoUpdate: canInstall,
     });
+    if (config.autoDownloadUpdate && canInstall) {
+      void downloadUpdate(false).catch(error =>
+        logger.error('Failed to download update', error)
+      );
+    }
   });
-  autoUpdater.on('update-not-available', info => {
-    logger.info('Update not available', info);
+  autoUpdater.on('update-not-available', () => {
+    availableVersion = undefined;
+    readyToInstall = false;
+    updaterSubjects.updateAvailable$.next(null);
+    updaterSubjects.updateReady$.next(null);
   });
-  autoUpdater.on('download-progress', e => {
-    logger.info(`Download progress: ${e.percent}`);
-    updaterSubjects.downloadProgress$.next(e.percent);
-  });
-  autoUpdater.on('update-downloaded', e => {
+  autoUpdater.on('download-progress', event =>
+    updaterSubjects.downloadProgress$.next(event.percent)
+  );
+  autoUpdater.on('update-downloaded', event => {
+    downloading = false;
+    if (!allowAutoUpdate || event.version !== availableVersion) return;
+    if (!canInstallUpdate()) {
+      updaterSubjects.updateAvailable$.next({
+        version: event.version,
+        allowAutoUpdate: false,
+      });
+      return;
+    }
+    readyToInstall = true;
     downloading = false;
     updaterSubjects.updateReady$.next({
-      version: e.version,
+      version: event.version,
       allowAutoUpdate,
     });
-    // I guess we can skip it?
-    // updaterSubjects.clientDownloadProgress.next(100);
-    logger.info('Update downloaded, ready to install');
   });
-  autoUpdater.on('error', e => {
-    logger.error('Error while updating client', e);
+  autoUpdater.on('error', error => {
+    downloading = false;
+    updaterSubjects.downloadProgress$.next(0);
+    logger.error('Error while updating client', error);
   });
-  autoUpdater.forceDevUpdateConfig = isDev;
-
-  // check update whenever the window is activated
-  let lastCheckTime = 0;
+  registered = true;
   app.on('browser-window-focus', () => {
-    (async () => {
-      if (
-        configured &&
-        config.autoCheckUpdate &&
-        lastCheckTime + 1000 * 1800 < Date.now()
-      ) {
-        lastCheckTime = Date.now();
-        await checkForUpdates();
-      }
-    })().catch(err => {
-      logger.error('Error checking for updates', err);
-    });
+    if (lastCheckTime + UPDATE_CHECK_INTERVAL_MS <= Date.now())
+      automaticallyCheck();
   });
+  const timer = setInterval(automaticallyCheck, UPDATE_CHECK_INTERVAL_MS);
+  timer.unref();
+  app.once('will-quit', () => clearInterval(timer));
+  // Network checks must not delay startup, recording setup or opening notes.
+  automaticallyCheck();
 };

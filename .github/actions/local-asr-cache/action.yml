@@ -18,10 +18,18 @@ runs:
     # stays valid until that script or the helper sources change; cmake then
     # only rebuilds what changed. On Windows the tree lives at C:\nvk
     # (NOTA_LOCAL_ASR_BUILD_ROOT) to stay under MAX_PATH.
+    - name: Identify Linux build baseline
+      if: ${{ inputs.platform == 'linux' }}
+      id: baseline
+      shell: bash
+      run: |
+        . /etc/os-release
+        echo "suffix=-${ID}-${VERSION_ID}-gcc11" >> "$GITHUB_OUTPUT"
+
     - name: Cache local ASR build tree
       uses: actions/cache@v5
       with:
         path: ${{ inputs.platform == 'win32' && 'C:\nvk' || 'packages/frontend/apps/electron/native/local-asr-helper/.build' }}
-        key: local-asr-${{ inputs.platform }}-${{ inputs.arch }}-${{ hashFiles('packages/frontend/apps/electron/scripts/build-local-asr.ts', 'packages/frontend/apps/electron/native/local-asr-helper/**') }}
+        key: local-asr-${{ inputs.platform }}-${{ inputs.arch }}${{ steps.baseline.outputs.suffix }}-${{ hashFiles('packages/frontend/apps/electron/scripts/build-local-asr.ts', 'packages/frontend/apps/electron/native/local-asr-helper/**') }}
         restore-keys: |
-          local-asr-${{ inputs.platform }}-${{ inputs.arch }}-
+          local-asr-${{ inputs.platform }}-${{ inputs.arch }}${{ steps.baseline.outputs.suffix }}-

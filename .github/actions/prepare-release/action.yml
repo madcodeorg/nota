@@ -1,41 +1,61 @@
 name: Prepare Release
-description: 'Prepare Release'
+description: Prepare a semantic beta or stable desktop release
+inputs:
+  version:
+    description: 'Explicit version for branch dispatch (for example 0.1.14-beta.1). Tags supply their own version.'
+    required: false
+    default: ''
 outputs:
   APP_VERSION:
-    description: 'App Version'
+    description: App Version
     value: ${{ steps.get-version.outputs.APP_VERSION }}
   GIT_SHORT_HASH:
-    description: 'Git Short Hash'
+    description: Git Short Hash
     value: ${{ steps.get-version.outputs.GIT_SHORT_HASH }}
   BUILD_TYPE:
-    description: 'Build Type'
+    description: Build Type
     value: ${{ steps.get-version.outputs.BUILD_TYPE }}
 runs:
-  using: 'composite'
+  using: composite
   steps:
     - name: Get Version
       id: get-version
       shell: bash
+      env:
+        REQUESTED_VERSION: ${{ inputs.version }}
       run: |
         GIT_SHORT_HASH=$(git rev-parse --short HEAD)
-        if [ "${{ github.ref_type }}" == "tag" ]; then
-          APP_VERSION=$(echo "${{ github.ref_name }}" | sed 's/^v//')
+        if [ "$GITHUB_REF_TYPE" = tag ]; then
+          APP_VERSION="${GITHUB_REF_NAME#v}"
+          if [ -n "$REQUESTED_VERSION" ] && [ "$REQUESTED_VERSION" != "$APP_VERSION" ]; then
+            echo 'Requested version must match the release tag.' >&2
+            exit 1
+          fi
         else
-          APP_VERSION=$(date '+%Y.%-m.%-d-canary.%-H%M')
+          APP_VERSION="$REQUESTED_VERSION"
         fi
-        if [[ "$APP_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        number='(0|[1-9][0-9]*)'
+        if [[ "$APP_VERSION" =~ ^$number\.$number\.$number$ ]]; then
           BUILD_TYPE=stable
-        elif [[ "$APP_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+-beta\.[0-9]+$ ]]; then
+          if [ "$GITHUB_REF_TYPE" != tag ] && [ "$GITHUB_REF_NAME" != main ]; then
+            echo 'Stable branch releases must be built from main.' >&2
+            exit 1
+          fi
+        elif [[ "$APP_VERSION" =~ ^$number\.$number\.$number-beta\.[1-9][0-9]*$ ]]; then
           BUILD_TYPE=beta
-        elif [[ "$APP_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+-canary\.[0-9a-f]+$ ]]; then
-          BUILD_TYPE=canary
+          if [ "$GITHUB_REF_TYPE" != tag ] && [ "$GITHUB_REF_NAME" != beta ]; then
+            echo 'Beta branch releases must be built from beta.' >&2
+            exit 1
+          fi
         else
-          echo "Error: unsupported version string: $APP_VERSION" >&2
+          echo 'Use an explicit semantic version: X.Y.Z-beta.N or X.Y.Z. Timestamp canaries are no longer published.' >&2
           exit 1
         fi
-        echo $APP_VERSION
-        echo $GIT_SHORT_HASH
-        echo $BUILD_TYPE
+        SOURCE_VERSION=$(node -p "require('./package.json').version")
+        if [ "${APP_VERSION%%-beta.*}" != "${SOURCE_VERSION%%-beta.*}" ]; then
+          echo 'Bump workspace versions before releasing this version.' >&2
+          exit 1
+        fi
         echo "APP_VERSION=$APP_VERSION" >> "$GITHUB_OUTPUT"
         echo "GIT_SHORT_HASH=$GIT_SHORT_HASH" >> "$GITHUB_OUTPUT"
         echo "BUILD_TYPE=$BUILD_TYPE" >> "$GITHUB_OUTPUT"

@@ -3,82 +3,69 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const releaseDir = path.join(process.cwd(), './release');
-
-// electron-updater reads latest.yml on Windows, latest-mac.yml on macOS and
-// latest-linux.yml on Linux.
-const filenamesMapping = {
-  windows: 'latest.yml',
-  macos: 'latest-mac.yml',
-  linux: 'latest-linux.yml',
+const version = process.env.RELEASE_VERSION ?? '0.0.0';
+const entries = fs.readdirSync(releaseDir);
+const platforms = {
+  macos: { feed: 'latest-mac.yml', extensions: ['dmg', 'zip'], arch: 'arm64' },
+  windows: { feed: 'latest.yml', extensions: ['nsis.exe'], arch: 'x64' },
+  linux: {
+    feed: 'latest-linux.yml',
+    extensions: ['appimage', 'deb', 'zip'],
+    arch: 'x64',
+  },
 };
 
-const releaseFiles = ['zip', 'exe', 'dmg', 'appimage', 'deb', 'flatpak'];
+if (process.argv?.includes('--require-all')) {
+  const type = version.includes('-beta.') ? 'beta' : 'stable';
+  for (const [platform, { arch, extensions }] of Object.entries(platforms)) {
+    const packages =
+      platform === 'windows' ? ['exe', 'nsis.exe', 'zip'] : extensions;
+    for (const extension of packages) {
+      const expected = `nota-${version}-${type}-${platform}-${arch}.${extension}`;
+      if (
+        !entries.includes(expected) ||
+        fs.statSync(path.join(releaseDir, expected)).size === 0
+      ) {
+        throw new Error(`Incomplete release: missing or empty ${expected}`);
+      }
+    }
+  }
+}
 
-const generateYml = platform => {
-  const yml = {
-    version: process.env.RELEASE_VERSION ?? '0.0.0',
-    files: [],
-  };
-
-  const regex =
-    // The Windows updater is NsisUpdater and takes the first .exe in the feed,
-    // so list only the NSIS installer, not the Squirrel one or the zip.
-    platform === 'windows'
-      ? /.+-windows-.+\.nsis\.exe$/
-      : new RegExp(`.+-${platform}-.+.(${releaseFiles.join('|')})$`);
-
-  const files = fs.readdirSync(releaseDir).filter(file => regex.test(file));
-  const outputFileName = filenamesMapping[platform];
-
-  console.info(`Release content for ${platform}:`);
-  console.info(JSON.stringify(files, null, 2), '\n');
-
-  // A feed with no files would make that platform's updater fail on a release
-  // that did not build it.
-  if (files.length === 0) return;
-
-  files.forEach(fileName => {
-    const filePath = path.join(releaseDir, fileName);
-    try {
-      const fileData = fs.readFileSync(filePath);
-      const hash = crypto
-        .createHash('sha512')
-        .update(fileData)
-        .digest('base64');
-      const size = fs.statSync(filePath).size;
-
-      yml.files.push({
-        url: fileName,
-        sha512: hash,
-        size: size,
-      });
-    } catch {}
-  });
-  yml.releaseDate = new Date().toISOString();
-
-  // NOTE(@forehalo): make sure old windows x64 won't fetch windows arm64 by default
-  // maybe we need to separate arm64 builds to separated yml file `latest-arm64.yml`, `latest-linux-arm64.yml`
-  // check https://github.com/electron-userland/electron-builder/blob/master/packages/electron-updater/src/providers/Provider.ts#L30
-  // and packages/frontend/apps/electron/src/main/updater/affine-update-provider.ts#L100
-  yml.files.sort(a => (a.url.includes('windows-arm64') ? 1 : -1));
-
-  const ymlStr =
-    `version: ${yml.version}\n` +
-    `files:\n` +
-    yml.files
-      .map(file => {
-        return (
-          `  - url: ${file.url}\n` +
-          `    sha512: ${file.sha512}\n` +
-          `    size: ${file.size}\n`
-        );
-      })
+// Build metadata in memory first; read/hash errors must never become a partial feed.
+const feeds = [];
+for (const [platform, { feed, extensions, arch }] of Object.entries(
+  platforms
+)) {
+  const files = entries
+    .filter(name =>
+      extensions.some(extension =>
+        name.toLowerCase().endsWith(`-${platform}-${arch}.${extension}`)
+      )
+    )
+    .sort()
+    .map(name => {
+      const file = path.join(releaseDir, name);
+      const data = fs.readFileSync(file);
+      const size = fs.statSync(file).size;
+      if (!size) throw new Error(`Empty update file: ${name}`);
+      return {
+        url: name,
+        sha512: crypto.createHash('sha512').update(data).digest('base64'),
+        size,
+      };
+    });
+  if (!files.length) continue;
+  const yaml =
+    `version: ${version}\nfiles:\n` +
+    files
+      .map(
+        file =>
+          `  - url: ${file.url}\n    sha512: ${file.sha512}\n    size: ${file.size}\n`
+      )
       .join('') +
-    `releaseDate: ${yml.releaseDate}\n`;
-
-  fs.writeFileSync(path.join(releaseDir, outputFileName), ymlStr);
-};
-
-generateYml('macos');
-generateYml('linux');
-generateYml('windows');
+    `releaseDate: ${new Date().toISOString()}\n`;
+  feeds.push([feed, yaml]);
+}
+for (const [feed, yaml] of feeds)
+  fs.writeFileSync(path.join(releaseDir, feed), yaml);

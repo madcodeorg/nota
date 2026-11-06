@@ -17,10 +17,10 @@ const yaml = updaterRequire('js-yaml') as { load: (source: string) => unknown };
 
 interface Job {
   if?: string;
-  needs?: string[];
+  needs?: string | string[];
   uses?: string;
   secrets?: string;
-  with?: Record<string, string>;
+  with?: Record<string, string | boolean>;
   steps?: { with?: { script?: string } }[];
 }
 
@@ -118,16 +118,10 @@ describe('local-first release workflow', () => {
   });
 
   it('keeps only desktop dispatch inputs and release jobs', () => {
-    expect(Object.keys(release.on.workflow_dispatch.inputs).sort()).toEqual([
-      'desktop_linux',
-      'desktop_macos',
-      'desktop_windows',
+    expect(Object.keys(release.on.workflow_dispatch.inputs)).toEqual([
+      'version',
     ]);
-    expect(Object.keys(release.jobs).sort()).toEqual([
-      'canary-gate',
-      'desktop',
-      'prepare',
-    ]);
+    expect(Object.keys(release.jobs).sort()).toEqual(['desktop', 'prepare']);
     expect(release.on.schedule).toBeUndefined();
   });
 
@@ -160,17 +154,13 @@ describe('local-first release workflow', () => {
 
   it('preserves desktop gating and platform selection', () => {
     expect(release.jobs.desktop).toMatchObject({
-      needs: ['prepare', 'canary-gate'],
+      needs: 'prepare',
       uses: './.github/workflows/release-desktop.yml',
       secrets: 'inherit',
     });
-    expect(release.jobs.desktop.if?.replace(/\s+/g, ' ').trim()).toBe(
-      "${{ (github.event_name != 'workflow_dispatch' && needs.canary-gate.outputs.SHOULD_RELEASE == 'true') || inputs.desktop_macos || inputs.desktop_windows || inputs.desktop_linux }}"
-    );
+    expect(release.jobs.desktop.if).toBeUndefined();
     for (const platform of ['macos', 'windows', 'linux']) {
-      expect(release.jobs.desktop.with?.[`desktop_${platform}`]).toBe(
-        `\${{ github.event_name != 'workflow_dispatch' || inputs.desktop_${platform} }}`
-      );
+      expect(release.jobs.desktop.with?.[`desktop_${platform}`]).toBe(true);
     }
     expect(release.jobs.desktop.with).toMatchObject({
       'build-type': '${{ needs.prepare.outputs.BUILD_TYPE }}',
@@ -179,48 +169,13 @@ describe('local-first release workflow', () => {
     });
   });
 
-  it.each([
-    { buildType: 'stable', lastSha: 'current', expected: 'true' },
-    { buildType: 'canary', lastSha: undefined, expected: 'true' },
-    { buildType: 'canary', lastSha: 'old', expected: 'true' },
-    { buildType: 'canary', lastSha: 'current', expected: 'false' },
-  ])(
-    'preserves canary decisions: $buildType / $lastSha',
-    async ({ buildType, lastSha, expected }) => {
-      expect(release.jobs['canary-gate'].needs).toEqual(['prepare']);
-      const script = release.jobs['canary-gate'].steps?.[0].with?.script;
-      expect(script).toBeDefined();
-      const outputs: Record<string, string> = {};
-      await runInNewContext(
-        `(async () => {${script!.replace('${{ needs.prepare.outputs.BUILD_TYPE }}', buildType)}})()`,
-        {
-          context: { repo: { owner: 'test', repo: 'nota' }, sha: 'current' },
-          core: {
-            setOutput: (key: string, value: string) => {
-              outputs[key] = value;
-            },
-            info: () => {},
-            warning: () => {},
-          },
-          github: {
-            rest: {
-              repos: {
-                listTags: async () => ({
-                  data: lastSha
-                    ? [
-                        {
-                          name: 'v0.26.4-canary.abcdef',
-                          commit: { sha: lastSha },
-                        },
-                      ]
-                    : [],
-                }),
-              },
-            },
-          },
-        }
-      );
-      expect(outputs.SHOULD_RELEASE).toBe(expected);
-    }
-  );
+  it('does not generate timestamp canaries or publish partial platform runs', () => {
+    expect(release.jobs['canary-gate']).toBeUndefined();
+    const prepare = readFileSync(
+      path.join(repoRoot, '.github/actions/prepare-release/action.yml'),
+      'utf8'
+    );
+    expect(prepare).not.toContain("date '+%Y");
+    expect(prepare).toContain('Timestamp canaries are no longer published');
+  });
 });
