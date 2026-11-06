@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#f8f6ef" />
     <meta
       name="description"
-      content="Download Nota for Mac and Windows. Every stable version, with release notes and checksums."
+      content="Nota downloads for macOS, Windows, and Linux. Find platform installers, release notes, and checksums."
     />
     <link rel="canonical" href="https://thenota.app/download/" />
     <title>Download Nota</title>
@@ -18,9 +18,9 @@
       type="font/woff2"
       crossorigin
     />
-    <link rel="stylesheet" href="/launch/site.css?rev=v010" />
-    <link rel="stylesheet" href="/launch/releases.css?rev=v2" />
-    <script src="/launch/releases.js?rev=v1" defer></script>
+    <link rel="stylesheet" href="/launch/site.css?rev=v011" />
+    <link rel="stylesheet" href="/launch/releases.css?rev=v3" />
+    <script src="/launch/releases.js?rev=v2" defer></script>
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
@@ -54,13 +54,27 @@
           >
         </div>
         <p class="rel-meta" data-hero-meta></p>
-        <div class="rel-others" data-hero-others></div>
         <p class="rel-notice">
-          Stable builds are for Apple-silicon Macs and Windows (x64). Windows
-          installers are unsigned for now, so Windows shows a SmartScreen
-          warning on first launch. Linux and Intel Mac installers are not
-          published.
+          macOS builds require Apple silicon. Windows builds are for x64 and are
+          unsigned for now, so Windows shows a SmartScreen warning on first
+          launch. See <a href="#linux">Linux download availability</a> below.
+          Intel Mac installers are not published.
         </p>
+      </section>
+      <section class="rel-list wrap" id="linux" aria-labelledby="linux-title">
+        <h2 id="linux-title">Linux downloads</h2>
+        <p class="rel-lead">
+          Linux x64 packages are listed below when attached to a published
+          release.
+        </p>
+        <div class="rel-more" data-linux-files>
+          <p>
+            Linux installers are not currently published. Check
+            <a href="https://github.com/madcodeorg/nota/releases"
+              >GitHub Releases</a
+            >.
+          </p>
+        </div>
       </section>
       <section class="rel-list wrap" aria-labelledby="versions-title">
         <h2 id="versions-title">All versions</h2>
@@ -108,9 +122,9 @@
           >.
         </p>
         <p>
-          Privacy: Nota does not send data to other networked systems unless
-          you turn on a feature that does, such as Google Drive sync or a cloud
-          AI provider. See the <a href="/privacy.html">privacy policy</a>.
+          Privacy: Nota does not send data to other networked systems unless you
+          turn on a feature that does, such as Google Drive sync or a cloud AI
+          provider. See the <a href="/privacy.html">privacy policy</a>.
         </p>
       </section>
     </main>
@@ -128,8 +142,8 @@
       </div>
       <nav aria-label="Footer navigation">
         <a href="https://github.com/madcodeorg/nota">GitHub</a
-        ><a href="/beta/">Beta builds</a
-        ><a href="/privacy.html">Privacy</a><a href="/terms.html">Terms</a
+        ><a href="/beta/">Beta builds</a><a href="/privacy.html">Privacy</a
+        ><a href="/terms.html">Terms</a
         ><a href="#code-signing">Code signing policy</a>
       </nav>
       <p class="copyright">

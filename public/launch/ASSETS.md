@@ -33,19 +33,27 @@ reference, but are no longer used as exterior page decoration.
 
 ## Real desktop screenshots
 
-These user-approved screenshots are resized and compressed for the launch page:
+The launch page now uses fresh captures of the existing packaged Linux app,
+with an isolated local demo profile. No private workspace or credentials were
+used. The captures show the real UI; they do not certify release/platform behavior.
 
-- `real-note.webp` and `real-note-small.webp`: hero note workspace, at 1600 ×
-  1040 and 800 × 520.
-- `real-canvas.webp`: canvas feature section.
-- `real-meeting.webp`: meeting transcript feature section.
-- `real-ai.webp`: AI feature section.
-- `real-calendar.webp`: calendar feature section.
+- `ui-note.webp` and `ui-note-small.webp`: the built-in Getting Started note,
+  including the artwork cover and workspace sidebar, at 1600 × 1004 and 800 × 502.
+- `ui-canvas.webp`: the same editable note on the canvas, with drawing tools.
+- `ui-meeting.webp`: the meeting recording screen with Start and settings.
+- `ui-ai.webp`: the new-chat composer and model selector.
+- `ui-calendar.webp`: the journal week view and daily-journal action.
 
-The feature screenshots are 1600 × 1040 WebP files encoded with cwebp `-q 86
--m 6`; metadata is stripped. The original screenshot PNGs remain on the owner's
-Desktop and are not copied into the repository. The launch page's interactive
-capture card remains a labeled demo, not a screenshot.
+Only the 36-pixel native window title bar was cropped; the app UI was not
+reconstructed or edited. WebP encoding uses Pillow/libwebp quality 86, method 6,
+with no metadata. The raw PNG captures and demo profile are not published. The
+older `real-*.webp` captures remain for reference. The interactive capture card
+remains a labeled demo, not a screenshot.
+
+The Apple, Windows, and Linux button icons (`icons/apple.svg`, `windows.svg`,
+`linux.svg`) are the fill variants from Phosphor Icons, copied as static SVGs.
+The MIT notice is included in `icons/PHOSPHOR-LICENSE`. Icons are decorative;
+visible platform names provide the accessible link labels.
 
 The page also uses local fonts, a transparent logo, and a smaller responsive
 hero image. `/download` and `/beta` populate their release lists from the
