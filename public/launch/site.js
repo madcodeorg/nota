@@ -105,6 +105,12 @@ fetch('/releases.json', { cache: 'no-cache' })
     const stable = releases
       .filter(release => !release.prerelease)
       .sort((a, b) => new Date(b.date) - new Date(a.date));
+    // The latest stable version need not be the release supplying macOS files.
+    if (stable[0]?.version) {
+      document.querySelectorAll('[data-nota-version]').forEach(node => {
+        node.textContent = stable[0].version;
+      });
+    }
     for (const link of document.querySelectorAll('[data-platform]')) {
       const os = link.dataset.platform;
       const kind = { macos: 'dmg', windows: 'nsis.exe', linux: 'appimage' }[os];
@@ -120,17 +126,5 @@ fetch('/releases.json', { cache: 'no-cache' })
         });
       if (asset) link.href = asset.url;
     }
-  })
-  .catch(() => {});
-
-// Show the current stable version from the update feed; the HTML holds a fallback.
-fetch('/updates/stable/latest-mac.yml', { cache: 'no-cache' })
-  .then(response => (response.ok ? response.text() : ''))
-  .then(text => {
-    const version = /^version:\s*([\w.+-]+)/m.exec(text)?.[1];
-    if (!version) return;
-    document.querySelectorAll('[data-nota-version]').forEach(node => {
-      node.textContent = version;
-    });
   })
   .catch(() => {});

@@ -166,6 +166,66 @@ void test('home page upgrades available platform links and retains the Linux ava
   }
 });
 
+void test('home page version follows the latest stable release, not only macOS', async () => {
+  const linuxStable = {
+    ...release('0.1.14', ['linux-x64.AppImage']),
+    date: '2026-11-07T00:00:00Z',
+  };
+  const window = await render('public/launch.html', 'public/launch/site.js', [
+    desktop,
+    linuxStable,
+  ]);
+  try {
+    assert.equal(
+      window.document.querySelector('[data-nota-version]').textContent,
+      '0.1.14'
+    );
+    assert.match(
+      window.document.querySelector('[data-platform="windows"]').href,
+      /0\.1\.13/
+    );
+    assert.match(
+      window.document.querySelector('[data-platform="linux"]').href,
+      /0\.1\.14/
+    );
+  } finally {
+    await window.happyDOM.abort();
+  }
+});
+
+void test('Linux-only canary does not replace the beta platform downloads', async () => {
+  const beta = release(
+    '0.1.13-beta.3',
+    ['macos-arm64.dmg', 'windows-x64.nsis.exe'],
+    true
+  );
+  const canary = release('2026.11.6-canary.1000', ['linux-x64.AppImage'], true);
+  const window = await render(
+    'public/beta/index.html',
+    'public/launch/releases.js',
+    [canary, beta, desktop]
+  );
+  try {
+    assert.match(
+      window.document.querySelector('[data-hero-meta]').textContent,
+      /Latest beta: v0\.1\.13-beta\.3/
+    );
+    const links = [
+      ...window.document.querySelectorAll('[data-hero-actions] a'),
+    ];
+    assert.equal(links[0].getAttribute('href'), '#linux');
+    assert.ok(
+      links.slice(1).every(link => link.href.includes('0.1.13-beta.3'))
+    );
+    assert.match(
+      window.document.querySelector('[data-linux-files]').textContent,
+      /2026\.11\.6-canary\.1000 \(pre-release\)/
+    );
+  } finally {
+    await window.happyDOM.abort();
+  }
+});
+
 void test('home page retains usable navigation when release metadata cannot load', async () => {
   const window = await render(
     'public/launch.html',

@@ -52,6 +52,8 @@ jobs:
           full-cache: true
       - run: yarn nota @nota/i18n build
       - run: yarn vitest --run packages/frontend/apps/electron/test/main packages/frontend/core/src/modules/google-auth
+      - name: Site and release workflow regression tests
+        run: node --test scripts/tests/*.test.mjs
 
   # Builds the desktop renderer the same way the release workflow does, so a
   # broken bundle fails the PR instead of the release. Runs on main too, which
