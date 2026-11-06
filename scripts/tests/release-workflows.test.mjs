@@ -63,6 +63,13 @@ void test('tag and branch beta/stable releases always build and require all plat
   );
   assert.equal(publish.with.target_commitish, '${{ github.sha }}');
   assert.equal(publish.with.draft, true);
+  assert.equal(publish.id, 'release_upload');
+  const verify = release.jobs.release.steps.find(
+    step => step.name === 'Verify uploaded packages and feeds'
+  );
+  assert.equal(verify.env.RELEASE_ID, '${{ steps.release_upload.outputs.id }}');
+  assert.ok(verify.run.includes('releases/$RELEASE_ID'));
+  assert.ok(!verify.run.includes('releases/tags/'));
   const verification = release.jobs.release.steps.findIndex(
     step => step.name === 'Verify uploaded packages and feeds'
   );

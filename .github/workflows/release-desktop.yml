@@ -470,6 +470,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: bash scripts/check-release-version.sh
       - name: Upload draft GitHub Release
+        id: release_upload
         uses: softprops/action-gh-release@v3
         with:
           name: ${{ env.RELEASE_VERSION }}
@@ -484,8 +485,10 @@ jobs:
       - name: Verify uploaded packages and feeds
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_ID: ${{ steps.release_upload.outputs.id }}
         run: |
-          gh api "repos/$GITHUB_REPOSITORY/releases/tags/v$RELEASE_VERSION" --jq .assets > "$RUNNER_TEMP/release-assets.json"
+          # Drafts do not have a published tag endpoint yet. Use the upload ID.
+          gh api "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" --jq .assets > "$RUNNER_TEMP/release-assets.json"
           node scripts/verify-release-assets.mjs "$RUNNER_TEMP/release-assets.json"
       - name: Publish complete beta
         if: ${{ inputs.build-type == 'beta' }}
