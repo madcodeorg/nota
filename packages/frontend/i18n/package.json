@@ -28,7 +28,7 @@
   "devDependencies": {
     "@nota-tools/cli": "workspace:*",
     "@nota-tools/utils": "workspace:*",
-    "glob": "^11.0.0",
+    "glob": "^14.0.2",
     "vitest": "^4.1.11"
   }
 }

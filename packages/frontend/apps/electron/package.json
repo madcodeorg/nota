@@ -68,7 +68,7 @@
     "electron-window-state": "^5.0.3",
     "esbuild": "^0.25.0",
     "fs-extra": "^11.2.0",
-    "glob": "^11.0.0",
+    "glob": "^14.0.2",
     "lodash-es": "^4.17.23",
     "msw": "^2.12.4",
     "nanoid": "^5.1.6",
