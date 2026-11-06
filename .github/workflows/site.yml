@@ -43,36 +43,18 @@ jobs:
           echo "thenota.app" > _site/CNAME
           touch _site/.nojekyll
 
-          # Latest published stable release (drafts and prereleases are skipped by gh).
-          TAG="$(gh release list --exclude-drafts --exclude-pre-releases --limit 1 --json tagName --jq '.[0].tagName' || true)"
-          if [ -n "${TAG}" ] && gh release view "${TAG}" --json assets --jq '.assets[].name' | grep -qx 'latest-mac.yml'; then
+          gh api "repos/${GITHUB_REPOSITORY}/releases" --paginate --jq '.[] | select(.draft | not)' |
+            jq -s '.' > "$RUNNER_TEMP/site-releases.json"
+          bash scripts/site-release-feeds.sh stable
+          TAG="$(jq -r 'map(select(.prerelease | not)) | sort_by(.published_at) | reverse | .[0].tag_name // empty' "$RUNNER_TEMP/site-releases.json")"
+          if [ -n "$TAG" ]; then
             VERSION="${TAG#v}"
-            BASE="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}"
-            mkdir -p _site/updates/stable
-            gh release download "${TAG}" --pattern latest-mac.yml --dir /tmp/feed
-            # Point every file at its GitHub release asset so clients download from GitHub.
-            sed -E "s#^([[:space:]]*(- )?(url|path): )(nota-[^ ]*)\$#\1$BASE/\4#" /tmp/feed/latest-mac.yml > _site/updates/stable/latest-mac.yml
             sed -i "s#\(data-nota-version[^>]*>\)[0-9][0-9.]*#\1${VERSION}#" _site/index.html
             echo "Site will ship ${TAG}"
-          else
-            echo "No published release with latest-mac.yml yet; deploying page only"
-          fi
-
-          # Windows installers are built for beta tags only so far. Releases made
-          # before that have a latest.yml with no .exe in it, which would break
-          # the Windows updater, so only publish a feed that lists an installer.
-          if [ -n "${TAG}" ] && gh release view "${TAG}" --json assets --jq '.assets[].name' | grep -qx 'latest.yml'; then
-            BASE="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}"
-            gh release download "${TAG}" --pattern latest.yml --dir /tmp/feed-win
-            if grep -q '\.exe' /tmp/feed-win/latest.yml; then
-              mkdir -p _site/updates/stable
-              sed -E "s#^([[:space:]]*(- )?(url|path): )(nota-[^ ]*)\$#\1$BASE/\4#" /tmp/feed-win/latest.yml > _site/updates/stable/latest.yml
-              echo "Windows stable feed ships ${TAG}"
-            fi
           fi
 
           # Every published release, for the download and beta pages.
-          gh api "repos/${GITHUB_REPOSITORY}/releases" --paginate --jq '.[] | select(.draft | not) | {
+          jq 'map({
               tag: .tag_name,
               version: (.tag_name | ltrimstr("v")),
               prerelease: .prerelease,
@@ -85,7 +67,7 @@ jobs:
                 sha256: ((.digest // "") | ltrimstr("sha256:")),
                 url: .browser_download_url
               }]
-            }' | jq -s '.' > _site/releases.json
+            })' "$RUNNER_TEMP/site-releases.json" > _site/releases.json
           echo "releases.json lists $(jq length _site/releases.json) releases"
 
       - name: Add beta update channel
@@ -93,27 +75,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          # Latest published pre-release (tags like v0.2.0-beta.1) feeds the beta channel.
-          TAG="$(gh release list --exclude-drafts --limit 30 --json tagName,isPrerelease --jq 'map(select(.isPrerelease))|.[0].tagName // empty')"
-          if [ -n "${TAG}" ] && gh release view "${TAG}" --json assets --jq '.assets[].name' | grep -qx 'latest-mac.yml'; then
-            BASE="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}"
-            mkdir -p _site/updates/beta
-            gh release download "${TAG}" --pattern latest-mac.yml --dir /tmp/feed-beta
-            sed -E "s#^([[:space:]]*(- )?(url|path): )(nota-[^ ]*)\$#\1$BASE/\4#" /tmp/feed-beta/latest-mac.yml > _site/updates/beta/latest-mac.yml
-            echo "Beta channel ships ${TAG}"
-          else
-            echo "No published beta release yet"
-          fi
-
-          if [ -n "${TAG}" ] && gh release view "${TAG}" --json assets --jq '.assets[].name' | grep -qx 'latest.yml'; then
-            BASE="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}"
-            gh release download "${TAG}" --pattern latest.yml --dir /tmp/feed-beta-win
-            if grep -q '\.exe' /tmp/feed-beta-win/latest.yml; then
-              mkdir -p _site/updates/beta
-              sed -E "s#^([[:space:]]*(- )?(url|path): )(nota-[^ ]*)\$#\1$BASE/\4#" /tmp/feed-beta-win/latest.yml > _site/updates/beta/latest.yml
-              echo "Windows beta feed ships ${TAG}"
-            fi
-          fi
+          bash scripts/site-release-feeds.sh beta
 
       - uses: actions/configure-pages@v6
       - uses: actions/upload-pages-artifact@v5

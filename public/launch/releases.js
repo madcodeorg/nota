@@ -296,7 +296,11 @@
       const byDate = (a, b) => new Date(b.date) - new Date(a.date);
       const stableReleases = all.filter(r => !r.prerelease).sort(byDate);
       const releases = all
-        .filter(r => r.prerelease === (channel === 'beta'))
+        .filter(r =>
+          channel === 'beta'
+            ? r.prerelease && /^\d+\.\d+\.\d+-beta\.\d+$/.test(r.version)
+            : !r.prerelease
+        )
         .sort(byDate);
 
       renderHero(releases[0], stableReleases[0], releases);
