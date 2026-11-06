@@ -6,8 +6,11 @@
 - Windows (x64): built for stable and beta, with Vulkan GPU support. Installers
   are unsigned and trigger SmartScreen warnings. Windows ARM64 is not supported
   because `sherpa-onnx-node` has no ARM64 binding.
-- Linux: not built or released yet. The workflow has a `desktop_linux` switch,
-  but it has not been run or tested for Nota.
+- Linux (x64): enabled in the shared release workflow alongside macOS and
+  Windows. Manual runs can select Linux alone. CI builds ZIP, AppImage and Debian
+  packages on Ubuntu 22.04 with GCC 11, checks their GLIBC/libstdc++ requirements,
+  and launches each format under Xvfb. A first build/real-desktop acceptance is
+  still required before claiming a verified Linux stable release.
 
 ## Before Windows ships
 
@@ -51,10 +54,28 @@ Public repo settings:
 
 ## Before Linux ships
 
-1. Pick formats (AppImage and .deb are the usual choices).
-2. Run Release by hand with only `desktop_linux` on, as a beta tag, and test on a real machine.
-3. Check auto-update (`latest-linux.yml`), and note that Linux has no signing step.
-4. Add the Linux downloads to the Site workflow.
+1. The CI targets are ZIP, AppImage and .deb. Flatpak remains available as a
+   separate local Forge maker; the CI release does not download Flatpak SDKs.
+2. Run Release by hand on `beta` with only `desktop_linux=true` (see RELEASING.md).
+   A branch run publishes a newly versioned canary. Install it on a real desktop,
+   then test a Linux beta before promoting app changes to stable.
+3. The CI compatibility gate is GLIBC <= 2.35 / GLIBCXX <= 3.4.30, matching
+   Ubuntu 22.04 with current `libstdc++6` security updates (GCC 12 runtime).
+   This checks native requirements, not every distro, display server or CPU. The
+   current helper builds enable AVX2/FMA/F16C; verify the actual target hardware.
+4. Check SQLite persistence, model setup/local AI, meeting capture/save,
+   deep links and AppImage updates separately. Public Linux capture support is
+   not established by a packaging/launch smoke; Linux capture needs separate
+   integration and device tests before promising meeting recording there.
+5. Linux has no package signing step. Only AppImage supports self-replacement;
+   Debian packages are installed/updated by the system package manager.
+6. The Site workflow publishes `latest-linux.yml` for stable/beta releases with
+   AppImage assets and keeps other platforms' feeds when Linux ships separately.
+   Canaries are available as downloads, not offered on stable/beta update feeds.
+
+Debian installation metadata is package-specific, so stable, beta and canary
+packages do not remove each other's metainfo. Installation tests and headless
+launches are CI evidence, not full desktop acceptance.
 
 ## Release limits
 

@@ -1,4 +1,5 @@
 #!/bin/sh
 set -e
 
-rm /usr/share/metainfo/nota.metainfo.xml
+: "${DPKG_MAINTSCRIPT_PACKAGE:?Missing Debian package name}"
+rm -f "/usr/share/metainfo/$DPKG_MAINTSCRIPT_PACKAGE.metainfo.xml"

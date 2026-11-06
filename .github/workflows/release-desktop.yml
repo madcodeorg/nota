@@ -115,7 +115,8 @@ jobs:
       fail-fast: false
       matrix:
         spec:
-          - runner: ubuntu-latest
+          # Build native binaries against the older supported GLIBC baseline.
+          - runner: ubuntu-22.04
             platform: linux
             arch: x64
             target: x86_64-unknown-linux-gnu
@@ -464,6 +465,9 @@ jobs:
           draft: ${{ inputs.build-type == 'stable' }}
           prerelease: ${{ inputs.build-type != 'stable' }}
           tag_name: v${{ env.RELEASE_VERSION}}
+          # A branch-dispatched canary must tag the commit that was built,
+          # not the repository's default branch at publication time.
+          target_commitish: ${{ github.sha }}
           files: ./release/*
       # Caches saved by a tag run can only be read by that same tag. Keep the
       # shared ones (saved on main by warm-caches.yml) and drop this tag's, so

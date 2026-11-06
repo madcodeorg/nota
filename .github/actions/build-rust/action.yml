@@ -59,6 +59,14 @@ runs:
           echo "TARGET_CC=clang -D_BSD_SOURCE" >> "$GITHUB_ENV"
         fi
 
+    - name: Identify Linux build baseline
+      if: ${{ runner.os == 'Linux' }}
+      id: baseline
+      shell: bash
+      run: |
+        . /etc/os-release
+        echo "suffix=-${ID}-${VERSION_ID}" >> "$GITHUB_OUTPUT"
+
     - name: Cache cargo
       uses: Swatinem/rust-cache@v2
       if: ${{ runner.os == 'Windows' }}
@@ -75,7 +83,7 @@ runs:
       if: ${{ runner.os != 'Windows' }}
       with:
         save-if: ${{ github.ref_name == github.event.repository.default_branch }}
-        shared-key: ${{ inputs.target }}-${{ inputs.package }}
+        shared-key: ${{ inputs.target }}-${{ inputs.package }}${{ steps.baseline.outputs.suffix }}
 
     - name: Build
       shell: bash
