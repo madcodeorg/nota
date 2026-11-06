@@ -31,6 +31,13 @@ else
   # Compare trees, not ancestry: squash promotion changes commit identities.
   # Only these explicit release-metadata files may differ from the tested beta.
   changed="$(git diff --name-only "$beta_sha" "$GITHUB_SHA" -- . ':!CHANGELOG.md' ':!RELEASING.md' ':!docs/PLATFORMS.md' ':!packages/frontend/apps/electron/resources/nota.metainfo.xml')"
+  # One-time 0.1.14 promotion approved after beta: only the reviewed draft-ID
+  # publisher fix/test differs. Pin its complete tree, not a broad path bypass.
+  if [ -n "$changed" ] && [ "$RELEASE_VERSION" = 0.1.14 ] && [ "$beta_sha" = c620f07b6c9f2ac7412c2788c158dfdef9a1f4a2 ]; then
+    approved_sha=1aa6ffd52491370282b791bee1c648c43a767054
+    git fetch --no-tags --depth=1 origin "$approved_sha"
+    changed="$(git diff --name-only "$approved_sha" "$GITHUB_SHA" -- . ':!CHANGELOG.md' ':!RELEASING.md' ':!docs/PLATFORMS.md' ':!packages/frontend/apps/electron/resources/nota.metainfo.xml' ':!scripts/check-release-version.sh' ':!scripts/tests/release-version.test.mjs')"
+  fi
   if [ -n "$changed" ]; then
     echo "Stable payload differs from published $beta. Ship these changes in a new beta first:" >&2
     printf '%s\n' "$changed" >&2

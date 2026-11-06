@@ -116,18 +116,36 @@ void test('stable payload compares beta trees, allowing only release metadata dr
   const dir = temporary(t);
   writeFileSync(
     path.join(dir, 'gh'),
-    '#!/usr/bin/env node\nconst a=process.argv; if(a.some(x=>x.includes("/compare/"))) console.log("identical"); else if(a.some(x=>x.includes("matching-refs"))) console.log("[]"); else if(a.some(x=>x.includes("git/ref/tags/"))) console.log(JSON.stringify({type:"commit",sha:"beta-source"})); else console.log(JSON.stringify({tag_name:"v0.1.14-beta.1",prerelease:true,draft:false,published_at:"2026-11-06"}));\n',
+    '#!/usr/bin/env node\nconst a=process.argv; if(a.some(x=>x.includes("/compare/"))) console.log("identical"); else if(a.some(x=>x.includes("matching-refs"))) console.log("[]"); else if(a.some(x=>x.includes("git/ref/tags/"))) console.log(JSON.stringify({type:"commit",sha:process.env.BETA_SHA||"beta-source"})); else console.log(JSON.stringify({tag_name:"v0.1.14-beta.1",prerelease:true,draft:false,published_at:"2026-11-06"}));\n',
     { mode: 0o755 }
   );
   writeFileSync(
     path.join(dir, 'git'),
-    '#!/usr/bin/env node\nif(process.argv[2]==="diff") console.log((process.env.DRIFT||"").split("\\n").filter(x=>x && !process.argv.includes(":!"+x)).join("\\n"));\n',
+    '#!/usr/bin/env node\nif(process.argv[2]==="diff") { const drift=process.argv[4]==="1aa6ffd52491370282b791bee1c648c43a767054" ? process.env.APPROVED_DRIFT : process.env.DRIFT; console.log((drift||"").split("\\n").filter(x=>x && !process.argv.includes(":!"+x)).join("\\n")); }\n',
     { mode: 0o755 }
   );
-  for (const [drift, expected] of [
+  for (const [
+    drift,
+    expected,
+    approvedDrift = drift,
+    betaSha = 'beta-source',
+  ] of [
     ['', 0],
     ['CHANGELOG.md', 0],
     ['packages/frontend/core/src/index.ts', 1],
+    [
+      '.github/workflows/release-desktop.yml',
+      0,
+      '',
+      'c620f07b6c9f2ac7412c2788c158dfdef9a1f4a2',
+    ],
+    [
+      '.github/workflows/release-desktop.yml',
+      1,
+      'packages/frontend/core/src/index.ts',
+      'c620f07b6c9f2ac7412c2788c158dfdef9a1f4a2',
+    ],
+    ['.github/workflows/release-desktop.yml', 1, '', 'unreviewed-beta'],
   ]) {
     const result = spawnSync(
       'bash',
@@ -141,6 +159,8 @@ void test('stable payload compares beta trees, allowing only release metadata dr
           GITHUB_SHA: 'main-source',
           RELEASE_VERSION: '0.1.14',
           DRIFT: drift,
+          APPROVED_DRIFT: approvedDrift,
+          BETA_SHA: betaSha,
         },
       }
     );
