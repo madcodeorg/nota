@@ -47,6 +47,18 @@ describe('HeaderUpdateButton', () => {
     expect(downloadUpdate).toHaveBeenCalledOnce();
   });
 
+  test('offers manual downloads for notification-only packages', () => {
+    mocks.updater.updateAvailable = {
+      version: '0.1.14-beta.2',
+      allowAutoUpdate: false,
+    };
+    render(<HeaderUpdateButton />);
+    expect(button()?.getAttribute('title')).toContain('install manually');
+    fireEvent.click(button()!);
+    expect(downloadUpdate).toHaveBeenCalledOnce();
+    expect(quitAndInstall).not.toHaveBeenCalled();
+  });
+
   test('shows download progress', () => {
     mocks.updater.updateAvailable = { version: '1.2.0', allowAutoUpdate: true };
     mocks.updater.downloadProgress = 41.6;

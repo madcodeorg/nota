@@ -135,7 +135,8 @@ export const useAppUpdater = () => {
     setCheckingForUpdates(true);
     try {
       const updateInfo = await apis?.updater.checkForUpdates();
-      return updateInfo?.version ?? false;
+      if (!updateInfo) return null;
+      return updateInfo.isUpdateAvailable ? updateInfo.version : false;
     } catch (err) {
       console.error('Error checking for updates:', err);
       return null;
@@ -164,19 +165,6 @@ export const useAppUpdater = () => {
     [setSetting]
   );
 
-  const toggleAutoCheck = useCallback(
-    (enable: boolean) => {
-      track.$.settingsPanel.about.changeAppSetting({
-        key: 'autoCheckUpdates',
-        value: enable,
-      });
-      setSetting({
-        autoCheckUpdate: enable,
-      });
-    },
-    [setSetting]
-  );
-
   const openChangelog = useAsyncCallback(async () => {
     track.$.navigationPanel.bottomButtons.openChangelog();
     urlService.openPopupWindow(BUILD_CONFIG.changelogUrl);
@@ -193,10 +181,9 @@ export const useAppUpdater = () => {
     checkForUpdates,
     downloadUpdate,
     toggleAutoDownload,
-    toggleAutoCheck,
     appQuitting,
     checkingForUpdates,
-    autoCheck: setting.autoCheckUpdate,
+    autoCheck: true,
     autoDownload: setting.autoDownloadUpdate,
     changelogUnread,
     openChangelog,

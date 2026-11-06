@@ -1,96 +1,111 @@
 # Releasing Nota
 
-## Flow: beta first, then main
+## Beta first, then stable
 
-Every change ships to the `beta` branch and a beta release first. `main` and
-stable releases only get what has already been proven in a beta.
+Develop in the private repo and export only reviewed source to public `beta`.
+Never move or delete an existing `v*` tag or replace published installers.
 
-1. Land changes on the public `beta` branch (sync from the private repo, then
-   open a PR into `beta`, or push to it). The `CI passed` check must be green.
-2. Tag the `beta` commit `v0.1.4-beta.1` and push the tag. `Release` builds
-   macOS, Windows and Linux and publishes a pre-release on the beta update channel.
-3. Install the beta and test it. Found a problem? Fix it on `beta` and tag
-   `v0.1.4-beta.2`. Never move a tag.
-4. Only when a beta works, open a PR `beta` -> `main` (squash merge). Then follow
-   **Stable** below to tag the same version from `main`.
+1. Bump workspace versions and add short user-facing notes to `CHANGELOG.md`.
+2. Land the reviewed changes on public `beta`; `CI passed` must be green.
+3. Build `v0.1.14-beta.1` from that commit. Every beta builds **all supported
+   desktop packages**, not just one platform. Fix problems in a new beta version.
+4. Install/test the beta, including an update to the next beta on real devices.
+5. Promote tested code through a `beta` -> `main` PR, then build `v0.1.14`.
+   All builds upload into a **draft** first. Beta is published only after all eight
+   packages and three feeds are verified against their uploaded sizes/digests;
+   stable remains a draft for installation acceptance.
+6. Install the draft and check its embedded version, local data and updater before
+   publishing with `gh release edit v0.1.14 -R madcodeorg/nota --draft=false --latest`.
 
-Do not push work-in-progress straight to `main`, and do not tag a stable
-release from a commit that has not shipped as a beta first.
+Examples are versions, not instructions to reuse an already published tag.
 
-## What a release run does
+## Start a release
 
-- **Checks** (typecheck and unit tests) run alongside the builds. The release is
-  only published if they pass; a commit that fails them is built but never
-  released.
-- **Smoke test**: the packaged macOS and Windows apps are launched and must
-  show the UI (`scripts/smoke-desktop-app.ts`). They remain non-blocking until
-  `SMOKE_TEST_BLOCKING=true`. Linux validates ZIP/AppImage/deb and launches all
-  three under Xvfb, including an installed Debian package. Linux smoke failures
-  block Linux publication from the first run; they do not certify meeting,
-  model, deep-link or update behavior on a real desktop.
-- **Caches**: GitHub only lets a run read caches saved by its own ref or by the
-  default branch (`main`). Releases run on tags, so the `Warm caches` workflow
-  (on `main`: pushes that touch native code or lockfiles, plus twice a week)
-  saves the Rust, speech-helper (whisper/llama) and install caches that releases
-  restore. Do not rename release jobs: cache keys include the job id. A release
-  deletes the caches its own tag saved, since nothing else can read them, to stay
-  under the repo's 10 GB cache limit.
+Push a semantic tag from the tested branch:
 
-## Test build without announcing a beta
+```sh
+git tag v0.1.14-beta.1
+git push origin v0.1.14-beta.1
+```
 
-Run `Release` from the Actions tab on any branch (no tag), choosing the
-platforms. It builds a `canary` pre-release (`vYYYY.M.D-canary.HHMM`). Only
-stable and beta update feeds are published on thenota.app, so installed apps are
-never offered a canary. Download it from the Releases page.
-
-To build just Linux using the shared workflow (no macOS/Windows rebuild):
+Alternatively, dispatch from `beta` with an **explicit** version:
 
 ```sh
 gh workflow run release.yml -R madcodeorg/nota --ref beta \
-  -f desktop_linux=true -f desktop_macos=false -f desktop_windows=false
+  -f version=0.1.14-beta.1
 ```
 
-This branch run gets a fresh canary version; it does not relabel local binaries
-or move a released tag. Future tag-triggered runs select all three platforms.
+The workflow creates the tag at the exact built commit. A tagged dispatch uses
+its tag version. Branch dispatch without a version fails rather than inventing a
+date-based canary. Stable branch dispatch is permitted only from `main`.
+Existing published versions or tags pointing at another commit fail preflight
+and are checked again immediately before release writing. Stable also requires
+a published beta of that version with an equivalent source tree, allowing only
+explicit release-metadata differences (including squash promotion).
+Release runs are serialized without cancelling an active publisher.
 
-## Stable
+## Required packages and checks
 
-1. The version must already have shipped as a beta (see above). Merge `beta`
-   into `main` by PR. The `CI passed` check must be green.
-   Rename `## Unreleased` in CHANGELOG.md to the version (`## 0.1.4`). Its
-   bullets become the GitHub release notes and the in-app "What's new" box
-   that people see once after updating. Keep them short and user-facing.
-2. Push a tag: `git tag v0.1.4 && git push origin v0.1.4`. The version comes from the tag.
-3. Wait for the selected builds and checks. `Release` builds, signs/notarizes
-   macOS, and creates a **draft** release. Linux ships ZIP, AppImage and Debian
-   packages; Flatpak remains a separate local target.
-4. Download the draft zip, install it, confirm it launches and the version is right.
-5. Publish: `gh release edit v0.1.4 --draft=false --latest`. The `Site` workflow then
-   updates thenota.app (download link, `updates/stable/latest-mac.yml`, and
-   `updates/stable/latest.yml` for Windows).
-6. Installed apps find the update on launch, download it, verify it and restart.
+Every beta and stable release requires:
 
-## Beta
+- macOS arm64: **DMG and ZIP** (the updater downloads the ZIP).
+- Windows x64: **NSIS EXE, Squirrel EXE and portable ZIP**.
+- Linux x64: **AppImage, Debian DEB and ZIP**.
 
-Push a tag like `v0.1.4-beta.1` on the `beta` branch. It is published as a pre-release and feeds
-`updates/beta/latest-mac.yml`. Every tag also builds Windows x64 (NSIS and
-Squirrel installers), which feeds `updates/<channel>/latest.yml` with the NSIS
-installer only.
+All three platform jobs and shared typecheck/unit tests must succeed before
+aggregation. The feed generator rejects missing/empty packages and hashing
+errors before publishing any manifests. A failed platform never advances a
+partial beta/stable release. Flatpak remains a separate local target; there are
+no RPM/Pacman or additional CPU-architecture release jobs.
 
-Windows builds are unsigned until a certificate is set up. Signing runs only
-when the `WINDOWS_SIGNING` repo variable is `true` and a `win-signer`
-self-hosted runner exists. Without it, installers trigger a SmartScreen
-warning. Before telling anyone Windows works, install the beta on a real PC and
-check the app launches, Google sign-in returns to the app, and an update from
-one beta to the next installs.
+Linux CI builds on Ubuntu 22.04/GCC11 and checks packaged ELF requirements
+(GLIBC <= 2.35 / GLIBCXX <= 3.4.30 with current libstdc++ security updates).
+It launches ZIP, extraction-mode AppImage and an installed Debian package under
+Xvfb; Debian installation/removal and metainfo cleanup are blocking checks.
+macOS/Windows packaged launch checks remain controlled by `SMOKE_TEST_BLOCKING`.
+Headless startup checks do not prove live recording, models, user-data recovery,
+permissions or real update installation. Those remain device acceptance tests.
 
-## Rules
+## Update behavior
 
-- Never publish a draft you have not installed.
-- Beta first: a stable tag needs a tested `vX.Y.Z-beta.N` of the same code.
-- `v*` tags are locked. Fix a bad release with a new version, never a moved tag.
-- Every new tag builds macOS arm64, Windows x64 and Linux x64. See
-  docs/PLATFORMS.md for platform status.
-- Update feeds select the latest published stable/beta release independently
-  per platform. A Linux-only release must not remove macOS/Windows feeds;
-  canaries are downloads, never stable or beta updates.
+All normal packaged builds check automatically at startup and every 30 minutes,
+with throttled checks on focus. An old saved auto-check preference cannot disable
+these checks. Development builds and explicit `NOTA_DISABLE_AUTO_UPDATE=1` test
+profiles can remain offline. Checks do not block opening notes.
+
+- **Stable** reads `/updates/stable/latest{,-mac,-linux}.yml`.
+- **Beta** reads `/updates/beta/latest{,-mac,-linux}.yml`.
+- The default `latest` filename stays inside the chosen channel directory;
+  setting the SDK's channel to `beta` would request different filenames.
+- Beta and stable remain separate products/profiles. No implicit cross-channel
+  migration or downgrade is enabled.
+- Downloads are opt-in by default; restart/install is explicit, never automatic
+  on app quit.
+- macOS installed apps, positively detected Windows NSIS installs and writable
+  Linux AppImages use their native update paths.
+- Debian, ZIP/portable, Squirrel and readonly/mounted app layouts still **check
+  and notify**, but offer the exact release downloads for user-managed installation.
+  They do not invoke privileged package commands or silently migrate to NSIS.
+- Microsoft Store installs check/notify but open the Store's update surface;
+  the app does not replace the Store installation.
+
+The Site workflow publishes independent per-platform feeds after publication,
+retaining usable older platform feeds for historical partial releases. It never
+puts a canary into beta/stable feeds. macOS feed eligibility requires a ZIP.
+
+Legacy `2026.*-canary.*` versions are not renamed or offered as stable/beta.
+Their version sorts above `0.x`; install the normal beta manually once to leave
+that legacy channel. Never globally enable downgrades to work around this.
+
+## Signing and caching
+
+macOS uses the existing signing/notarization path. Windows is unsigned unless
+`WINDOWS_SIGNING=true` and the signing runner/certificate are configured, so
+SmartScreen warnings remain. Linux packages are not package-signed; provenance
+and manifest hashes do not establish OS/package-manager signature trust.
+
+Use unpaid standard runners and the existing main-branch `Warm caches` workflow
+for Rust, speech helpers and installs. Tag runs can restore only their own or
+main caches. Do not rename release jobs: installation keys include job IDs.
+Linux native/helper keys isolate the Ubuntu/compiler baseline. Tag-scoped caches
+are removed after publishing so they do not crowd the shared 10 GB cache budget.

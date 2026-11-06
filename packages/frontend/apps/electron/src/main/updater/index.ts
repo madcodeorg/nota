@@ -33,9 +33,9 @@ export const updaterHandlers = {
   checkForUpdates: async () => {
     const res = await checkForUpdates();
     if (res) {
-      const { updateInfo } = res;
       return {
-        version: updateInfo.version,
+        version: res.updateInfo.version,
+        isUpdateAvailable: res.isUpdateAvailable,
       };
     }
     return null;

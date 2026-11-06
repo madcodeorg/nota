@@ -23,28 +23,37 @@ const temporary = t => {
   return dir;
 };
 
-void test('tag releases select all platforms; manual dispatch can select Linux alone', () => {
+void test('tag and branch beta/stable releases always build and require all platforms', () => {
   const tag = yaml('.github/workflows/release-on-tag.yml');
-  const dispatch = tag.jobs.dispatch.steps[0].run;
-  for (const platform of ['macos', 'windows', 'linux'])
-    assert.match(dispatch, new RegExp(`desktop_${platform}=true`));
+  assert.match(tag.jobs.dispatch.steps[0].run, /gh workflow run release.yml/);
   const manual = yaml('.github/workflows/release.yml');
+  assert.deepEqual(Object.keys(manual.on.workflow_dispatch.inputs), [
+    'version',
+  ]);
   for (const platform of ['macos', 'windows', 'linux']) {
-    assert.equal(
-      manual.on.workflow_dispatch.inputs[`desktop_${platform}`].default,
-      false
-    );
-    assert.match(
-      manual.jobs.desktop.with[`desktop_${platform}`],
-      new RegExp(`inputs.desktop_${platform}`)
-    );
+    assert.equal(manual.jobs.desktop.with[`desktop_${platform}`], true);
   }
+  assert.equal(manual.concurrency['cancel-in-progress'], false);
   const release = yaml('.github/workflows/release-desktop.yml');
   assert.equal(
     release.jobs['make-distribution-linux'].strategy.matrix.spec[0].runner,
     'ubuntu-22.04'
   );
   assert.match(release.jobs.release.if, /!cancelled\(\)/);
+  assert.doesNotMatch(release.jobs.release.if, /\|\|/);
+  assert.match(
+    release.jobs.release.if,
+    /needs\.make-distribution-macos\.result == 'success'/
+  );
+  assert.match(
+    release.jobs.release.if,
+    /needs\.finalize-installer-windows\.result == 'success'/
+  );
+  assert.ok(
+    release.jobs.release.steps.some(step =>
+      step.run?.includes('generate-release-yml.mjs --require-all')
+    )
+  );
   assert.match(
     release.jobs.release.if,
     /needs\.make-distribution-linux\.result == 'success'/
@@ -53,6 +62,18 @@ void test('tag releases select all platforms; manual dispatch can select Linux a
     step.uses?.startsWith('softprops/action-gh-release')
   );
   assert.equal(publish.with.target_commitish, '${{ github.sha }}');
+  assert.equal(publish.with.draft, true);
+  const verification = release.jobs.release.steps.findIndex(
+    step => step.name === 'Verify uploaded packages and feeds'
+  );
+  const publication = release.jobs.release.steps.findIndex(
+    step => step.name === 'Publish complete beta'
+  );
+  assert.ok(verification >= 0 && publication > verification);
+  assert.equal(
+    release.jobs.release.steps[publication].if,
+    "${{ inputs.build-type == 'beta' }}"
+  );
 });
 
 void test('Linux installs tools before compilation and builds, validates and attests three formats', () => {
@@ -210,7 +231,7 @@ const release = (version, prerelease, date, platforms) => ({
     },
   ]),
 });
-const mac = ['macos', 'dmg', 'latest-mac.yml'];
+const mac = ['macos', 'zip', 'latest-mac.yml'];
 const win = ['windows', 'nsis.exe', 'latest.yml'];
 const linux = ['linux', 'appimage', 'latest-linux.yml'];
 const older = release('0.1.13-beta.3', true, '2026-11-03', [mac, win]);
@@ -219,7 +240,7 @@ const canary = release('2026.11.6-canary.1000', true, '2026-11-06', [linux]);
 const stable = release('0.1.13', false, '2026-11-04', [mac, win]);
 const releases = [older, newer, canary, stable];
 
-function feedFixture(t, corrupt = false) {
+function feedFixture(t, corrupt = false, records = releases) {
   const dir = temporary(t);
   const bin = path.join(dir, 'bin');
   const runner = path.join(dir, 'runner');
@@ -227,10 +248,10 @@ function feedFixture(t, corrupt = false) {
   mkdirSync(runner);
   writeFileSync(
     path.join(runner, 'site-releases.json'),
-    JSON.stringify(releases)
+    JSON.stringify(records)
   );
   const feeds = {};
-  for (const item of releases) {
+  for (const item of records) {
     for (const asset of item.assets.filter(file =>
       file.name.startsWith('latest')
     )) {
@@ -318,4 +339,23 @@ void test('feed version mismatches fail deployment rather than advertising the w
   );
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /version mismatch/);
+});
+
+void test('a DMG-only macOS release cannot replace a usable ZIP update feed', t => {
+  const dmgOnly = release('0.1.14-beta.2', true, '2026-11-08', [
+    ['macos', 'dmg', 'latest-mac.yml'],
+  ]);
+  const fixture = feedFixture(t, false, [...releases, dmgOnly]);
+  const result = spawnSync(
+    'bash',
+    [path.join(root, 'scripts/site-release-feeds.sh'), 'beta'],
+    { cwd: fixture.dir, env: fixture.env, encoding: 'utf8' }
+  );
+  assert.equal(result.status, 0, result.stderr);
+  assert.ok(
+    readFileSync(
+      path.join(fixture.dir, '_site/updates/beta/latest-mac.yml'),
+      'utf8'
+    ).includes(older.tag_name)
+  );
 });
