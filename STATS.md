@@ -28,3 +28,4 @@ Cumulative GitHub release downloads. Installs are .dmg files; updates are .zip f
 | 2026-11-06 | 53 | 50 |
 | 2026-11-07 | 53 | 50 |
 | 2026-11-08 | 53 | 50 |
+| 2026-11-09 | 54 | 50 |
