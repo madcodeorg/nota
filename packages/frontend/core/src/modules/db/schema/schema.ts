@@ -83,15 +83,6 @@ export const AFFiNE_WORKSPACE_DB_SCHEMA = {
     createdAt: f.number(),
     updatedAt: f.number(),
   },
-  reminders: {
-    id: f.string().primaryKey().optional().default(nanoid),
-    docId: f.string(),
-    /** Unset for a page reminder. */
-    blockId: f.string().optional(),
-    /** ms timestamp */
-    remindAt: f.number(),
-    done: f.boolean().optional(),
-  },
 } as const satisfies DBSchemaBuilder;
 export type AFFiNEWorkspaceDbSchema = typeof AFFiNE_WORKSPACE_DB_SCHEMA;
 
@@ -122,6 +113,16 @@ export const AFFiNE_WORKSPACE_USERDATA_DB_SCHEMA = {
      */
     integrationId: f.string(),
     refMeta: f.json(),
+  },
+  /** Personal "Remind me" reminders for pages and blocks. */
+  reminders: {
+    id: f.string().primaryKey().optional().default(nanoid),
+    docId: f.string(),
+    /** Unset for a page reminder. */
+    blockId: f.string().optional(),
+    /** ms timestamp */
+    remindAt: f.number(),
+    done: f.boolean().optional(),
   },
 } as const satisfies DBSchemaBuilder;
 export type AFFiNEWorkspaceUserdataDbSchema =

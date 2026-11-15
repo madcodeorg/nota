@@ -31,7 +31,10 @@ const PROMPT_MIN_SAMPLES = 3 * 16000;
 const MAX_WORDS_PER_SECOND = 6.5;
 
 // Speech rarely exceeds ~4 words per second, and Whisper runaway loops repeat
-// one phrase many times; either is invented text.
+// one phrase back to back or until it fills the output; either is invented
+// text. A sentence opening repeated across a list ("we need to ...") is not.
+const LOOP_RUN = 3;
+const LOOP_SHARE = 0.8;
 function isRunawayText(text: string, samples: number) {
   const words = text.toLowerCase().match(/[\p{L}\p{N}']+/gu) ?? [];
   if (
@@ -43,9 +46,17 @@ function isRunawayText(text: string, samples: number) {
     const counts = new Map<string, number>();
     for (let i = 0; i + size <= words.length; i++) {
       const gram = words.slice(i, i + size).join(' ');
+      let run = 1;
+      while (
+        run < LOOP_RUN &&
+        words.slice(i + run * size, i + (run + 1) * size).join(' ') === gram
+      )
+        run++;
+      if (run >= LOOP_RUN) return true;
       const count = (counts.get(gram) ?? 0) + 1;
-      if (count >= (size === 2 ? 5 : 4)) return true;
       counts.set(gram, count);
+      if (count >= LOOP_RUN && (count * size) / words.length >= LOOP_SHARE)
+        return true;
     }
   }
   return false;

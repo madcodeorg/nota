@@ -1,5 +1,5 @@
 import dayjs from 'dayjs';
-import { map, type Observable } from 'rxjs';
+import { map, type Observable, switchMap } from 'rxjs';
 
 import { WorkspaceDBService } from '../db';
 import type { Workspace } from '../workspace';
@@ -119,8 +119,10 @@ export function reminderAlerts(
   return alerts;
 }
 
+// Reminders are personal, so they live in the signed-in user's data rather
+// than in the workspace data other members share.
 function remindersTable(workspace: Workspace) {
-  return workspace.scope.get(WorkspaceDBService).db.reminders;
+  return workspace.scope.get(WorkspaceDBService).userdataDB$.value.reminders;
 }
 
 function toReminder(row: {
@@ -140,9 +142,10 @@ function toReminder(row: {
 }
 
 export function watchReminders(workspace: Workspace): Observable<Reminder[]> {
-  return remindersTable(workspace)
-    .find$()
-    .pipe(map(rows => rows.map(toReminder)));
+  return workspace.scope.get(WorkspaceDBService).userdataDB$.pipe(
+    switchMap(db => db.reminders.find$()),
+    map(rows => rows.map(toReminder))
+  );
 }
 
 export function getReminders(workspace: Workspace): Reminder[] {
