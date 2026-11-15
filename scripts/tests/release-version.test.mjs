@@ -30,18 +30,22 @@ const temporary = t => {
 
 void test('branch releases require explicit semantic versions; tags preserve their versions', t => {
   const dir = temporary(t);
+  // The workflow requires releases to match the workspace version.
+  const v = JSON.parse(
+    readFileSync(path.join(root, 'package.json'), 'utf8')
+  ).version;
   for (const [version, refType, refName, expected] of [
-    ['0.1.14-beta.1', 'branch', 'beta', 'beta'],
-    ['0.1.14', 'branch', 'main', 'stable'],
-    ['', 'tag', 'v0.1.14-beta.2', 'beta'],
-    ['', 'tag', 'v0.1.14', 'stable'],
+    [`${v}-beta.1`, 'branch', 'beta', 'beta'],
+    [`${v}`, 'branch', 'main', 'stable'],
+    ['', 'tag', `v${v}-beta.2`, 'beta'],
+    ['', 'tag', `v${v}`, 'stable'],
     ['', 'branch', 'beta', null],
-    ['0.1.14', 'branch', 'beta', null],
-    ['0.1.14-beta.1', 'branch', 'feature', null],
-    ['0.1.14-beta.0', 'branch', 'beta', null],
+    [`${v}`, 'branch', 'beta', null],
+    [`${v}-beta.1`, 'branch', 'feature', null],
+    [`${v}-beta.0`, 'branch', 'beta', null],
     ['0.01.14-beta.1', 'branch', 'beta', null],
     ['2026.11.6-canary.201', 'branch', 'beta', null],
-    ['0.1.14-beta.1', 'tag', 'v0.1.14-beta.2', null],
+    [`${v}-beta.1`, 'tag', `v${v}-beta.2`, null],
   ]) {
     const output = path.join(dir, 'outputs');
     writeFileSync(output, '');

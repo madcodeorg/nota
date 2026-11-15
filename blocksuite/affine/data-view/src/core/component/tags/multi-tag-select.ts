@@ -42,6 +42,7 @@ import {
   selectedStyle,
   selectOptionContentStyle,
   selectOptionDragHandlerStyle,
+  selectOptionGroupTitleStyle,
   selectOptionIconStyle,
   selectOptionNewIconStyle,
   selectOptionsContainerStyle,
@@ -59,15 +60,20 @@ type RenderOption = {
   value: string;
   id: string;
   color: string;
+  group?: string;
   isCreate: boolean;
   select: () => void;
 };
+/** Fixed option groups, such as the To do / In progress / Complete groups of a status property. */
+export type TagGroup = { id: string; name: string };
+type GroupedTag = SelectTag & { group?: string };
 export type TagManagerOptions = {
   mode?: 'single' | 'multi';
   value: ReadonlySignal<string[]>;
   onChange: (value: string[]) => void;
-  options: ReadonlySignal<SelectTag[]>;
-  onOptionsChange: (options: SelectTag[]) => void;
+  options: ReadonlySignal<GroupedTag[]>;
+  onOptionsChange: (options: GroupedTag[]) => void;
+  groups?: readonly TagGroup[];
   onComplete?: () => void;
   initialDraftText?: string;
 };
@@ -83,8 +89,23 @@ export function consumeTagDraftFromTableCellHost(
   return host?.consumeTagDraft?.();
 }
 
+export const groupTagOptions = <T extends GroupedTag>(
+  options: T[],
+  groups?: readonly TagGroup[]
+): T[] => {
+  if (!groups?.length) return options;
+  return groups.flatMap(group =>
+    options.filter(option => tagGroupOf(option, groups) === group.id)
+  );
+};
+
+const tagGroupOf = (option: GroupedTag, groups: readonly TagGroup[]) =>
+  groups.some(group => group.id === option.group)
+    ? option.group
+    : groups[0]?.id;
+
 class TagManager {
-  changeTag = (option: Partial<SelectTag>) => {
+  changeTag = (option: Partial<GroupedTag>) => {
     this.ops.onOptionsChange(
       this.ops.options.value.map(item => {
         if (item.id === option.id) {
@@ -104,14 +125,16 @@ class TagManager {
     const value = this.text$.value.trim();
     if (value === '') return;
     const id = nanoid();
-    this.ops.onOptionsChange([
-      {
-        id: id,
-        value: value,
-        color: this.color$.value,
-      },
-      ...this.ops.options.value,
-    ]);
+    const option: GroupedTag = {
+      id: id,
+      value: value,
+      color: this.color$.value,
+    };
+    const group = this.ops.groups?.[0]?.id;
+    if (group) {
+      option.group = group;
+    }
+    this.ops.onOptionsChange([option, ...this.ops.options.value]);
     this.selectTag(id);
     this.text$.value = '';
     this.color$.value = getTagColor();
@@ -129,7 +152,7 @@ class TagManager {
   filteredOptions$ = computed(() => {
     let matched = false;
     const options: RenderOption[] = [];
-    for (const option of this.options$.value) {
+    for (const option of this.orderedOptions$.value) {
       if (
         !this.text$.value ||
         option.value
@@ -138,6 +161,7 @@ class TagManager {
       ) {
         options.push({
           ...option,
+          group: this.groups ? tagGroupOf(option, this.groups) : undefined,
           isCreate: false,
           select: () => this.selectTag(option.id),
         });
@@ -158,6 +182,10 @@ class TagManager {
     return options;
   });
 
+  orderedOptions$ = computed(() =>
+    groupTagOptions(this.ops.options.value, this.ops.groups)
+  );
+
   optionsMap$ = computed(() => {
     return new Map<string, SelectTag>(
       this.ops.options.value.map(v => [v.id, v])
@@ -165,6 +193,10 @@ class TagManager {
   });
 
   text$ = signal('');
+
+  get groups() {
+    return this.ops.groups;
+  }
 
   get isSingleMode() {
     return this.ops.mode === 'single';
@@ -234,6 +266,33 @@ export class MultiTagSelect extends SignalWatcher(
               this.tagManager.deleteOption(id);
             },
           }),
+          ...(this.groups
+            ? [
+                menu.group({
+                  name: 'group',
+                  items: [
+                    () =>
+                      html`<div class="${selectOptionGroupTitleStyle}">
+                        Group
+                      </div>`,
+                    ...this.groups.map(group =>
+                      menu.action({
+                        name: group.name,
+                        isSelected: this.groups
+                          ? tagGroupOf(option, this.groups) === group.id
+                          : false,
+                        select: () => {
+                          this.tagManager.changeTag({
+                            id: option.id,
+                            group: group.id,
+                          });
+                        },
+                      })
+                    ),
+                  ],
+                }),
+              ]
+            : []),
           menu.group({
             name: 'color',
             items: selectOptionColors.map(item => {
@@ -299,11 +358,19 @@ export class MultiTagSelect extends SignalWatcher(
       const over = evt.over;
       const activeId = evt.active.id;
       if (over && over.id !== activeId) {
+        const options = groupTagOptions(this.options.value, this.groups);
+        const overOption = options.find(v => v.id === over.id);
+        const overGroup =
+          this.groups && overOption
+            ? tagGroupOf(overOption, this.groups)
+            : undefined;
         this.onOptionsChange(
           arrayMove(
-            this.options.value,
-            this.options.value.findIndex(v => v.id === activeId),
-            this.options.value.findIndex(v => v.id === over.id)
+            options,
+            options.findIndex(v => v.id === activeId),
+            options.findIndex(v => v.id === over.id)
+          ).map(v =>
+            overGroup && v.id === activeId ? { ...v, group: overGroup } : v
           )
         );
         this.requestUpdate();
@@ -361,11 +428,13 @@ export class MultiTagSelect extends SignalWatcher(
     });
     return html` <div class="${tagContainerStyle}" style=${style}>
       <div data-testid="tag-name" class="${tagTextStyle}">${name}</div>
-      ${onDelete
-        ? html` <div class="${tagDeleteIconStyle}" @click="${onDelete}">
-            ${CloseIcon()}
-          </div>`
-        : nothing}
+      ${
+        onDelete
+          ? html` <div class="${tagDeleteIconStyle}" @click="${onDelete}">
+              ${CloseIcon()}
+            </div>`
+          : nothing
+      }
     </div>`;
   }
 
@@ -376,57 +445,110 @@ export class MultiTagSelect extends SignalWatcher(
           'layer/insideBorder/border'
         )};margin: 4px 0;"
       ></div>
-      <div class="${selectOptionsTipsStyle}">Select tag or create one</div>
+      <div class="${selectOptionsTipsStyle}">
+        ${
+          this.groups
+            ? 'Select an option or create one'
+            : 'Select tag or create one'
+        }
+      </div>
       <div data-testid="tag-option-list" class="${selectOptionsContainerStyle}">
-        ${repeat(
-          this.tagManager.filteredOptions$.value,
-          select => select.id,
-          (select, index) => {
-            const isSelected = index === this.selectedIndex$.value;
-            const mouseenter = () => {
-              this.setSelectedOption(index);
-            };
-            const classes = classMap({
-              [selectOptionStyle]: true,
-              [selectedStyle]: isSelected,
-            });
-            const clickOption = (e: MouseEvent) => {
-              e.stopPropagation();
-              this._clickItemOption(e, select.id);
-            };
-            return html`
-              <div
-                ${!select.isCreate ? sortable(select.id) : nothing}
-                class="${classes}"
-                @mouseenter="${mouseenter}"
-                @click="${select.select}"
-              >
-                <div class="${selectOptionContentStyle}">
-                  ${select.isCreate
-                    ? html` <div class="${selectOptionNewIconStyle}">
-                        Create
-                      </div>`
-                    : html`
-                        <div
-                          ${dragHandler(select.id)}
-                          class="${selectOptionDragHandlerStyle}"
-                        ></div>
-                      `}
-                  ${this.renderTag(select.value, select.color)}
-                </div>
-                ${!select.isCreate
-                  ? html` <div
-                      class="${selectOptionIconStyle}"
-                      @click="${clickOption}"
-                      data-testid="option-more"
-                    >
-                      ${MoreHorizontalIcon()}
-                    </div>`
-                  : null}
-              </div>
-            `;
+        ${
+          this.groups
+            ? this.renderGroupedOptions(this.groups)
+            : repeat(
+                this.tagManager.filteredOptions$.value,
+                select => select.id,
+                (select, index) => this.renderOption(select, index)
+              )
+        }
+      </div>
+    `;
+  }
+
+  private renderGroupedOptions(groups: readonly TagGroup[]) {
+    const options = this.tagManager.filteredOptions$.value;
+    const showEmptyGroups = !this.text.value;
+    const entries = groups.flatMap(group => {
+      const items = options.flatMap((option, index) =>
+        !option.isCreate && option.group === group.id
+          ? [{ key: option.id, render: () => this.renderOption(option, index) }]
+          : []
+      );
+      if (!items.length && !showEmptyGroups) return [];
+      return [
+        {
+          key: `group:${group.id}`,
+          render: () =>
+            html`<div
+              class="${selectOptionGroupTitleStyle}"
+              data-testid="tag-option-group"
+            >
+              ${group.name}
+            </div>`,
+        },
+        ...items,
+      ];
+    });
+    options.forEach((option, index) => {
+      if (option.isCreate) {
+        entries.push({
+          key: option.id,
+          render: () => this.renderOption(option, index),
+        });
+      }
+    });
+    return repeat(
+      entries,
+      entry => entry.key,
+      entry => entry.render()
+    );
+  }
+
+  private renderOption(select: RenderOption, index: number) {
+    const isSelected = index === this.selectedIndex$.value;
+    const mouseenter = () => {
+      this.setSelectedOption(index);
+    };
+    const classes = classMap({
+      [selectOptionStyle]: true,
+      [selectedStyle]: isSelected,
+    });
+    const clickOption = (e: MouseEvent) => {
+      e.stopPropagation();
+      this._clickItemOption(e, select.id);
+    };
+    return html`
+      <div
+        ${!select.isCreate ? sortable(select.id) : nothing}
+        class="${classes}"
+        @mouseenter="${mouseenter}"
+        @click="${select.select}"
+      >
+        <div class="${selectOptionContentStyle}">
+          ${
+            select.isCreate
+              ? html` <div class="${selectOptionNewIconStyle}">Create</div>`
+              : html`
+                  <div
+                    ${dragHandler(select.id)}
+                    class="${selectOptionDragHandlerStyle}"
+                  ></div>
+                `
           }
-        )}
+          ${this.renderTag(select.value, select.color)}
+        </div>
+        ${
+          !select.isCreate
+            ? html` <div
+                class="${selectOptionIconStyle}"
+                @click="${clickOption}"
+                data-testid="option-more"
+              >
+                ${MoreHorizontalIcon()}
+              </div>`
+            : null
+        }
       </div>
     `;
   }
@@ -483,10 +605,13 @@ export class MultiTagSelect extends SignalWatcher(
   accessor onComplete!: () => void;
 
   @property({ attribute: false })
-  accessor onOptionsChange!: (options: SelectTag[]) => void;
+  accessor onOptionsChange!: (options: GroupedTag[]) => void;
 
   @property({ attribute: false })
-  accessor options!: ReadonlySignal<SelectTag[]>;
+  accessor options!: ReadonlySignal<GroupedTag[]>;
+
+  @property({ attribute: false })
+  accessor groups: readonly TagGroup[] | undefined;
 
   private readonly selectedIndex$ = signal(0);
 
@@ -586,9 +711,13 @@ const popMobileTagSelect = (target: PopupTarget, ops: TagSelectOptions) => {
                     });
                     return html`
                       <div style="display: flex; align-items:center;">
-                        ${option.isCreate
-                          ? html` <div style="margin-right: 8px;">Create</div>`
-                          : ''}
+                        ${
+                          option.isCreate
+                            ? html` <div style="margin-right: 8px;">
+                                Create
+                              </div>`
+                            : ''
+                        }
                         <div class="${tagContainerStyle}" style=${style}>
                           <div class="${tagTextStyle}">${option.value}</div>
                         </div>
@@ -630,6 +759,7 @@ export const popTagSelect = (target: PopupTarget, ops: TagSelectOptions) => {
   component.value = ops.value;
   component.onChange = ops.onChange;
   component.options = ops.options;
+  component.groups = ops.groups;
   component.onOptionsChange = ops.onOptionsChange;
   component.initialDraftText = ops.initialDraftText;
   component.onComplete = () => {

@@ -337,7 +337,6 @@
   "com.affine.auth.verify.email.message": "您的當前郵箱是 {{email}}。 我們將向此郵箱發送一個臨時的驗證鏈接。",
   "com.affine.backButton": "返回首頁",
   "com.affine.banner.content": "此演示有限。<1>下載 Nota 客戶端</1>以獲取最新功能和表現。",
-  "com.affine.banner.local-warning": "您的本地數據存儲在瀏覽器中，可能會丟失。 不要冒險 - 立即啟用雲同步！",
   "com.affine.brand.affineCloud": "Nota Cloud",
   "com.affine.calendar-date-picker.month-names": "一月,二月,三月,四月,五月,六月,七月,八月,九月,十月,十一月,十二月",
   "com.affine.calendar-date-picker.today": "今天",

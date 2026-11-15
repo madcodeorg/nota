@@ -1,3 +1,4 @@
+import { railColumnStyle } from '@nota/core/modules/app-sidebar/views/index.css';
 import { cssVar } from '@toeverything/theme';
 import { cssVarV2 } from '@toeverything/theme/v2';
 import { globalStyle, style } from '@vanilla-extract/css';
@@ -18,9 +19,14 @@ export const rail = style({
   alignItems: 'center',
   padding: '56px 0 10px',
   borderRight: `0.5px solid ${cssVarV2('layer/insideBorder/border')}`,
+  transition: 'border-right-color .15s',
   selectors: {
     '&[data-electron="true"]': {
       padding: '6px 0 10px',
+    },
+    // the hover panel floats beside the rail, so the edge line would sit in the gap
+    [`${railColumnStyle}[data-floating="true"] &`]: {
+      borderRightColor: 'transparent',
     },
   },
 });

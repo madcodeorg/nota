@@ -98,19 +98,11 @@ type SttProviderId =
   | 'parakeet-sherpa'
   | 'whisper-tiny-en-onnx';
 type SttTranscriptMode =
-  | 'native-streaming'
-  | 'planned-streaming'
-  | 'unavailable'
-  | 'vad-chunk';
+  'native-streaming' | 'planned-streaming' | 'unavailable' | 'vad-chunk';
 type TranscriptSource = 'mic' | 'system';
 type TranscriptSegmentType = 'final' | 'partial';
 type SttRuntimeStatus =
-  | 'starting'
-  | 'running'
-  | 'finalizing'
-  | 'unavailable'
-  | 'stopped'
-  | 'error';
+  'starting' | 'running' | 'finalizing' | 'unavailable' | 'stopped' | 'error';
 
 const CHUNKED_ONNX_STT_PROVIDER_IDS = new Set<SttProviderId>([
   'cohere-onnx',
@@ -243,10 +235,7 @@ type LocalModelDownloadStatus =
   | 'queued';
 
 type LocalModelChecksumStatus =
-  | 'missing'
-  | 'mismatch'
-  | 'not_configured'
-  | 'verified';
+  'missing' | 'mismatch' | 'not_configured' | 'verified';
 
 type LocalModelRuntimeProbeStatus =
   | 'available'
@@ -533,8 +522,8 @@ function executionProvidersForPlatform(platform: NodeJS.Platform) {
       return ['coreml', 'cpu'];
     case 'win32':
       return ['directml', 'cpu'];
-    case 'linux':
-      return ['cuda', 'cpu'];
+    // Linux packages do not ship the CUDA provider (300 MB, and it needs a
+    // separate CUDA and cuDNN install); these small models run fine on CPU.
     default:
       return ['cpu'];
   }
@@ -1806,14 +1795,12 @@ function scheduleMeetingSttRuntimeUnload(
 }
 
 function modelDownloadGuidance(
-  config: AiBackendConfig,
-  model: LocalModelManifest
+  _config: AiBackendConfig,
+  _model: LocalModelManifest
 ) {
-  return `Download ${model.id} from Settings or POST /v1/local/models/${encodeURIComponent(
-    model.id
-  )}/download, then check GET /v1/local/models/${encodeURIComponent(
-    model.id
-  )}. Local path: ${safeModelPath(config, model)}`;
+  // Shown to people on the Meetings page and in Settings; the download API is
+  // documented on its route, not in this sentence.
+  return 'Download it in Settings > Meetings & transcription.';
 }
 
 function publicAppleSpeechBridge() {
@@ -2159,8 +2146,8 @@ function onnxExecutionProvidersForPlatform(platform: NodeJS.Platform) {
       return ['coreml', 'cpu'];
     case 'win32':
       return ['dml', 'cpu'];
-    case 'linux':
-      return ['cuda', 'cpu'];
+    // Linux packages do not ship the CUDA provider (300 MB, and it needs a
+    // separate CUDA and cuDNN install); these small models run fine on CPU.
     default:
       return ['cpu'];
   }
@@ -2801,22 +2788,143 @@ export async function discardMeetingFallbackAudioAfterRecovery(input: {
 function recoveryLanguage(runtime: MeetingRuntime) {
   const configured = runtime.meeting.sttLanguage;
   if (configured && configured !== 'auto') return configured;
-  return runtime.stt.detectedLanguage ?? 'auto';
+  // The last detection can be a one-off flip; use the language most phrases agree on.
+  const counts = new Map<string, number>();
+  for (const segment of runtime.transcriptSegments) {
+    if (segment.type === 'final' && segment.language)
+      counts.set(segment.language, (counts.get(segment.language) ?? 0) + 1);
+  }
+  const [common] = [...counts].sort((a, b) => b[1] - a[1])[0] ?? [];
+  return common ?? runtime.stt.detectedLanguage ?? 'auto';
 }
 
 // The recovered text is the better copy of the same speech, so it replaces the
-// live final segments it covers instead of sitting beside them.
+// live final segments it covers instead of sitting beside them. A full pass
+// also ignores the source label: live phrases are labeled from a mixed stream.
+export function sortTranscriptSegments(
+  runtime: Pick<MeetingRuntime, 'transcriptSegments'>
+) {
+  runtime.transcriptSegments.sort(
+    (first, second) =>
+      first.startMs - second.startMs || first.endMs - second.endMs
+  );
+}
+
 export function replaceLiveSegmentsWithRecovery(
   runtime: Pick<MeetingRuntime, 'transcriptSegments'>,
-  recovered: Pick<TranscriptSegment, 'endMs' | 'source' | 'startMs'>
+  recovered: Pick<TranscriptSegment, 'endMs' | 'source' | 'startMs'>,
+  options: { anySource?: boolean } = {}
 ) {
   runtime.transcriptSegments = runtime.transcriptSegments.filter(existing => {
-    if (existing.type !== 'final' || existing.source !== recovered.source) {
+    if (
+      existing.type !== 'final' ||
+      (!options.anySource && existing.source !== recovered.source)
+    ) {
       return true;
     }
     const duration = Math.max(1, existing.endMs - existing.startMs);
     return transcriptSegmentOverlap(existing, recovered) / duration < 0.5;
   });
+}
+
+// Drop every live final the full pass covers before adding the improved
+// segments, so overlapping improved phrases from mic and system both stay.
+export function replaceLiveTranscriptWithFullPass<
+  Segment extends Pick<TranscriptSegment, 'endMs' | 'source' | 'startMs'>,
+>(
+  runtime: Pick<MeetingRuntime, 'transcriptSegments'>,
+  improved: Segment[],
+  apply: (segment: Segment) => void
+) {
+  improved.forEach(segment =>
+    replaceLiveSegmentsWithRecovery(runtime, segment, { anySource: true })
+  );
+  improved.forEach(apply);
+  sortTranscriptSegments(runtime);
+}
+
+const FULL_PASS_MAX_GAP_MS = 800;
+const FULL_PASS_MAX_PHRASE_MS = 25_000;
+
+// Re-decodes every retained speech chunk with the high-accuracy model, one
+// source at a time. Neighbouring chunks are joined into phrases so the model
+// sees whole sentences, and each source keeps its own previous-phrase prompt.
+async function fullPassTranscriptSegments(
+  config: AiBackendConfig,
+  runtime: MeetingRuntime,
+  modelId: string
+) {
+  const model = modelById(modelId);
+  const nativeRuntime = model ? nativeAsrRuntime(model) : null;
+  if (!model || !nativeRuntime) {
+    throw new Error(`${modelId} cannot run the after-meeting pass.`);
+  }
+  const requested = recoveryLanguage(runtime);
+  const language =
+    requested === 'auto' || model.languages.includes(requested)
+      ? requested
+      : new Intl.Locale(requested).language;
+  const modelPath = nativeAsrModelPath(config, model);
+  const decoders = new Map<
+    MeetingFallbackAudioChunk['source'],
+    MeetingUtteranceDecoder
+  >();
+  const segments: TranscriptSegment[] = [];
+  let phrase: MeetingFallbackAudioChunk[] = [];
+  let processedMs = 0;
+
+  const decodePhrase = async (chunks: MeetingFallbackAudioChunk[]) => {
+    const first = chunks[0];
+    const last = chunks.at(-1);
+    if (!first || !last) return;
+    let decoder = decoders.get(first.source);
+    if (!decoder) {
+      decoder = await createNativeAsrDecoder(
+        nativeRuntime,
+        modelPath,
+        language
+      );
+      decoders.set(first.source, decoder);
+    }
+    for (const chunk of chunks) decoder.pushPcm16(chunk.pcm16);
+    const text = cleanTranscriptText((await decoder.finish()).text);
+    processedMs += last.endMs - first.startMs;
+    if (!text || isIsolatedFillerLine(text, last.endMs - first.startMs)) return;
+    segments.push({
+      createdAt: now(),
+      endMs: last.endMs,
+      id: randomUUID(),
+      meetingId: runtime.meeting.id,
+      source: first.source,
+      startMs: first.startMs,
+      text,
+      type: 'final',
+    });
+  };
+
+  for await (const chunks of runtime.fallbackAudioSpool.windows()) {
+    for (const chunk of chunks) {
+      const last = phrase.at(-1);
+      if (
+        last &&
+        (last.source !== chunk.source ||
+          chunk.startMs - last.endMs > FULL_PASS_MAX_GAP_MS ||
+          chunk.endMs - (phrase[0]?.startMs ?? chunk.startMs) >
+            FULL_PASS_MAX_PHRASE_MS)
+      ) {
+        await decodePhrase(phrase);
+        phrase = [];
+        runtime.stt.message = `Improving transcript with ${modelId} (${Math.round(
+          processedMs / 1000
+        )} s of speech done).`;
+      }
+      phrase.push(chunk);
+    }
+    // Windows are per source; never join a phrase across them.
+    await decodePhrase(phrase);
+    phrase = [];
+  }
+  return segments;
 }
 
 async function transcribeStoppedMeetingFallback(
@@ -2835,6 +2943,42 @@ async function transcribeStoppedMeetingFallback(
   });
 
   try {
+    // Opt-in: when the user enabled it and the accurate model is installed,
+    // re-decode the whole meeting. A failure keeps the live transcript and
+    // falls through to the ordinary gap recovery below.
+    const [fullPassModelId] = config.meetingPostPassEnabled
+      ? await installedPostMeetingTurboModelIds(
+          config,
+          runtime.meeting.sttLanguage
+        )
+      : [];
+    let improvedWith: string | null = null;
+    let improvedSegments: TranscriptSegment[] = [];
+    if (fullPassModelId) {
+      try {
+        const improved = dedupeRecoveredTranscriptSegments(
+          await fullPassTranscriptSegments(config, runtime, fullPassModelId)
+        ).sort(
+          (first, second) =>
+            first.startMs - second.startMs || first.endMs - second.endMs
+        );
+        if (improved.length) {
+          replaceLiveTranscriptWithFullPass(runtime, improved, segment =>
+            applyTranscriptSegment(runtime, segment)
+          );
+          await persistMeetings(config);
+          // Phrases the pass left empty still go through gap recovery below,
+          // which keeps the audio until every uncovered gap is resolved.
+          improvedWith = fullPassModelId;
+          improvedSegments = improved;
+        }
+      } catch (fullPassError) {
+        console.warn(
+          'After-meeting transcript pass failed; keeping the live transcript',
+          errorMessage(fullPassError)
+        );
+      }
+    }
     const fallbackSegments: TranscriptSegment[] = [];
     let capturedChunks = 0;
     let completedWindows = 0;
@@ -2893,15 +3037,21 @@ async function transcribeStoppedMeetingFallback(
       }
     }
 
-    dedupeRecoveredTranscriptSegments(fallbackSegments)
-      .sort(
-        (first, second) =>
-          first.startMs - second.startMs || first.endMs - second.endMs
-      )
-      .forEach(segment => {
-        replaceLiveSegmentsWithRecovery(runtime, segment);
-        applyTranscriptSegment(runtime, segment);
-      });
+    // The full pass already kept one copy of speech both sources heard; gap
+    // recovery of the other source must not add it back.
+    const recoveredSegments = withoutTranscriptDuplicates(
+      dedupeRecoveredTranscriptSegments(fallbackSegments),
+      improvedSegments
+    ).sort(
+      (first, second) =>
+        first.startMs - second.startMs || first.endMs - second.endMs
+    );
+    recoveredSegments.forEach(segment => {
+      replaceLiveSegmentsWithRecovery(runtime, segment);
+      applyTranscriptSegment(runtime, segment);
+    });
+    // Recovered phrases are appended; keep the transcript in spoken order.
+    sortTranscriptSegments(runtime);
     await persistMeetings(config);
     // Every uncovered speech window produced a non-empty transcript, or was
     // already covered by a final segment. Only then is it safe to drop the
@@ -2910,19 +3060,22 @@ async function transcribeStoppedMeetingFallback(
       fallbackAudioSpool: runtime.fallbackAudioSpool,
       unresolvedGroups,
     });
-    runtime.stt.message = fallbackSegments.length
-      ? `Recovered ${fallbackSegments.length} missing transcript segment${
-          fallbackSegments.length === 1 ? '' : 's'
-        } from ${recoveredChunks} captured speech chunk${
-          recoveredChunks === 1 ? '' : 's'
-        }.`
-      : recoveredChunks
-        ? `Checked ${recoveredChunks} transcript gap chunk${
-            recoveredChunks === 1 ? '' : 's'
-          }; the local model produced no additional text.`
-        : `Verified all ${verifiedChunks || capturedChunks} captured speech chunk${
-            (verifiedChunks || capturedChunks) === 1 ? '' : 's'
-          } against the live transcript.`;
+    runtime.stt.message =
+      improvedWith && !recoveredSegments.length
+        ? `Improved the transcript with ${improvedWith}.`
+        : recoveredSegments.length
+          ? `Recovered ${recoveredSegments.length} missing transcript segment${
+              recoveredSegments.length === 1 ? '' : 's'
+            } from ${recoveredChunks} captured speech chunk${
+              recoveredChunks === 1 ? '' : 's'
+            }.`
+          : recoveredChunks
+            ? `Checked ${recoveredChunks} transcript gap chunk${
+                recoveredChunks === 1 ? '' : 's'
+              }; the local model produced no additional text.`
+            : `Verified all ${verifiedChunks || capturedChunks} captured speech chunk${
+                (verifiedChunks || capturedChunks) === 1 ? '' : 's'
+              } against the live transcript.`;
   } catch (transcriptionError) {
     runtime.stt.message = `Post-meeting transcription unavailable; captured speech remains on disk for retry: ${errorMessage(
       transcriptionError
@@ -3257,18 +3410,26 @@ export async function getSttProviderManifests(
   platform: PlatformId = process.platform
 ): Promise<SttProviderManifest[]> {
   return Promise.all(
-    getBaseSttProviderManifests(platform).map(async provider => {
-      const readiness = await sttProviderReadiness(config, provider, platform);
-      const transcriptMode = transcriptModeForProvider(provider, readiness);
-      return {
-        ...provider,
-        available: readiness.available,
-        canProduceTranscript: canProduceTranscript(provider, readiness),
-        readiness,
-        transcriptMode,
-        unavailableReason: readiness.reason ?? provider.unavailableReason,
-      };
-    })
+    getBaseSttProviderManifests(platform)
+      // A provider for another OS (Apple SpeechAnalyzer on Linux or Windows)
+      // can never be chosen here, so it is not offered at all.
+      .filter(provider => providerSupportedOnPlatform(provider, platform))
+      .map(async provider => {
+        const readiness = await sttProviderReadiness(
+          config,
+          provider,
+          platform
+        );
+        const transcriptMode = transcriptModeForProvider(provider, readiness);
+        return {
+          ...provider,
+          available: readiness.available,
+          canProduceTranscript: canProduceTranscript(provider, readiness),
+          readiness,
+          transcriptMode,
+          unavailableReason: readiness.reason ?? provider.unavailableReason,
+        };
+      })
   );
 }
 
@@ -3411,9 +3572,18 @@ export function selectMeetingSttProvider(input: {
   // An explicit request remains strict above. In Auto mode, however, the saved
   // provider is only a preference: skip it when it cannot currently transcribe
   // so a bundled/installed provider can keep meeting capture working.
-  const availablePriority = [configured, ...orderedProviders].filter(
-    (provider): provider is SttProviderManifest => !!provider
+  // Large v3 is the most accurate choice, so use it whenever it is installed.
+  // It is not the first-time recommendation because that would force a ~1 GB
+  // download before the first meeting; the bundled Base stays the fallback.
+  const installedLarge = orderedProviders.find(
+    provider =>
+      provider.id === 'whisper-large-v3-cpp' && provider.canProduceTranscript
   );
+  const availablePriority = [
+    configured,
+    installedLarge,
+    ...orderedProviders,
+  ].filter((provider): provider is SttProviderManifest => !!provider);
   const uniqueAvailablePriority = availablePriority.filter(
     (provider, index, all) =>
       all.findIndex(candidate => candidate.id === provider.id) === index
@@ -3917,24 +4087,44 @@ function transcriptWords(text: string) {
 // Recovery decodes each source's durable audio separately. When the mic hears
 // the speakers, both sources yield the same sentence at the same time. Keep
 // the fuller copy; genuinely simultaneous speakers use different words.
-export function dedupeRecoveredTranscriptSegments<
-  T extends Pick<TranscriptSegment, 'endMs' | 'source' | 'startMs' | 'text'>,
->(segments: T[]) {
+type DedupeSegment = Pick<
+  TranscriptSegment,
+  'endMs' | 'source' | 'startMs' | 'text'
+>;
+
+// The same speech heard by two sources (mic picking up the speakers) is a
+// duplicate when the phrases overlap and share most of their words.
+function isDuplicateTranscript(segment: DedupeSegment, other: DedupeSegment) {
+  if (transcriptSegmentOverlap(segment, other) <= 0) return false;
+  const words = transcriptWords(segment.text);
+  const otherWords = new Set(transcriptWords(other.text));
+  const shared = words.filter(word => otherWords.has(word)).length;
+  return words.length > 0 && shared / words.length >= 0.6;
+}
+
+export function dedupeRecoveredTranscriptSegments<T extends DedupeSegment>(
+  segments: T[]
+) {
   const kept: T[] = [];
   const ordered = [...segments].sort(
     (a, b) => transcriptWords(b.text).length - transcriptWords(a.text).length
   );
   for (const segment of ordered) {
-    const words = transcriptWords(segment.text);
-    const duplicate = kept.some(other => {
-      if (transcriptSegmentOverlap(segment, other) <= 0) return false;
-      const otherWords = new Set(transcriptWords(other.text));
-      const shared = words.filter(word => otherWords.has(word)).length;
-      return words.length > 0 && shared / words.length >= 0.6;
-    });
-    if (!duplicate) kept.push(segment);
+    if (!kept.some(other => isDuplicateTranscript(segment, other))) {
+      kept.push(segment);
+    }
   }
   return kept;
+}
+
+/** Recovered segments that do not repeat speech already in `existing`. */
+export function withoutTranscriptDuplicates<T extends DedupeSegment>(
+  recovered: T[],
+  existing: DedupeSegment[]
+) {
+  return recovered.filter(
+    segment => !existing.some(other => isDuplicateTranscript(segment, other))
+  );
 }
 
 export function shouldCoalesceFinalTranscriptSegments(

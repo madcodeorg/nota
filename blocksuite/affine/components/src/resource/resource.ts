@@ -11,11 +11,7 @@ import type { TemplateResult } from 'lit-html';
 export type ResourceKind = 'Blob' | 'File' | 'Image';
 
 export type StateKind =
-  | 'loading'
-  | 'uploading'
-  | 'error'
-  | 'error:oversize'
-  | 'none';
+  'loading' | 'uploading' | 'error' | 'error:oversize' | 'none';
 
 export type StateInfo = {
   icon: TemplateResult;
@@ -130,7 +126,7 @@ export class ResourceController implements Disposable {
     this.state$.value = { ...this.state$.value, ...state };
   }
 
-  subscribe() {
+  subscribe(): () => void {
     return effect(() => {
       const blobId = this.blobId$.value;
       if (!blobId) return;

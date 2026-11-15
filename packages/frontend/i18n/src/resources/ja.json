@@ -330,7 +330,6 @@
   "com.affine.auth.verify.email.message": "現在のメールアドレスは{{email}} です。一時的な確認リンクをこのメールアドレスに送信します。",
   "com.affine.backButton": "戻る",
   "com.affine.banner.content": "デモをお楽しみですか？完全なエクスペリエンスを得るには<1>Notaクライアントをダウンロード</1>してください。",
-  "com.affine.banner.local-warning": "ローカルデータはブラウザに保存されるため、失われる危険性があります。今すぐNota Cloudを有効にしましょう！",
   "com.affine.brand.affineCloud": "Nota Cloud",
   "com.affine.calendar-date-picker.month-names": "1月,2月,3月,4月,5月,6月,7月,8月,9月,10月,11月,12月",
   "com.affine.calendar-date-picker.today": "今日",

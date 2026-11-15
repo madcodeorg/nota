@@ -27,7 +27,7 @@
   "devDependencies": {
     "@napi-rs/cli": "3.5.0",
     "@napi-rs/whisper": "^0.0.4",
-    "@types/node": "^22.0.0",
+    "@types/node": "^22.20.5",
     "ava": "^7.0.0",
     "rxjs": "^7.8.2",
     "typescript": "^5.9.3"
@@ -43,5 +43,5 @@
     "test": "ava --no-worker-threads --concurrency=2",
     "version": "napi version"
   },
-  "version": "0.1.14"
+  "version": "0.1.16"
 }

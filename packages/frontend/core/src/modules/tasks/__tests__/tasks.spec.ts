@@ -1,6 +1,13 @@
+import type { Store } from '@blocksuite/affine/store';
 import { describe, expect, test } from 'vitest';
 
-import { findDueDate, taskGroup } from '..';
+import {
+  findDueDate,
+  readDocTasks,
+  taskBoardColumn,
+  taskGroup,
+  taskKey,
+} from '..';
 
 describe('findDueDate', () => {
   test('prefers a linked journal date', () => {
@@ -29,5 +36,62 @@ describe('taskGroup', () => {
     [{ checked: false, due: '2026-05-11' }, 'upcoming'],
   ] as const)('%o -> %s', (task, group) => {
     expect(taskGroup(task, today)).toBe(group);
+  });
+});
+
+describe('taskBoardColumn', () => {
+  test('checked tasks are done whatever the stored status', () => {
+    expect(taskBoardColumn({ checked: true }, 'doing')).toBe('done');
+  });
+
+  test('open tasks are in progress only when marked', () => {
+    expect(taskBoardColumn({ checked: false }, 'doing')).toBe('doing');
+    expect(taskBoardColumn({ checked: false }, undefined)).toBe('todo');
+  });
+
+  test('keys a task by note and block', () => {
+    expect(taskKey({ docId: 'doc', blockId: 'block' })).toBe('doc:block');
+  });
+});
+
+describe('readDocTasks', () => {
+  test('uses a linked journal as the due date, not as task text', () => {
+    const store = {
+      getBlocksByFlavour: () => [
+        {
+          model: {
+            id: 'block',
+            props: {
+              type: 'todo',
+              checked: false,
+              text: {
+                toDelta: () => [
+                  { insert: 'Call ' },
+                  { insert: ' ', attributes: { reference: { pageId: 'sam' } } },
+                  { insert: ' ' },
+                  {
+                    insert: ' ',
+                    attributes: { reference: { pageId: 'journal' } },
+                  },
+                ],
+              },
+            },
+          },
+        },
+      ],
+    } as unknown as Store;
+    const tasks = readDocTasks(store, 'doc', {
+      journalDate: id => (id === 'journal' ? '2026-05-11' : undefined),
+      title: id => (id === 'sam' ? 'Sam' : '2026-05-11'),
+    });
+    expect(tasks).toEqual([
+      {
+        docId: 'doc',
+        blockId: 'block',
+        text: 'Call Sam',
+        checked: false,
+        due: '2026-05-11',
+      },
+    ]);
   });
 });

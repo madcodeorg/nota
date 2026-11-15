@@ -23,6 +23,7 @@ import { DocService } from '@nota/core/modules/doc';
 import { DocDisplayMetaService } from '@nota/core/modules/doc-display-meta';
 import { EditorService } from '@nota/core/modules/editor';
 import { JournalService } from '@nota/core/modules/journal';
+import { DocReminderIndicator } from '@nota/core/modules/reminders/views/reminder-menu';
 import { SharePageButton } from '@nota/core/modules/share-menu';
 import { TemplateDocService } from '@nota/core/modules/template-doc';
 import { ViewIcon, ViewTitle } from '@nota/core/modules/workbench';
@@ -136,6 +137,7 @@ export function JournalPageHeader({ page, workspace }: PageHeaderProps) {
       </div>
       <TemplateMark className={styles.journalTemplateMark} />
       <LockedMark />
+      <DocReminderIndicator docId={page.id} />
       {hideToday ? null : <JournalTodayButton />}
       <HeaderDivider />
       <PageHeaderMenuButton
@@ -188,6 +190,7 @@ export function NormalPageHeader({ page, workspace }: PageHeaderProps) {
       <BlocksuiteHeaderTitle inputHandleRef={titleInputHandleRef} />
       <TemplateMark />
       <LockedMark />
+      <DocReminderIndicator docId={page.id} />
       <div className={styles.iconButtonContainer}>
         {hideCollect ? null : (
           <>

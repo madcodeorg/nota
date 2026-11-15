@@ -25,6 +25,7 @@ const columnTypes: { type: CsvColumnType; name: string }[] = [
   { type: 'checkbox', name: 'Checkbox' },
   { type: 'date', name: 'Date (YYYY-MM-DD)' },
   { type: 'select', name: 'Select' },
+  { type: 'status', name: 'Status' },
   { type: 'link', name: 'Link' },
   { type: 'skip', name: 'Skip' },
 ];

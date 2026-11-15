@@ -2,6 +2,7 @@ import { AttachmentStoreExtension } from '@blocksuite/affine-block-attachment/st
 import { BookmarkStoreExtension } from '@blocksuite/affine-block-bookmark/store';
 import { CalloutStoreExtension } from '@blocksuite/affine-block-callout/store';
 import { CodeStoreExtension } from '@blocksuite/affine-block-code/store';
+import { ColumnsStoreExtension } from '@blocksuite/affine-block-columns/store';
 import { DataViewStoreExtension } from '@blocksuite/affine-block-data-view/store';
 import { DatabaseStoreExtension } from '@blocksuite/affine-block-database/store';
 import { DividerStoreExtension } from '@blocksuite/affine-block-divider/store';
@@ -39,6 +40,7 @@ export function getInternalStoreExtensions() {
     BookmarkStoreExtension,
     CalloutStoreExtension,
     CodeStoreExtension,
+    ColumnsStoreExtension,
     DataViewStoreExtension,
     DatabaseStoreExtension,
     DividerStoreExtension,

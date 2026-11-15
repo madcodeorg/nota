@@ -52,6 +52,15 @@ export const selectOptionsTipsStyle = css({
   userSelect: 'none',
 });
 
+export const selectOptionGroupTitleStyle = css({
+  padding: '4px 4px 0',
+  color: cssVarV2('text/secondary'),
+  fontSize: '12px',
+  fontWeight: 500,
+  lineHeight: '20px',
+  userSelect: 'none',
+});
+
 export const selectOptionsContainerStyle = css({
   maxHeight: '400px',
   overflowY: 'auto',

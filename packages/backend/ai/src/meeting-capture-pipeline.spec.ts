@@ -148,6 +148,17 @@ describe('shared meeting capture pipeline', () => {
     expect(f.events.at(-1)).toMatchObject({ type: 'final', endMs: 700 });
   });
 
+  test('labels a system-only phrase final as system audio', async () => {
+    const f = fixture(false);
+    await f.pipeline.push(frame(0, 1000, 0.05, 'system'));
+    await f.pipeline.push(frame(0, 1500, 0, 'mic'));
+    await f.pipeline.push(frame(1000, 500, 0, 'system'));
+    await f.pipeline.stop();
+    const finals = f.events.filter(event => event.type === 'final');
+    expect(finals).toHaveLength(1);
+    expect(finals[0]).toMatchObject({ source: 'system' });
+  });
+
   test('boosts quiet system speech before VAD and caps loud mixed peaks', async () => {
     const seen: Int16Array[] = [];
     const f = fixture(true, {

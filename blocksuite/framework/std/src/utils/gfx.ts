@@ -6,7 +6,7 @@ import { SurfaceBlockModel } from '../gfx/model/surface/surface-model.js';
 export function onSurfaceAdded(
   doc: Store,
   callback: (model: SurfaceBlockModel | null) => void
-) {
+): () => void {
   let found = false;
   let foundId = '';
 

@@ -330,7 +330,6 @@
   "com.affine.auth.verify.email.message": "Το τρέχον σας email είναι {{email}}. Θα στείλουμε έναν προσωρινό σύνδεσμο επαλήθευσης σε αυτό το email.",
   "com.affine.backButton": "Πίσω",
   "com.affine.banner.content": "Αυτό το demo είναι περιορισμένο. <1>Κατεβάστε τον Nota Client</1> για τις τελευταίες δυνατότητες και αποδόσεις.",
-  "com.affine.banner.local-warning": "Τα τοπικά δεδομένα σας αποθηκεύονται στο πρόγραμμα περιήγησης και ενδέχεται να χαθούν. Μην το ρισκάρετε - ενεργοποιήστε τώρα το cloud!",
   "com.affine.brand.affineCloud": "Nota Cloud",
   "com.affine.calendar-date-picker.month-names": "Ιαν,Φεβ,Μαρ,Απρ,Μάι,Ιούν,Ιούλ,Αύγ,Σεπ,Οκτ,Νοέ,Δεκ",
   "com.affine.calendar-date-picker.today": "Σήμερα",

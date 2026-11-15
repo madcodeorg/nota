@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import path, { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -65,9 +66,42 @@ function proxyRequest(
   return fetchProtocolResponse(
     clonedRequest,
     targetUrl,
-    (url, init) => net.fetch(url, init),
+    authenticateBackend && isEventStreamRequest(request)
+      ? fetchEventStream
+      : (url, init) => net.fetch(url, init),
     bypassCustomProtocolHandlers
   );
+}
+
+function isEventStreamRequest(request: Request) {
+  return /text\/event-stream/i.test(request.headers.get('accept') ?? '');
+}
+
+// Chromium's network stack (net.fetch) allows six connections per host, and
+// each open meeting or download event stream holds one for its lifetime. A
+// few of them queued every other backend call forever, so event streams use
+// Node's fetch, which has no per-host cap. Other calls stay on net.fetch:
+// Node's fetch gives up after 300 s without response headers, and meeting
+// stop or summary requests can legitimately take longer. Event streams send
+// headers at once and a heartbeat every 15 s, so that limit never applies.
+function fetchEventStream(url: string, init: RequestInit) {
+  return fetch(url, {
+    body: init.body,
+    headers: init.headers,
+    method: init.method,
+    redirect: init.redirect,
+    signal: init.signal,
+    ...(init.body ? { duplex: 'half' } : {}),
+  } as RequestInit);
+}
+
+function hasWebStaticFile(pathname: string) {
+  try {
+    const filepath = join(webStaticDir, decodeURIComponent(pathname));
+    return filepath.startsWith(webStaticDir + path.sep) && existsSync(filepath);
+  } catch {
+    return false;
+  }
 }
 
 async function handleFileRequest(request: Request) {
@@ -109,8 +143,20 @@ async function handleFileRequest(request: Request) {
     urlObject.pathname &&
     /\.(woff2?|ttf|otf)$/i.test(urlObject.pathname.split('?')[0] ?? '');
 
-  // Redirect to webpack dev server if available
-  if (isDev && devServerBase && !isAbsolutePath && !isFontRequest) {
+  // Redirect to webpack dev server if available. Fonts come from the bundled
+  // web-static copy when one exists, otherwise from the dev server, which
+  // serves them under the same hashed names.
+  if (
+    isDev &&
+    devServerBase &&
+    !isAbsolutePath &&
+    (!isFontRequest || !hasWebStaticFile(urlObject.pathname))
+  ) {
+    if (isFontRequest) {
+      // Font loads carry `Origin: assets://.`, which net.fetch rejects for
+      // http targets. Fonts are static files, so a plain GET is enough.
+      return net.fetch(buildTargetUrl(devServerBase, urlObject));
+    }
     return proxyRequest(request, urlObject, devServerBase, {
       bypassCustomProtocolHandlers: false,
     });
