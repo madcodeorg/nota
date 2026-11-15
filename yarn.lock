@@ -1305,6 +1305,7 @@ __metadata:
     "@types/mdast": "npm:^4.0.4"
     lit: "npm:^3.3.3"
     rxjs: "npm:^7.8.2"
+    vitest: "npm:^4.1.12"
     zod: "npm:^3.25.76"
   languageName: unknown
   linkType: soft

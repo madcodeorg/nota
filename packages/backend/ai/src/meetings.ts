@@ -2953,6 +2953,7 @@ async function transcribeStoppedMeetingFallback(
         )
       : [];
     let improvedWith: string | null = null;
+    let improvedSegments: TranscriptSegment[] = [];
     if (fullPassModelId) {
       try {
         const improved = dedupeRecoveredTranscriptSegments(
@@ -2969,6 +2970,7 @@ async function transcribeStoppedMeetingFallback(
           // Phrases the pass left empty still go through gap recovery below,
           // which keeps the audio until every uncovered gap is resolved.
           improvedWith = fullPassModelId;
+          improvedSegments = improved;
         }
       } catch (fullPassError) {
         console.warn(
@@ -3035,15 +3037,19 @@ async function transcribeStoppedMeetingFallback(
       }
     }
 
-    dedupeRecoveredTranscriptSegments(fallbackSegments)
-      .sort(
-        (first, second) =>
-          first.startMs - second.startMs || first.endMs - second.endMs
-      )
-      .forEach(segment => {
-        replaceLiveSegmentsWithRecovery(runtime, segment);
-        applyTranscriptSegment(runtime, segment);
-      });
+    // The full pass already kept one copy of speech both sources heard; gap
+    // recovery of the other source must not add it back.
+    const recoveredSegments = withoutTranscriptDuplicates(
+      dedupeRecoveredTranscriptSegments(fallbackSegments),
+      improvedSegments
+    ).sort(
+      (first, second) =>
+        first.startMs - second.startMs || first.endMs - second.endMs
+    );
+    recoveredSegments.forEach(segment => {
+      replaceLiveSegmentsWithRecovery(runtime, segment);
+      applyTranscriptSegment(runtime, segment);
+    });
     // Recovered phrases are appended; keep the transcript in spoken order.
     sortTranscriptSegments(runtime);
     await persistMeetings(config);
@@ -3055,11 +3061,11 @@ async function transcribeStoppedMeetingFallback(
       unresolvedGroups,
     });
     runtime.stt.message =
-      improvedWith && !fallbackSegments.length
+      improvedWith && !recoveredSegments.length
         ? `Improved the transcript with ${improvedWith}.`
-        : fallbackSegments.length
-          ? `Recovered ${fallbackSegments.length} missing transcript segment${
-              fallbackSegments.length === 1 ? '' : 's'
+        : recoveredSegments.length
+          ? `Recovered ${recoveredSegments.length} missing transcript segment${
+              recoveredSegments.length === 1 ? '' : 's'
             } from ${recoveredChunks} captured speech chunk${
               recoveredChunks === 1 ? '' : 's'
             }.`
@@ -4081,24 +4087,44 @@ function transcriptWords(text: string) {
 // Recovery decodes each source's durable audio separately. When the mic hears
 // the speakers, both sources yield the same sentence at the same time. Keep
 // the fuller copy; genuinely simultaneous speakers use different words.
-export function dedupeRecoveredTranscriptSegments<
-  T extends Pick<TranscriptSegment, 'endMs' | 'source' | 'startMs' | 'text'>,
->(segments: T[]) {
+type DedupeSegment = Pick<
+  TranscriptSegment,
+  'endMs' | 'source' | 'startMs' | 'text'
+>;
+
+// The same speech heard by two sources (mic picking up the speakers) is a
+// duplicate when the phrases overlap and share most of their words.
+function isDuplicateTranscript(segment: DedupeSegment, other: DedupeSegment) {
+  if (transcriptSegmentOverlap(segment, other) <= 0) return false;
+  const words = transcriptWords(segment.text);
+  const otherWords = new Set(transcriptWords(other.text));
+  const shared = words.filter(word => otherWords.has(word)).length;
+  return words.length > 0 && shared / words.length >= 0.6;
+}
+
+export function dedupeRecoveredTranscriptSegments<T extends DedupeSegment>(
+  segments: T[]
+) {
   const kept: T[] = [];
   const ordered = [...segments].sort(
     (a, b) => transcriptWords(b.text).length - transcriptWords(a.text).length
   );
   for (const segment of ordered) {
-    const words = transcriptWords(segment.text);
-    const duplicate = kept.some(other => {
-      if (transcriptSegmentOverlap(segment, other) <= 0) return false;
-      const otherWords = new Set(transcriptWords(other.text));
-      const shared = words.filter(word => otherWords.has(word)).length;
-      return words.length > 0 && shared / words.length >= 0.6;
-    });
-    if (!duplicate) kept.push(segment);
+    if (!kept.some(other => isDuplicateTranscript(segment, other))) {
+      kept.push(segment);
+    }
   }
   return kept;
+}
+
+/** Recovered segments that do not repeat speech already in `existing`. */
+export function withoutTranscriptDuplicates<T extends DedupeSegment>(
+  recovered: T[],
+  existing: DedupeSegment[]
+) {
+  return recovered.filter(
+    segment => !existing.some(other => isDuplicateTranscript(segment, other))
+  );
 }
 
 export function shouldCoalesceFinalTranscriptSegments(

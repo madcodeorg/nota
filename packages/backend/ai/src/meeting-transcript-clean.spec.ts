@@ -8,6 +8,7 @@ import {
   replaceLiveSegmentsWithRecovery,
   replaceLiveTranscriptWithFullPass,
   sortTranscriptSegments,
+  withoutTranscriptDuplicates,
 } from './meetings';
 
 describe('cleanTranscriptText', () => {
@@ -155,5 +156,22 @@ describe('replaceLiveSegmentsWithRecovery', () => {
       'improved',
       'kept',
     ]);
+  });
+
+  it('drops gap recovery that repeats speech the full pass kept', () => {
+    const kept = {
+      ...segment('improved-system', 0, 5000, 'system'),
+      text: 'We ship the Linux build on Friday',
+    };
+    const recovered = [
+      {
+        ...segment('mic-echo', 200, 5100),
+        text: 'we ship the Linux build on Friday',
+      },
+      { ...segment('new-speech', 8000, 9000), text: 'Sounds good to me' },
+    ];
+    expect(
+      withoutTranscriptDuplicates(recovered, [kept]).map(item => item.id)
+    ).toEqual(['new-speech']);
   });
 });

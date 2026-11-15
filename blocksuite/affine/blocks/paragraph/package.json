@@ -29,6 +29,9 @@
     "rxjs": "^7.8.2",
     "zod": "^3.25.76"
   },
+  "devDependencies": {
+    "vitest": "^4.1.12"
+  },
   "exports": {
     ".": "./src/index.ts",
     "./turbo-painter": "./src/turbo/paragraph-painter.worker.ts",

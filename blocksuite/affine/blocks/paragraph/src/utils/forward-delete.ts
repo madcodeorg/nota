@@ -42,8 +42,11 @@ export function forwardDelete(std: BlockStdScope) {
 
   const nextSibling = store.getNext(model);
 
-  // never merge text across column boundaries
-  if ((!nextSibling && isColumnModel(parent)) || isColumnsModel(nextSibling)) {
+  // never merge text across column boundaries (its own children are fine)
+  if (
+    (!nextSibling && isColumnModel(parent) && !model.children.length) ||
+    isColumnsModel(nextSibling)
+  ) {
     return true;
   }
 
