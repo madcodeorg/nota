@@ -55,6 +55,10 @@ export class InlineCommentManager extends LifeCycleWatcher {
     this._disposables.add(
       provider.onCommentHighlighted(this._handleHighlightComment)
     );
+    const unresolved = provider.onCommentUnresolved?.(id =>
+      this._handleDeleteAndResolve(id, 'unresolve')
+    );
+    if (unresolved) this._disposables.add(unresolved);
     this._disposables.add(
       this.std.selection.slots.changed.subscribe(this._handleSelectionChanged)
     );
@@ -167,7 +171,7 @@ export class InlineCommentManager extends LifeCycleWatcher {
 
   private readonly _handleDeleteAndResolve = (
     id: CommentId,
-    type: 'delete' | 'resolve'
+    type: 'delete' | 'resolve' | 'unresolve'
   ) => {
     const commentedTexts = findCommentedTexts(this.std.store, id);
     if (commentedTexts.length === 0) return;
@@ -182,7 +186,7 @@ export class InlineCommentManager extends LifeCycleWatcher {
         inlineEditor?.formatText(
           selection.from,
           {
-            [`comment-${id}`]: type === 'delete' ? null : false,
+            [`comment-${id}`]: type === 'delete' ? null : type === 'unresolve',
           },
           {
             withoutTransact: true,

@@ -17,6 +17,7 @@ import {
   findClosestBlockComponent,
   getBlockProps,
   getClosestBlockComponentByPoint,
+  isColumnModel,
   matchModels,
 } from '@blocksuite/affine-shared/utils';
 import {
@@ -187,11 +188,13 @@ export const getClosestBlockByPoint = (
     return null;
   }
 
-  const noteRect = Rect.fromDOM(closestNoteBlock);
+  // inside a columns layout, look for blocks within the hovered column
+  const container =
+    getHoveredColumn(closestNoteBlock, point) ?? closestNoteBlock;
 
   const block = getClosestBlockComponentByPoint(point, {
-    container: closestNoteBlock,
-    rect: noteRect,
+    container,
+    rect: Rect.fromDOM(container),
   }) as BlockComponent | null;
 
   const blockSelector =
@@ -211,6 +214,11 @@ export const getClosestBlockByPoint = (
     return null;
   }
 
+  // columns are moved together with their layout
+  if (isColumnModel(closestBlock.model)) {
+    return closestBlock.closest<BlockComponent>('affine-columns');
+  }
+
   if (matchModels(closestBlock.model, [ParagraphBlockModel])) {
     const callout =
       closestBlock.closest<CalloutBlockComponent>('affine-callout');
@@ -221,6 +229,14 @@ export const getClosestBlockByPoint = (
 
   return closestBlock;
 };
+
+function getHoveredColumn(noteBlock: Element, point: Point) {
+  for (const element of document.elementsFromPoint(point.x, point.y)) {
+    const column = element.closest('affine-column');
+    if (column && noteBlock.contains(column)) return column;
+  }
+  return null;
+}
 
 export const getDropResult = (
   event: MouseEvent,

@@ -27,6 +27,10 @@ import {
   selectDevSigningIdentity,
 } from './dev-signing';
 
+// The renderer dev server. Set DEV_SERVER_URL when it runs on another port
+// (it moves up from 8080 when that port is busy and prints the URL).
+process.env.DEV_SERVER_URL ||= 'http://localhost:8080';
+
 // this means we don't spawn electron windows, mainly for testing
 const watchMode = process.argv.includes('--watch');
 

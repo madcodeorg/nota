@@ -50,7 +50,7 @@ import {
   WorkbenchService,
 } from '@nota/core/modules/workbench';
 import {
-  isServerBackedWorkspaceFlavour,
+  isUserOwnedWorkspaceFlavour,
   WorkspaceService,
 } from '@nota/core/modules/workspace';
 import { isNewTabTrigger } from '@nota/core/utils';
@@ -125,9 +125,10 @@ const DetailPageImpl = memo(function DetailPageImpl() {
   const serverService = useService(ServerService);
   const serverConfig = useLiveData(serverService.server.config$);
 
-  // comment may not be supported by the server
+  // local workspaces store comments in the workspace DB,
+  // server-backed ones need server support
   const enableComment =
-    isServerBackedWorkspaceFlavour(workspace.flavour) &&
+    isUserOwnedWorkspaceFlavour(workspace.flavour) ||
     serverConfig.features.includes(ServerFeature.Comment);
 
   useEffect(() => {
@@ -430,7 +431,7 @@ const DetailPageImpl = memo(function DetailPageImpl() {
         </ViewSidebarTab>
       )}
 
-      {isServerBackedWorkspaceFlavour(workspace.flavour) && enableComment && (
+      {enableComment && (
         <ViewSidebarTab tabId="comment" icon={<CommentIcon />}>
           <Scrollable.Root className={styles.sidebarScrollArea}>
             <Scrollable.Viewport>

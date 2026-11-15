@@ -2,16 +2,16 @@
   "name": "@nota/track",
   "type": "module",
   "private": true,
-  "version": "0.1.14",
+  "version": "0.1.15",
   "exports": {
     ".": "./src/index.ts"
   },
   "dependencies": {
     "@nota/debug": "workspace:*",
-    "nanoid": "^5.1.6"
+    "nanoid": "^5.1.16"
   },
   "devDependencies": {
-    "@types/react": "^19.0.1",
-    "vitest": "^4.1.11"
+    "@types/react": "^19.3.0",
+    "vitest": "^4.1.12"
   }
 }

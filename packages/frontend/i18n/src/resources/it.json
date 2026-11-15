@@ -340,7 +340,6 @@
   "com.affine.auth.verify.email.message": "L'email corrente è {{email}}. Manderemo un link temporaneo di verifica a questa email.",
   "com.affine.backButton": "Indietro",
   "com.affine.banner.content": "Questa demo è limitata. <1>Scarica il client di Nota</1> per le ultime funzioni e per migliorare le performance.",
-  "com.affine.banner.local-warning": "I tuoi dati locali sono salvati nel browser e potrebbero andare persi. Non rischiare - attiva Nota Cloud ora!",
   "com.affine.brand.affineCloud": "Nota Cloud",
   "com.affine.calendar-date-picker.month-names": "Gen,Feb,Mar,Apr,Mag,Giu,Lu,Ag,Set,Ott,Nov,Dic",
   "com.affine.calendar-date-picker.today": "Oggi",

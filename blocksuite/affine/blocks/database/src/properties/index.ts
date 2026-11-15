@@ -11,6 +11,11 @@ import { richTextColumnConfig } from './rich-text/cell-renderer.js';
 import { titleColumnConfig } from './title/cell-renderer.js';
 
 export * from './converts.js';
+export {
+  defaultStatusOptions,
+  type StatusOption,
+  statusOptionIdByName,
+} from '@blocksuite/data-view/property-presets';
 const {
   checkboxPropertyConfig,
   datePropertyConfig,
@@ -18,6 +23,7 @@ const {
   numberPropertyConfig,
   progressPropertyConfig,
   selectPropertyConfig,
+  statusPropertyConfig,
 } = propertyPresets;
 export const databaseBlockProperties = {
   checkboxColumnConfig: checkboxPropertyConfig,
@@ -26,6 +32,7 @@ export const databaseBlockProperties = {
   numberColumnConfig: numberPropertyConfig,
   progressColumnConfig: progressPropertyConfig,
   selectColumnConfig: selectPropertyConfig,
+  statusColumnConfig: statusPropertyConfig,
   imageColumnConfig: propertyPresets.imagePropertyConfig,
   linkColumnConfig,
   richTextColumnConfig,

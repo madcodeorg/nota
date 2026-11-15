@@ -90,9 +90,13 @@ const usePatchSpecs = (mode: DocMode, shared?: boolean) => {
   const serverService = useService(ServerService);
   const serverConfig = useLiveData(serverService.server.config$);
 
-  // comment may not be supported by the server
+  // local workspaces store comments in the workspace DB, server-backed ones
+  // need server support. The comment sidebar is desktop only.
   const enableComment =
-    isCloud && serverConfig.features.includes(ServerFeature.Comment) && !shared;
+    !shared &&
+    (isCloud
+      ? serverConfig.features.includes(ServerFeature.Comment)
+      : !BUILD_CONFIG.isMobileEdition);
 
   const patchedSpecs = useMemo(() => {
     const manager = getViewManager()

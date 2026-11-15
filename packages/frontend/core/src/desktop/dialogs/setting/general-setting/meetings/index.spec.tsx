@@ -102,6 +102,8 @@ vi.mock('@nota/infra', () => ({
     }
   },
 }));
+// The after-meeting row makes its own settings request; covered separately.
+vi.mock('./post-meeting-pass', () => ({ PostMeetingPassRow: () => null }));
 vi.mock('@nota/i18n', () => ({
   useI18n: () => new Proxy({}, { get: (_, key) => () => String(key) }),
 }));

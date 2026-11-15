@@ -11,6 +11,7 @@
     { "path": "../blocks/bookmark" },
     { "path": "../blocks/callout" },
     { "path": "../blocks/code" },
+    { "path": "../blocks/columns" },
     { "path": "../blocks/data-view" },
     { "path": "../blocks/database" },
     { "path": "../blocks/divider" },

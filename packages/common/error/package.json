@@ -1,6 +1,6 @@
 {
   "name": "@nota/error",
-  "version": "0.1.14",
+  "version": "0.1.15",
   "private": true,
   "type": "module",
   "exports": {
@@ -11,6 +11,6 @@
     "graphql": "^16.9.0"
   },
   "devDependencies": {
-    "vitest": "^4.1.11"
+    "vitest": "^4.1.12"
   }
 }

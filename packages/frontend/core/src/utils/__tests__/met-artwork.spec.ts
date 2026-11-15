@@ -70,6 +70,24 @@ describe('loadArtworkPool', () => {
     }
   });
 
+  test('stops requesting objects once the API blocks a whole batch', async () => {
+    const ids = Array.from({ length: 200 }, (_, index) => index + 100);
+    const blocked = vi.fn(async (url: string) => {
+      const { pathname } = new URL(url);
+      if (pathname.endsWith('/v1.1/search')) {
+        return Response.json({ total: ids.length, objectIDs: ids });
+      }
+      throw new TypeError('Failed to fetch');
+    });
+    vi.stubGlobal('fetch', blocked);
+    const { loadArtworkPool } = await loadModule();
+    await expect(loadArtworkPool()).rejects.toThrow('empty');
+    const objectCalls = blocked.mock.calls.filter(
+      ([url]) => !String(url).includes('/search')
+    );
+    expect(objectCalls.length).toBeLessThanOrEqual(16);
+  });
+
   test('reuses the cached pool without refetching', async () => {
     const first = await loadModule();
     await first.loadArtworkPool();

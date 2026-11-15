@@ -36,6 +36,7 @@ import { WorkspaceDialogService } from '@nota/core/modules/dialogs';
 import { EditorService } from '@nota/core/modules/editor';
 import { OpenInAppService } from '@nota/core/modules/open-in-app/services';
 import { GuardService } from '@nota/core/modules/permissions';
+import { DocReminderMenuSub } from '@nota/core/modules/reminders/views/reminder-menu';
 import { ShareMenuContent } from '@nota/core/modules/share-menu';
 import { WorkbenchService } from '@nota/core/modules/workbench';
 import { ViewService } from '@nota/core/modules/workbench/services/view';
@@ -390,6 +391,7 @@ const PageHeaderMenuItem = ({
       >
         {locked ? 'Unlock page' : 'Lock page'}
       </MenuItem>
+      <DocReminderMenuSub docId={pageId} />
       <MenuSeparator />
       <MenuItem
         prefixIcon={<OpenInNewIcon />}

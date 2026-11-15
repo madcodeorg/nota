@@ -338,7 +338,6 @@
   "com.affine.auth.verify.email.message": "Ваш текущий Email адрес: {{email}}. Мы отправим временную ссылку для подтверждения на этот адрес.",
   "com.affine.backButton": "Назад",
   "com.affine.banner.content": "Эта демо-версия имеет ограничения. <1>Скачайте клиент Nota</1> для доступа к последним функциям и улучшенной производительности.",
-  "com.affine.banner.local-warning": "Ваши локальные данные хранятся в браузере и могут быть потеряны. Не рискуйте — активируйте облачное хранилище!",
   "com.affine.brand.affineCloud": "Nota Cloud",
   "com.affine.calendar-date-picker.month-names": "Январь,Февраль,Март,Апрель,Май,Июнь,Июль,Август,Сентябрь,Октябрь,Ноябрь,Декабрь",
   "com.affine.calendar-date-picker.today": "Сегодня",

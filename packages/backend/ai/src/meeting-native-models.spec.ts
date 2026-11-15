@@ -341,14 +341,12 @@ test('keeps Apple speech unsupported on non-Mac hosts even if a bridge advertise
     systemLocale: 'en-US',
   });
   const runtime = await (await request('/v1/stt/runtime')).json();
+  // Not offered at all off macOS, so it cannot be picked in Settings.
   expect(
     runtime.providers.find(
       (provider: { id: string }) => provider.id === 'apple-speechanalyzer'
     )
-  ).toMatchObject({
-    canProduceTranscript: false,
-    readiness: { status: 'unsupported', runtimeAvailable: false },
-  });
+  ).toBeUndefined();
   expect(
     (
       await request('/v1/meetings/reserve', {

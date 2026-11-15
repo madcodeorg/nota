@@ -5,6 +5,7 @@ import { multiSelectPropertyModelConfig } from './multi-select/define.js';
 import { numberPropertyModelConfig } from './number/define.js';
 import { progressPropertyModelConfig } from './progress/define.js';
 import { selectPropertyModelConfig } from './select/define.js';
+import { statusPropertyModelConfig } from './status/define.js';
 import { textPropertyModelConfig } from './text/define.js';
 
 export const propertyModelPresets = {
@@ -15,5 +16,6 @@ export const propertyModelPresets = {
   numberPropertyModelConfig,
   progressPropertyModelConfig,
   selectPropertyModelConfig,
+  statusPropertyModelConfig,
   textPropertyModelConfig,
 };

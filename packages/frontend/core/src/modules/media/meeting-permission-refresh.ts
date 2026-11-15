@@ -6,27 +6,38 @@ export function meetingPermissionRecovery(
     | Partial<Pick<MeetingPermissionReport, 'reasons' | 'statuses'>>
     | null
     | undefined,
-  isWindows: boolean
+  isWindows: boolean,
+  isLinux = globalThis.environment?.isLinux === true
 ) {
   const status = report?.statuses?.[type];
   const requiresSettings = status === 'denied' || status === 'restricted';
   const label = type === 'microphone' ? 'Microphone' : 'System Audio';
+  const settingsName = isWindows
+    ? 'Windows Settings'
+    : isLinux
+      ? 'your desktop sound settings'
+      : 'macOS Settings';
   const message =
     report?.reasons?.[type] ||
     (requiresSettings
-      ? `${label} access is ${status}. Check ${isWindows ? 'Windows' : 'macOS'} Settings to allow access, then return.`
+      ? `${label} access is ${status}. Check ${settingsName} to allow access, then return.`
       : isWindows && type === 'microphone'
         ? 'Microphone access has not been verified. Start a meeting to attempt microphone capture, or open Windows Settings to check access.'
         : `${label} access has not been verified. Try checking access again.`);
   return { message, requiresSettings };
 }
 
-export function meetingPermissionSettingsFailure(isWindows: boolean) {
+export function meetingPermissionSettingsFailure(
+  isWindows: boolean,
+  isLinux = globalThis.environment?.isLinux === true
+) {
   return {
     title: 'Could not open permission settings',
     message: isWindows
       ? 'Open Windows Settings > Privacy & security > Microphone and allow microphone access for desktop apps.'
-      : 'Open System Settings > Privacy & Security and check Microphone or Screen & System Audio Recording access for this app.',
+      : isLinux
+        ? 'Open your desktop sound settings and check that an input and output device are selected. Nota needs parec or pw-record to record system audio.'
+        : 'Open System Settings > Privacy & Security and check Microphone or Screen & System Audio Recording access for this app.',
   };
 }
 

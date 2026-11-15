@@ -13,6 +13,7 @@ import { useGuard } from '@nota/core/components/guard';
 import { ServerService } from '@nota/core/modules/cloud';
 import { AuthService } from '@nota/core/modules/cloud/services/auth';
 import { type DocCommentEntity } from '@nota/core/modules/comment/entities/doc-comment';
+import { LOCAL_COMMENT_USER_ID } from '@nota/core/modules/comment/entities/local-doc-comment-store';
 import { CommentPanelService } from '@nota/core/modules/comment/services/comment-panel-service';
 import { DocCommentManagerService } from '@nota/core/modules/comment/services/doc-comment-manager';
 import type {
@@ -33,6 +34,16 @@ import { useAsyncCallback } from '../../hooks/nota-async-hooks';
 import { CommentEditor, type CommentEditorRef } from '../comment-editor';
 import * as styles from './style.css';
 
+const LOCAL_AUTHOR = { id: LOCAL_COMMENT_USER_ID, avatar: null };
+
+/**
+ * The signed in account, or the local author on local workspaces.
+ */
+const useCommentAuthor = (entity: DocCommentEntity) => {
+  const account = useLiveData(useService(AuthService).session.account$);
+  return entity.isLocal ? LOCAL_AUTHOR : account;
+};
+
 interface CommentFilterState {
   showResolvedComments: boolean;
   onlyMyReplies: boolean;
@@ -42,9 +53,11 @@ interface CommentFilterState {
 const SortFilterButton = ({
   filterState,
   onFilterChange,
+  showOnlyMyReplies,
 }: {
   filterState: CommentFilterState;
   onFilterChange: (key: keyof CommentFilterState, value: boolean) => void;
+  showOnlyMyReplies: boolean;
 }) => {
   const t = useI18n();
 
@@ -64,14 +77,16 @@ const SortFilterButton = ({
           >
             {t['com.affine.comment.filter.show-resolved']()}
           </MenuItem>
-          <MenuItem
-            checked={filterState.onlyMyReplies}
-            onSelect={() =>
-              onFilterChange('onlyMyReplies', !filterState.onlyMyReplies)
-            }
-          >
-            {t['com.affine.comment.filter.only-my-replies']()}
-          </MenuItem>
+          {showOnlyMyReplies ? (
+            <MenuItem
+              checked={filterState.onlyMyReplies}
+              onSelect={() =>
+                onFilterChange('onlyMyReplies', !filterState.onlyMyReplies)
+              }
+            >
+              {t['com.affine.comment.filter.only-my-replies']()}
+            </MenuItem>
+          ) : null}
           <MenuItem
             checked={filterState.onlyCurrentMode}
             onSelect={() =>
@@ -163,7 +178,7 @@ const ActionMenu = ({
 };
 
 interface CommentRowProps {
-  user: { avatarUrl: string | null; name: string };
+  user: { id?: string; avatarUrl: string | null; name: string };
   // Read-only variant
   snapshot?: DocSnapshot;
   time?: number;
@@ -191,12 +206,17 @@ const CommentRow = ({
   uploadCommentAttachment,
   editorRefSetter,
 }: CommentRowProps) => {
+  const t = useI18n();
   if (snapshot) {
+    const name =
+      user.id === LOCAL_COMMENT_USER_ID
+        ? t['com.affine.comment.author.you']()
+        : user.name;
     return (
       <div data-time={time} className={styles.readonlyCommentContainer}>
         <div className={styles.userContainer}>
           <Avatar url={user.avatarUrl ?? null} size={24} />
-          <div className={styles.userName}>{user.name}</div>
+          <div className={styles.userName}>{name}</div>
           {time ? (
             <div className={styles.time}>
               {i18nTime(time, {
@@ -252,8 +272,7 @@ const CommentItem = ({
   const t = useI18n();
   const { openConfirmModal } = useConfirmModal();
 
-  const session = useService(AuthService).session;
-  const account = useLiveData(session.account$);
+  const account = useCommentAuthor(entity);
 
   const docId = entity.props.docId;
   const canCreateComment = useGuard('Doc_Comments_Create', docId);
@@ -499,7 +518,7 @@ const CommentItem = ({
           open={menuOpen}
           onOpenChange={setMenuOpen}
           canReply={canReply}
-          canCopyLink
+          canCopyLink={!entity.isLocal}
           canEdit={!!canEdit}
           canDelete={canDelete}
           disabled={isMutating}
@@ -526,13 +545,17 @@ const CommentItem = ({
                 attachments,
               });
             }}
-            uploadCommentAttachment={(id, file) => {
-              return entity.uploadCommentAttachment(id, file, editingDraft);
-            }}
+            uploadCommentAttachment={
+              entity.isLocal
+                ? undefined
+                : (id, file) =>
+                    entity.uploadCommentAttachment(id, file, editingDraft)
+            }
           />
         ) : (
           <CommentRow
             user={{
+              id: comment.user.id,
               avatarUrl: comment.user.avatarUrl,
               name: comment.user.name,
             }}
@@ -573,9 +596,12 @@ const CommentItem = ({
                 attachments,
               });
             }}
-            uploadCommentAttachment={(id, file) => {
-              return entity.uploadCommentAttachment(id, file, pendingReply);
-            }}
+            uploadCommentAttachment={
+              entity.isLocal
+                ? undefined
+                : (id, file) =>
+                    entity.uploadCommentAttachment(id, file, pendingReply)
+            }
           />
         )}
     </div>
@@ -584,8 +610,7 @@ const CommentItem = ({
 
 const CommentList = ({ entity }: { entity: DocCommentEntity }) => {
   const comments = useLiveData(entity.comments$);
-  const session = useService(AuthService).session;
-  const account = useLiveData(session.account$);
+  const account = useCommentAuthor(entity);
   const t = useI18n();
 
   const docMode = useLiveData(entity.docMode$);
@@ -672,6 +697,7 @@ const CommentList = ({ entity }: { entity: DocCommentEntity }) => {
           <SortFilterButton
             filterState={filterState}
             onFilterChange={onFilterChange}
+            showOnlyMyReplies={!entity.isLocal}
           />
         )}
       </div>
@@ -724,8 +750,7 @@ const CommentInput = ({ entity }: { entity: DocCommentEntity }) => {
     entity.dismissDraftComment();
   }, [entity, newPendingComment]);
 
-  const session = useService(AuthService).session;
-  const account = useLiveData(session.account$);
+  const account = useCommentAuthor(entity);
 
   if (!newPendingComment || !account || !canCreateComment) {
     return null;
@@ -748,9 +773,12 @@ const CommentInput = ({ entity }: { entity: DocCommentEntity }) => {
             attachments,
           });
         }}
-        uploadCommentAttachment={(id, file) => {
-          return entity.uploadCommentAttachment(id, file, newPendingComment);
-        }}
+        uploadCommentAttachment={
+          entity.isLocal
+            ? undefined
+            : (id, file) =>
+                entity.uploadCommentAttachment(id, file, newPendingComment)
+        }
       />
     </div>
   );
@@ -770,8 +798,7 @@ const ReplyItem = ({
   replyEditor,
 }: ReplyItemProps) => {
   const t = useI18n();
-  const session = useService(AuthService).session;
-  const account = useLiveData(session.account$);
+  const account = useCommentAuthor(entity);
   const { openConfirmModal } = useConfirmModal();
 
   const [isMutating, setIsMutating] = useState(false);
@@ -887,13 +914,17 @@ const ReplyItem = ({
               attachments,
             });
           }}
-          uploadCommentAttachment={(id, file) => {
-            return entity.uploadCommentAttachment(id, file, editingDraft);
-          }}
+          uploadCommentAttachment={
+            entity.isLocal
+              ? undefined
+              : (id, file) =>
+                  entity.uploadCommentAttachment(id, file, editingDraft)
+          }
         />
       ) : (
         <CommentRow
           user={{
+            id: reply.user.id,
             avatarUrl: reply.user.avatarUrl ?? null,
             name: reply.user.name,
           }}
@@ -953,6 +984,7 @@ const ReplyList = ({
       <>
         <CommentRow
           user={{
+            id: firstReply.user.id,
             avatarUrl: firstReply.user.avatarUrl ?? null,
             name: firstReply.user.name,
           }}
