@@ -141,7 +141,7 @@ export const listBlockHtmlAdapterMatcher: BlockHtmlAdapterMatcher = {
               style:
                 o.node.props.type === 'todo'
                   ? 'list-style-type: none; padding-inline-start: 18px;'
-                  : null,
+                  : undefined,
               className: [o.node.props.type + '-list'],
             },
             children: [],

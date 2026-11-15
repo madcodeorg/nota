@@ -2827,6 +2827,21 @@ export function replaceLiveSegmentsWithRecovery(
   });
 }
 
+// Drop every live final the full pass covers before adding the improved
+// segments, so overlapping improved phrases from mic and system both stay.
+export function replaceLiveTranscriptWithFullPass<
+  Segment extends Pick<TranscriptSegment, 'endMs' | 'source' | 'startMs'>,
+>(
+  runtime: Pick<MeetingRuntime, 'transcriptSegments'>,
+  improved: Segment[],
+  apply: (segment: Segment) => void
+) {
+  improved.forEach(segment =>
+    replaceLiveSegmentsWithRecovery(runtime, segment, { anySource: true })
+  );
+  improved.forEach(apply);
+}
+
 const FULL_PASS_MAX_GAP_MS = 800;
 const FULL_PASS_MAX_PHRASE_MS = 25_000;
 
@@ -2945,12 +2960,9 @@ async function transcribeStoppedMeetingFallback(
             first.startMs - second.startMs || first.endMs - second.endMs
         );
         if (improved.length) {
-          improved.forEach(segment => {
-            replaceLiveSegmentsWithRecovery(runtime, segment, {
-              anySource: true,
-            });
-            applyTranscriptSegment(runtime, segment);
-          });
+          replaceLiveTranscriptWithFullPass(runtime, improved, segment =>
+            applyTranscriptSegment(runtime, segment)
+          );
           await persistMeetings(config);
           await discardMeetingFallbackAudioAfterRecovery({
             fallbackAudioSpool: runtime.fallbackAudioSpool,

@@ -1,5 +1,6 @@
 import { ListBlockModel } from '@blocksuite/affine-model';
 import {
+  getClosestColumn,
   getNextContentBlock,
   isColumnModel,
   isColumnsModel,
@@ -66,6 +67,10 @@ export function forwardDelete(std: BlockStdScope): true | undefined {
   if ((!nextSibling && isColumnModel(parent)) || isColumnsModel(nextSibling))
     return true;
   const nextBlock = getNextContentBlock(std.host, model);
+  // nested items can still reach the next column through their ancestors
+  if (nextBlock && getClosestColumn(nextBlock) !== getClosestColumn(model)) {
+    return true;
+  }
   const nextBlockText = nextBlock?.text;
   if (nextBlock && nextBlockText) {
     model.props.text.join(nextBlock.text as Text);

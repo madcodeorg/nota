@@ -6,6 +6,7 @@ import {
 } from './meeting-transcript-clean';
 import {
   replaceLiveSegmentsWithRecovery,
+  replaceLiveTranscriptWithFullPass,
   sortTranscriptSegments,
 } from './meetings';
 
@@ -119,5 +120,27 @@ describe('replaceLiveSegmentsWithRecovery', () => {
       { anySource: true }
     );
     expect(runtime.transcriptSegments.map(item => item.id)).toEqual(['later']);
+  });
+
+  it('keeps overlapping full-pass phrases from both sources', () => {
+    const runtime = {
+      transcriptSegments: [
+        segment('live', 0, 10000, 'system'),
+        segment('later', 40000, 50000),
+      ],
+    };
+    replaceLiveTranscriptWithFullPass(
+      runtime,
+      [
+        segment('improved-mic', 0, 10000),
+        segment('improved-system', 0, 10000, 'system'),
+      ],
+      improved => runtime.transcriptSegments.push(improved)
+    );
+    expect(runtime.transcriptSegments.map(item => item.id)).toEqual([
+      'later',
+      'improved-mic',
+      'improved-system',
+    ]);
   });
 });
