@@ -4,7 +4,10 @@ import {
   cleanTranscriptText,
   isIsolatedFillerLine,
 } from './meeting-transcript-clean';
-import { replaceLiveSegmentsWithRecovery } from './meetings';
+import {
+  replaceLiveSegmentsWithRecovery,
+  sortTranscriptSegments,
+} from './meetings';
 
 describe('cleanTranscriptText', () => {
   it('strips Whisper tags, >> markers and leading dashes', () => {
@@ -35,6 +38,16 @@ describe('isIsolatedFillerLine', () => {
       false
     );
     expect(isIsolatedFillerLine('Okay.', 800)).toBe(false);
+  });
+
+  it('drops stock noise hallucinations and looped filler when short', () => {
+    expect(isIsolatedFillerLine('Thank you very much.', 1300)).toBe(true);
+    expect(isIsolatedFillerLine('Thank you for watching!', 2000)).toBe(true);
+    expect(isIsolatedFillerLine('Thank you. Thank you.', 1500)).toBe(true);
+    expect(isIsolatedFillerLine('You you you', 1500)).toBe(true);
+    expect(isIsolatedFillerLine('Thank you very much.', 6000)).toBe(false);
+    expect(isIsolatedFillerLine('Thank you, you can go.', 1500)).toBe(false);
+    expect(isIsolatedFillerLine('Oh no.', 800)).toBe(false);
   });
 });
 
@@ -75,5 +88,36 @@ describe('replaceLiveSegmentsWithRecovery', () => {
       'other-source',
       'later',
     ]);
+  });
+
+  it('puts recovered segments back in spoken order', () => {
+    const runtime = {
+      transcriptSegments: [
+        segment('second', 7000, 13000, 'system'),
+        segment('mic', 12000, 19000),
+        segment('recovered-first', 2000, 6000, 'system'),
+      ],
+    };
+    sortTranscriptSegments(runtime);
+    expect(runtime.transcriptSegments.map(item => item.id)).toEqual([
+      'recovered-first',
+      'second',
+      'mic',
+    ]);
+  });
+
+  it('replaces live finals of either source for a full pass', () => {
+    const runtime = {
+      transcriptSegments: [
+        segment('mislabeled', 0, 10000, 'system'),
+        segment('later', 40000, 50000),
+      ],
+    };
+    replaceLiveSegmentsWithRecovery(
+      runtime,
+      { endMs: 10000, source: 'mic', startMs: 0 },
+      { anySource: true }
+    );
+    expect(runtime.transcriptSegments.map(item => item.id)).toEqual(['later']);
   });
 });

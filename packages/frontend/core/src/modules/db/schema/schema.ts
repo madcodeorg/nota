@@ -9,6 +9,7 @@ import {
 import { nanoid } from 'nanoid';
 
 import type { Artwork } from '../../../utils/met-artwork';
+import type { DocCommentContent } from '../../comment/types';
 import type { WorkspacePropertyType } from '../../workspace-property';
 
 const integrationType = f.enum('readwise');
@@ -35,6 +36,7 @@ export const AFFiNE_WORKSPACE_DB_SCHEMA = {
     coverArtwork: f.json<Artwork>().optional(),
     coverHidden: f.boolean().optional(),
     locked: f.boolean().optional(),
+    tasksInbox: f.boolean().optional(),
   }),
   docCustomPropertyInfo: {
     id: f.string().primaryKey().optional().default(nanoid),
@@ -58,12 +60,47 @@ export const AFFiNE_WORKSPACE_DB_SCHEMA = {
     id: f.string().primaryKey(),
     icon: f.json<IconData>(),
   },
+  taskBoardStatus: {
+    /**
+     * ${docId}:${blockId}
+     */
+    id: f.string().primaryKey(),
+    status: f.enum('doing'),
+  },
+  /**
+   * Comments and replies of local and Google Drive workspaces.
+   * Server-backed workspaces keep comments on the server instead.
+   */
+  docComments: {
+    id: f.string().primaryKey().optional().default(nanoid),
+    docId: f.string(),
+    /**
+     * set on replies, the id of the parent comment
+     */
+    commentId: f.string().optional(),
+    content: f.json<DocCommentContent>(),
+    resolved: f.boolean().optional(),
+    createdAt: f.number(),
+    updatedAt: f.number(),
+  },
+  reminders: {
+    id: f.string().primaryKey().optional().default(nanoid),
+    docId: f.string(),
+    /** Unset for a page reminder. */
+    blockId: f.string().optional(),
+    /** ms timestamp */
+    remindAt: f.number(),
+    done: f.boolean().optional(),
+  },
 } as const satisfies DBSchemaBuilder;
 export type AFFiNEWorkspaceDbSchema = typeof AFFiNE_WORKSPACE_DB_SCHEMA;
 
 export type DocProperties = ORMEntity<AFFiNEWorkspaceDbSchema['docProperties']>;
 export type DocCustomPropertyInfo = ORMEntity<
   AFFiNEWorkspaceDbSchema['docCustomPropertyInfo']
+>;
+export type DocCommentRecord = ORMEntity<
+  AFFiNEWorkspaceDbSchema['docComments']
 >;
 
 export const AFFiNE_WORKSPACE_USERDATA_DB_SCHEMA = {

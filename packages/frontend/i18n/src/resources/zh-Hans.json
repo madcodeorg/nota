@@ -347,7 +347,6 @@
   "com.affine.auth.verify.email.message": "您当前的邮箱是 {{email}}。我们将向此邮箱发送一个临时的验证链接。",
   "com.affine.backButton": "返回首页",
   "com.affine.banner.content": "此演示有限。<1>下载 Nota 客户端</1>以获取最新功能和表现。",
-  "com.affine.banner.local-warning": "您的本地数据存储在浏览器中，可能会丢失。 不要冒险 - 立即启用 Nota Cloud ！",
   "com.affine.brand.affineCloud": "Nota Cloud",
   "com.affine.calendar-date-picker.month-names": "一月,二月,三月,四月,五月,六月,七月,八月,九月,十月,十一月,十二月",
   "com.affine.calendar-date-picker.today": "今天",

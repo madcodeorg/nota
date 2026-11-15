@@ -18,6 +18,7 @@ import type { DefaultServerService, WorkspaceServerService } from '../../cloud';
 import { GraphQLService } from '../../cloud/services/graphql';
 import type { WorkspaceService } from '../../workspace';
 import type {
+  CommentStore,
   DocComment,
   DocCommentChangeListResult,
   DocCommentContent,
@@ -67,11 +68,14 @@ const normalizeComment = (comment: GQLCommentType): DocComment => ({
   replies: comment.replies?.map(normalizeReply) ?? [],
 });
 
-export class DocCommentStore extends Entity<{
-  docId: string;
-  getDocMode: () => DocMode;
-  getDocTitle: () => string;
-}> {
+export class DocCommentStore
+  extends Entity<{
+    docId: string;
+    getDocMode: () => DocMode;
+    getDocTitle: () => string;
+  }>
+  implements CommentStore
+{
   constructor(
     private readonly workspaceService: WorkspaceService,
     private readonly workspaceServerService: WorkspaceServerService,

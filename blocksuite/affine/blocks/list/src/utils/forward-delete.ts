@@ -1,6 +1,8 @@
 import { ListBlockModel } from '@blocksuite/affine-model';
 import {
   getNextContentBlock,
+  isColumnModel,
+  isColumnsModel,
   matchModels,
 } from '@blocksuite/affine-shared/utils';
 import { type BlockStdScope, TextSelection } from '@blocksuite/std';
@@ -60,6 +62,9 @@ export function forwardDelete(std: BlockStdScope): true | undefined {
   }
 
   // Has next text block in other note block
+  // (but never pull text out of another column)
+  if ((!nextSibling && isColumnModel(parent)) || isColumnsModel(nextSibling))
+    return true;
   const nextBlock = getNextContentBlock(std.host, model);
   const nextBlockText = nextBlock?.text;
   if (nextBlock && nextBlockText) {

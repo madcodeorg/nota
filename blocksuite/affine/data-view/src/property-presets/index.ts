@@ -5,11 +5,13 @@ import { multiSelectPropertyConfig } from './multi-select/cell-renderer.js';
 import { numberPropertyConfig } from './number/cell-renderer.js';
 import { progressPropertyConfig } from './progress/cell-renderer.js';
 import { selectPropertyConfig } from './select/cell-renderer.js';
+import { statusPropertyConfig } from './status/cell-renderer.js';
 import { textPropertyConfig } from './text/cell-renderer.js';
 
 export * from './converts.js';
 export * from './number/types.js';
 export * from './select/define.js';
+export * from './status/define.js';
 export const propertyPresets = {
   checkboxPropertyConfig,
   datePropertyConfig,
@@ -18,5 +20,6 @@ export const propertyPresets = {
   numberPropertyConfig,
   progressPropertyConfig,
   selectPropertyConfig,
+  statusPropertyConfig,
   textPropertyConfig,
 };

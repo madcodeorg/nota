@@ -63,6 +63,33 @@ describe('staged CSV database import', () => {
     ]);
     expect(rows[1]).toEqual(['C', '', 'True', '', '', '']);
   });
+  test('imports a Status column, matching default options and adding new ones', () => {
+    const workspace = createWorkspace();
+    const preview = parseCsv(
+      'Name,Status\nA,Done\nB,Blocked\nC,\nD,In progress'
+    );
+    const mapping = suggestCsvMapping(preview);
+    mapping[1].type = 'status';
+    const job = prepareCsvImport(workspace, preview, mapping, 'Statuses');
+    publishCsvImport(workspace, job);
+    const store = workspace.getDoc(job.docId)!.getStore();
+    const model = store.getModelById(job.databaseId) as DatabaseBlockModel;
+    const column = model.props.columns[1];
+    expect(column.type).toBe('status');
+    const options = column.data.options as { value: string; group: string }[];
+    expect(options.map(v => [v.value, v.group])).toEqual([
+      ['Not started', 'todo'],
+      ['In progress', 'inProgress'],
+      ['Done', 'complete'],
+      ['Blocked', 'todo'],
+    ]);
+    expect(parseCsv(exportDatabaseCsv(store)[0].csv).rows).toEqual([
+      ['A', 'Done'],
+      ['B', 'Blocked'],
+      ['C', ''],
+      ['D', 'In progress'],
+    ]);
+  });
   test('rejects invalid conversions without exposing a partial document', () => {
     const workspace = createWorkspace();
     const create = vi.spyOn(workspace, 'createDoc');

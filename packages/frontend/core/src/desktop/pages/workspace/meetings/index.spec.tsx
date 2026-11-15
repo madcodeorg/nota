@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
 /* eslint-disable rxjs/finnish -- Service stubs preserve the production LiveData names. */
+import type * as Infra from '@nota/infra';
 import {
   act,
   cleanup,
@@ -59,8 +60,13 @@ const mocks = vi.hoisted(() => {
         'ServerService',
         'FeatureFlagService',
         'CMDKQuickSearchService',
+        'AppSidebarService',
       ].map(name => [name, Symbol(name)])
     ),
+    sidebar: {
+      open$: liveData(false),
+      smallScreenMode$: liveData(false),
+    },
     workbench: {
       location$: liveData({
         pathname: '/meetings',
@@ -152,11 +158,13 @@ vi.mock('@nota/core/modules/workbench', () => ({
 vi.mock('@nota/core/utils/opus-encoding', () => ({
   createStreamEncoder: vi.fn(),
 }));
-vi.mock('@nota/infra', async () => {
+vi.mock('@nota/infra', async importOriginal => {
+  const actual = await importOriginal<typeof Infra>();
   const { useSyncExternalStore } = await import('react');
   const services = new Map<symbol, unknown>([
     [mocks.tokens.WorkbenchService, { workbench: mocks.workbench }],
     [mocks.tokens.WorkspaceService, { workspace: mocks.workspace }],
+    [mocks.tokens.AppSidebarService, { sidebar: mocks.sidebar }],
     [
       mocks.tokens.DesktopApiService,
       {
@@ -174,6 +182,7 @@ vi.mock('@nota/infra', async () => {
   ]);
   const getService = (token: symbol) => services.get(token) ?? {};
   return {
+    ...actual,
     LiveData: {
       computed: () => ({ value: [], subscribe: () => () => {} }),
     },
@@ -211,7 +220,7 @@ vi.mock('../detail-page/tabs/chat', () => ({
   EditorChatPanel: () => null,
 }));
 vi.mock('@nota/core/modules/app-sidebar/services/app-sidebar', () => ({
-  AppSidebarService: Symbol('AppSidebarService'),
+  AppSidebarService: mocks.tokens.AppSidebarService,
 }));
 vi.mock('@nota/core/modules/dialogs', () => ({
   WorkspaceDialogService: Symbol('WorkspaceDialogService'),
@@ -235,6 +244,7 @@ vi.mock('@nota/component', () => ({
   MenuSeparator: () => null,
   Skeleton: () => null,
   Tooltip: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  useConfirmModal: () => ({ openConfirmModal: vi.fn() }),
 }));
 vi.mock('@nota/i18n', () => ({
   useI18n: () => new Proxy({}, { get: (_, key) => () => String(key) }),
@@ -375,6 +385,8 @@ beforeEach(() => {
   mocks.fetch.mockImplementation(async (url: string, init?: RequestInit) => {
     const path = new URL(url, 'http://localhost').pathname;
     if (path === '/v1/meetings') return Response.json({ meetings: [meeting] });
+    if (path === '/api/ai/settings')
+      return Response.json({ meetings: { postPassEnabled: true } });
     if (path === '/v1/meetings/meeting-1/stop') {
       meeting.status = 'stopped';
       meeting.stt.status = 'stopped';

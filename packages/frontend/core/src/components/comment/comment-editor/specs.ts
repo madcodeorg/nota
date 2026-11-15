@@ -33,6 +33,7 @@ import {
 } from '@blocksuite/affine/inlines/preset';
 import { ReferenceInlineSpecExtension } from '@blocksuite/affine/inlines/reference';
 import { ReferenceViewExtension } from '@blocksuite/affine/inlines/reference/view';
+import { ColorScheme } from '@blocksuite/affine/model';
 import {
   DefaultOpenDocExtension,
   DocDisplayMetaService,
@@ -42,11 +43,13 @@ import {
   fontConfigSchema,
   FontLoaderService,
   PageViewportServiceExtension,
+  ThemeExtensionIdentifier,
   ThemeService,
   ToolbarRegistryExtension,
 } from '@blocksuite/affine/shared/services';
 import type { AffineTextAttributes } from '@blocksuite/affine/shared/types';
 import { InlineManagerExtension } from '@blocksuite/affine/std/inline';
+import type { ExtensionType } from '@blocksuite/affine/store';
 import { LinkedDocViewExtension } from '@blocksuite/affine/widgets/linked-doc/view';
 import { ToolbarViewExtension } from '@blocksuite/affine/widgets/toolbar/view';
 import { ViewportOverlayViewExtension } from '@blocksuite/affine/widgets/viewport-overlay/view';
@@ -54,6 +57,7 @@ import { AffineEditorViewExtension } from '@nota/core/blocksuite/view-extensions
 import { AffineThemeViewExtension } from '@nota/core/blocksuite/view-extensions/theme';
 import { I18n } from '@nota/i18n';
 import type { FrameworkProvider } from '@nota/infra';
+import { signal } from '@preact/signals-core';
 import { z } from 'zod';
 
 import { createCommentLinkedWidgetConfig } from './linked-widget-config';
@@ -116,6 +120,20 @@ class CommentEditorViewExtensionProvider extends ViewExtensionProvider<CommentEd
     }
   }
 }
+
+const darkTheme = signal(ColorScheme.Dark);
+
+/**
+ * The comment sidebar lives in the app sidebar, which is always dark.
+ */
+export const CommentEditorThemeExtension: ExtensionType = {
+  setup: di => {
+    di.override(ThemeExtensionIdentifier, {
+      getAppTheme: () => darkTheme,
+      getEdgelessTheme: () => darkTheme,
+    });
+  },
+};
 
 let manager: ViewExtensionManager | null = null;
 export function getCommentEditorViewManager(framework: FrameworkProvider) {

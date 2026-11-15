@@ -701,6 +701,7 @@ export function createServer() {
         meetings: {
           device: localModelHealth.device,
           localModels: localModelHealth.models,
+          postPassEnabled: config.meetingPostPassEnabled,
           sttModelId: config.meetingSttModelId,
           sttLanguage: config.meetingSttLanguage,
           sttProviderId: config.meetingSttProviderId,

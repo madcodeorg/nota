@@ -75,6 +75,12 @@ The model ranking came from two test transcripts. Treat it as a starting point.
 `meeting-capture-pipeline.ts` mixes mic and system audio in 100 ms windows, runs
 speech detection, and hands phrases to the chosen decoder.
 
+System audio comes from `@nota/native`: a Core Audio tap on macOS, WASAPI
+loopback on Windows, and on Linux the default output's monitor read through
+`parec` or `pw-record` (`media_capture/src/linux`). Windows and Linux record the
+whole output, not one app. Each phrase is labeled mic or system by which source
+carried more energy.
+
 - **Source wait:** if one source lags, the mixer waits up to 500 ms for it
   before mixing. Audio that still arrives later is dropped from the live mix
   and counted as late (the recording is kept).

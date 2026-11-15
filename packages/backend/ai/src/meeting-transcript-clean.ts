@@ -10,13 +10,25 @@ const ISOLATED_FILLER = new Set([
   'mm',
   'mmm',
   'oh',
+  'please subscribe',
   'thank you',
+  'thank you for watching',
+  'thank you so much',
+  'thank you very much',
   'thanks',
   'thanks for watching',
   'um',
   'uh',
   'you',
 ]);
+
+// Whisper loops on noise, e.g. "Thank you. Thank you." or "you you you".
+const FILLER_ALTERNATION = [...ISOLATED_FILLER]
+  .sort((a, b) => b.length - a.length)
+  .join('|');
+const REPEATED_FILLER = new RegExp(
+  `^(?:${FILLER_ALTERNATION})(?: (?:${FILLER_ALTERNATION}))+$`
+);
 
 // A real answer can be this short, so only very short lines are dropped.
 const ISOLATED_FILLER_MAX_MS = 3000;
@@ -43,5 +55,5 @@ export function isIsolatedFillerLine(text: string, durationMs: number) {
     .replace(/[^\p{L}\p{N}\s']/gu, ' ')
     .replace(/\s+/g, ' ')
     .trim();
-  return ISOLATED_FILLER.has(words);
+  return ISOLATED_FILLER.has(words) || REPEATED_FILLER.test(words);
 }

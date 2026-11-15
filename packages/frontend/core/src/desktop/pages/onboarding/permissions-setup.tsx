@@ -67,10 +67,13 @@ export function NotaPermissionsSetup({
   const [error, setError] = useState<string | null>(null);
   const isWindows = globalThis.environment?.isWindows === true;
   const isMacOs = globalThis.environment?.isMacOs === true;
+  const isLinux = globalThis.environment?.isLinux === true;
+  // Windows and Linux verify system audio when a recording starts.
+  const checksOnStart = isWindows || isLinux;
   const systemAudioLabel =
     report?.runtime.available === false
       ? 'Unavailable'
-      : isWindows &&
+      : checksOnStart &&
           report?.systemAudioAccessSource === 'platform-compatibility' &&
           report.statuses.systemAudio === 'unknown'
         ? 'Checked on start'
@@ -161,7 +164,7 @@ export function NotaPermissionsSetup({
         <section className={styles.choice}>
           <h3 className={styles.choiceTitle}>Meetings</h3>
           <p className={styles.detail}>
-            {isWindows
+            {checksOnStart
               ? 'Check microphone access now. System audio is checked when you start recording.'
               : 'Microphone and system audio are checked only when you press a button.'}
           </p>
@@ -216,7 +219,9 @@ export function NotaPermissionsSetup({
             <p className={styles.detail}>
               {isWindows
                 ? 'Windows manages recording access in its privacy settings. Nota keeps this step optional and checks support when you start a meeting.'
-                : 'This platform exposes recording access when a meeting starts. Nota keeps this step optional.'}
+                : isLinux
+                  ? 'Nota records system audio from your default output through PipeWire or PulseAudio. It checks the devices when you start a meeting.'
+                  : 'This platform exposes recording access when a meeting starts. Nota keeps this step optional.'}
             </p>
           ) : null}
         </section>

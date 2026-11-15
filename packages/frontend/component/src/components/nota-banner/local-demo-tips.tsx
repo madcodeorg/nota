@@ -1,35 +1,17 @@
 import { CloseIcon } from '@blocksuite/icons/rc';
-import { Button, IconButton } from '@nota/component/ui/button';
+import { IconButton } from '@nota/component/ui/button';
 import { useI18n } from '@nota/i18n';
-import { cssVar } from '@toeverything/theme';
-import { useCallback } from 'react';
 
 import * as styles from './index.css';
 
 type LocalDemoTipsProps = {
-  isLoggedIn: boolean;
-  onLogin: () => void;
-  onEnableCloud: () => void;
   onClose: () => void;
 };
 
-export const LocalDemoTips = ({
-  onClose,
-  isLoggedIn,
-  onLogin,
-  onEnableCloud,
-}: LocalDemoTipsProps) => {
+/** Web-only notice that browser storage can be cleared. Nota is local-first,
+ * so it points to the desktop app and backups rather than a cloud account. */
+export const LocalDemoTips = ({ onClose }: LocalDemoTipsProps) => {
   const t = useI18n();
-  const buttonLabel = isLoggedIn
-    ? t['com.affine.history-vision.tips-modal.confirm']()
-    : t['Sign in and Enable']();
-
-  const handleClick = useCallback(() => {
-    if (isLoggedIn) {
-      return onEnableCloud();
-    }
-    return onLogin();
-  }, [isLoggedIn, onEnableCloud, onLogin]);
 
   return (
     <div className={styles.tipsContainer} data-testid="local-demo-tips">
@@ -38,9 +20,6 @@ export const LocalDemoTips = ({
       </div>
 
       <div className={styles.tipsRightItem}>
-        <Button style={{ background: cssVar('white') }} onClick={handleClick}>
-          {buttonLabel}
-        </Button>
         <IconButton
           onClick={onClose}
           size="20"

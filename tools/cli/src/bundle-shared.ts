@@ -88,10 +88,9 @@ export const DEFAULT_DEV_SERVER_CONFIG: RspackDevServerConfiguration = {
   client: {
     overlay: process.env.DISABLE_DEV_OVERLAY === 'true' ? false : undefined,
     logging: process.env.CI ? 'none' : 'error',
-    // see: https://webpack.js.org/configuration/dev-server/#websocketurl
-    // must be an explicit ws/wss URL because custom protocols (e.g. assets://)
-    // cannot be used to construct WebSocket endpoints in Electron
-    webSocketURL: 'ws://0.0.0.0:8080/ws',
+    // webSocketURL is set per run in bundle.ts, from the port the server
+    // actually takes. It must be an explicit ws:// URL because custom
+    // protocols (e.g. assets://) cannot build WebSocket endpoints in Electron.
   },
   historyApiFallback: {
     rewrites: [

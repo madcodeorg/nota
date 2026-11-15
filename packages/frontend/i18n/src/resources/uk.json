@@ -330,7 +330,6 @@
   "com.affine.auth.verify.email.message": "Ваш поточний email - {{email}}. Ми надішлемо тимчасове посилання для перевірки на цей email.",
   "com.affine.backButton": "Назад",
   "com.affine.banner.content": "Ця демо-версія обмежена. <1>Завантажте Nota Client</1> для отримання останніх функцій і продуктивності.",
-  "com.affine.banner.local-warning": "Ваші локальні дані зберігаються в браузері і можуть бути втрачені. Не ризикуйте – увімкніть хмару зараз!",
   "com.affine.brand.affineCloud": "Nota Cloud",
   "com.affine.calendar-date-picker.month-names": "Січ,Лют,Бер,Кві,Тра,Чер,Лип,Сер,Вер,Жов,Лис,Гру",
   "com.affine.calendar-date-picker.today": "Сьогодні",

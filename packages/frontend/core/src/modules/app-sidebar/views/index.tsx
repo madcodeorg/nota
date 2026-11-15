@@ -149,6 +149,7 @@ export function AppSidebar({
         <div
           className={railColumnStyle}
           data-testid="app-sidebar-rail-column"
+          data-floating={sidebarState === 'floating'}
           data-theme="dark"
           onMouseMove={() => {
             if (

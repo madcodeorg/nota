@@ -7,6 +7,7 @@ export type CsvColumnType =
   | 'checkbox'
   | 'date'
   | 'select'
+  | 'status'
   | 'link'
   | 'skip';
 export type CsvDelimiter = ',' | ';' | '\t';

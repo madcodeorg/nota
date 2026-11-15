@@ -330,7 +330,6 @@
   "com.affine.auth.verify.email.message": "ایمیل فعلی شما {{email}} است. ما یک لینک تأیید موقت به این ایمیل ارسال خواهیم کرد.",
   "com.affine.backButton": "بازگشت",
   "com.affine.banner.content": "این دمو محدود است. <1>کلاینت Nota را دانلود کنید</1> تا از آخرین ویژگی‌ها و عملکرد بهره‌مند شوید.",
-  "com.affine.banner.local-warning": "داده‌های محلی شما در مرورگر ذخیره شده و ممکن است از بین بروند. ریسک نکنید - اکنون فضای ابری را فعال کنید!",
   "com.affine.brand.affineCloud": "Nota Cloud",
   "com.affine.calendar-date-picker.month-names": "ژانویه,فوریه,مارس,آوریل,مه,ژوئن,ژوئیه,اوت,سپتامبر,اکتبر,نوامبر,دسامبر",
   "com.affine.calendar-date-picker.today": "امروز",

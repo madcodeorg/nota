@@ -242,7 +242,6 @@
   "com.affine.auth.verify.email.message": "El vostre correu electrònic actual és {{email}}. Enviarem un enllaç de verificació temporal a aquesta adreça.",
   "com.affine.backButton": "Enrere",
   "com.affine.banner.content": "Aquesta demostració és limitada. <1>Descarrega el Client Nota</1> per a les darreres funcions i rendiment.",
-  "com.affine.banner.local-warning": "Les teves dades locals s'emmagatzemen al navegador i es poden perdre. No arrisquis - activa el núvol ara!",
   "com.affine.brand.affineCloud": "Nota Cloud",
   "com.affine.calendar-date-picker.month-names": "Gen,Feb,Mar,Abr,Mai,Jun,Jul,Ago,Set,Oct,Nov,Des",
   "com.affine.calendar-date-picker.today": "Avui",

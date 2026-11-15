@@ -30,7 +30,10 @@ import {
 } from 'react';
 
 import { useAsyncCallback } from '../../hooks/nota-async-hooks';
-import { getCommentEditorViewManager } from './specs';
+import {
+  CommentEditorThemeExtension,
+  getCommentEditorViewManager,
+} from './specs';
 import * as styles from './style.css';
 
 const MAX_ATTACHMENT_COUNT = 10;
@@ -44,7 +47,10 @@ const usePatchSpecs = (readonly: boolean) => {
     const manager = getCommentEditorViewManager(framework);
     return manager
       .get(readonly ? 'preview-page' : 'page')
-      .concat([ViewportElementExtension('.comment-editor-viewport')]);
+      .concat([
+        ViewportElementExtension('.comment-editor-viewport'),
+        CommentEditorThemeExtension,
+      ]);
   }, [framework, readonly]);
 
   return patchedSpecs;
@@ -287,7 +293,7 @@ export const CommentEditor = forwardRef<CommentEditorRef, CommentEditorProps>(
     const handlePaste = useCallback(
       (event: React.ClipboardEvent) => {
         const items = event.clipboardData?.items;
-        if (!items) return;
+        if (!items || !uploadCommentAttachment) return;
         const files: File[] = [];
         for (const index in items) {
           const item = items[index as any];
@@ -301,7 +307,7 @@ export const CommentEditor = forwardRef<CommentEditorRef, CommentEditorProps>(
           addAttachments(files);
         }
       },
-      [addAttachments]
+      [addAttachments, uploadCommentAttachment]
     );
 
     const handleDragOver = useCallback(
@@ -583,11 +589,13 @@ export const CommentEditor = forwardRef<CommentEditorRef, CommentEditorProps>(
         )}
         {!readonly && (
           <div className={styles.footer}>
-            <IconButton
-              icon={<AttachmentIcon />}
-              onClick={openFilePicker}
-              disabled={isUploadDisabled}
-            />
+            {uploadCommentAttachment ? (
+              <IconButton
+                icon={<AttachmentIcon />}
+                onClick={openFilePicker}
+                disabled={isUploadDisabled}
+              />
+            ) : null}
             <button
               onClick={handleCommit}
               className={styles.commitButton}

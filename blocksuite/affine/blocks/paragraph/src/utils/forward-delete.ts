@@ -12,6 +12,8 @@ import {
 import { EMBED_BLOCK_MODEL_LIST } from '@blocksuite/affine-shared/consts';
 import {
   getNextContentBlock,
+  isColumnModel,
+  isColumnsModel,
   matchModels,
 } from '@blocksuite/affine-shared/utils';
 import {
@@ -38,6 +40,11 @@ export function forwardDelete(std: BlockStdScope) {
   if (!parent) return;
 
   const nextSibling = store.getNext(model);
+
+  // never merge text across column boundaries
+  if ((!nextSibling && isColumnModel(parent)) || isColumnsModel(nextSibling)) {
+    return true;
+  }
 
   if (
     matchModels(nextSibling, [

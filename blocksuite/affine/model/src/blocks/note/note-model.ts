@@ -80,6 +80,7 @@ export const NoteBlockSchema = defineBlockSchema({
       'affine:database',
       'affine:data-view',
       'affine:callout',
+      'affine:columns',
     ],
   },
   toModel: () => {

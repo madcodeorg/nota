@@ -18,7 +18,12 @@ import { getSelectedBlocksCommand } from '../../commands';
 import { ImageSelection } from '../../selection';
 import { matchModels } from '../../utils';
 import { type CommentId, CommentProviderIdentifier } from './comment-provider';
-import { findCommentedBlocks, findCommentedElements } from './utils';
+import {
+  findAllCommentedBlocks,
+  findAllCommentedElements,
+  findCommentedBlocks,
+  findCommentedElements,
+} from './utils';
 
 export class BlockElementCommentManager extends LifeCycleWatcher {
   static override key = 'block-element-comment-manager';
@@ -67,6 +72,8 @@ export class BlockElementCommentManager extends LifeCycleWatcher {
     this._disposables.add(
       provider.onCommentHighlighted(this._handleHighlightComment)
     );
+    const unresolved = provider.onCommentUnresolved?.(this._handleUnresolve);
+    if (unresolved) this._disposables.add(unresolved);
   }
 
   override unmounted() {
@@ -170,6 +177,21 @@ export class BlockElementCommentManager extends LifeCycleWatcher {
           delete element.comments[id];
         } else {
           element.comments[id] = false;
+        }
+      });
+    });
+  };
+
+  private readonly _handleUnresolve = (id: CommentId) => {
+    this.std.store.withoutTransact(() => {
+      findAllCommentedBlocks(this.std.store).forEach(block => {
+        if (id in block.props.comments) {
+          block.props.comments[id] = true;
+        }
+      });
+      findAllCommentedElements(this.std.store).forEach(element => {
+        if (id in element.comments) {
+          element.comments[id] = true;
         }
       });
     });

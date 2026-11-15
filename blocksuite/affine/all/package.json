@@ -14,6 +14,7 @@
     "@blocksuite/affine-block-bookmark": "workspace:*",
     "@blocksuite/affine-block-callout": "workspace:*",
     "@blocksuite/affine-block-code": "workspace:*",
+    "@blocksuite/affine-block-columns": "workspace:*",
     "@blocksuite/affine-block-data-view": "workspace:*",
     "@blocksuite/affine-block-database": "workspace:*",
     "@blocksuite/affine-block-divider": "workspace:*",
@@ -112,6 +113,9 @@
     "./blocks/code": "./src/blocks/code/index.ts",
     "./blocks/code/store": "./src/blocks/code/store.ts",
     "./blocks/code/view": "./src/blocks/code/view.ts",
+    "./blocks/columns": "./src/blocks/columns/index.ts",
+    "./blocks/columns/store": "./src/blocks/columns/store.ts",
+    "./blocks/columns/view": "./src/blocks/columns/view.ts",
     "./blocks/data-view": "./src/blocks/data-view/index.ts",
     "./blocks/data-view/store": "./src/blocks/data-view/store.ts",
     "./blocks/data-view/view": "./src/blocks/data-view/view.ts",
@@ -296,10 +300,10 @@
     "!src/__tests__",
     "!dist/__tests__"
   ],
-  "version": "0.1.14",
+  "version": "0.1.15",
   "devDependencies": {
-    "@vanilla-extract/vite-plugin": "^5.0.0",
-    "msw": "^2.12.4",
-    "vitest": "^4.1.11"
+    "@vanilla-extract/vite-plugin": "5.1.4",
+    "msw": "^2.15.0",
+    "vitest": "^4.1.12"
   }
 }

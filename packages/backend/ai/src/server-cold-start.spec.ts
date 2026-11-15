@@ -63,6 +63,14 @@ describe('AI backend cold start', () => {
     expect(
       providers.find(provider => provider.id === 'whisper-base-cpp')
     ).toMatchObject({ defaultForPlatform: true });
+    // Apple Speech is only offered where it can run.
+    for (const platform of ['linux', 'win32'] as const) {
+      const ids = (await getSttProviderManifests(config, platform)).map(
+        provider => provider.id
+      );
+      expect(ids).toContain('whisper-base-cpp');
+      expect(ids).not.toContain('apple-speechanalyzer');
+    }
     expect(
       providers.find(provider => provider.id === 'nemotron-sherpa')
     ).toMatchObject({

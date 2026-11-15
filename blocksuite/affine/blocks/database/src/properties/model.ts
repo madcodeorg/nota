@@ -18,6 +18,7 @@ export const databaseBlockModels = Object.fromEntries(
     propertyModelPresets.progressPropertyModelConfig,
     propertyModelPresets.selectPropertyModelConfig,
     propertyModelPresets.multiSelectPropertyModelConfig,
+    propertyModelPresets.statusPropertyModelConfig,
     linkPropertyModelConfig,
     richTextPropertyModelConfig,
     titlePropertyModelConfig,

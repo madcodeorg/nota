@@ -373,7 +373,6 @@
   "com.affine.auth.verify.email.message": "بريدك الإلكتروني الحالي هو {{email}}. سنرسل رابط تحقق مؤقت إلى هذا البريد الإلكتروني.",
   "com.affine.backButton": "رجوع",
   "com.affine.banner.content": "هذه النسخة التجريبية محدودة. <1>قم بتنزيل عميل Nota</1> للحصول على أحدث الميزات والأداء.",
-  "com.affine.banner.local-warning": "بياناتك المحلية مخزنة في المتصفح وقد تضيع. لا تخاطر - قم بتمكين السحابة الآن!",
   "com.affine.brand.affineCloud": "Nota Cloud",
   "com.affine.calendar-date-picker.month-names": "يناير،فبراير،مارس،أبريل،مايو،يونيو،يوليو،أغسطس،سبتمبر،أكتوبر،نوفمبر،ديسمبر",
   "com.affine.calendar-date-picker.today": "اليوم",

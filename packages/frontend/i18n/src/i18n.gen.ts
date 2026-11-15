@@ -1437,7 +1437,7 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.backButton"](): string;
     /**
-      * `Your local data is stored in the browser and may be lost. Don't risk it - enable cloud now!`
+      * `Your notes are stored in this browser and are lost if its data is cleared. Use the Nota desktop app, or export a backup from Workspace settings, to keep them safe.`
       */
     ["com.affine.banner.local-warning"](): string;
     /**
@@ -8673,6 +8673,10 @@ export function useAFFiNEI18N(): {
       * `Comments`
       */
     ["com.affine.comment.comments"](): string;
+    /**
+      * `You`
+      */
+    ["com.affine.comment.author.you"](): string;
     /**
       * `No comments yet, select content to add comment to`
       */

@@ -178,6 +178,10 @@ class AffineCommentService implements CommentProvider {
     return this.commentEntity.onCommentResolved(callback);
   }
 
+  onCommentUnresolved(callback: (id: string) => void) {
+    return this.commentEntity.onCommentUnresolved(callback);
+  }
+
   onCommentDeleted(callback: (id: string) => void) {
     return this.commentEntity.onCommentDeleted(callback);
   }
