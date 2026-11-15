@@ -5,6 +5,9 @@ export const reminderLinks = style({
   flexDirection: 'column',
   alignItems: 'flex-start',
   gap: 2,
+  // every missed reminder stays reachable, long lists scroll
+  maxHeight: 200,
+  overflowY: 'auto',
 });
 
 export const reminderLink = style({

@@ -138,9 +138,22 @@ describe('replaceLiveSegmentsWithRecovery', () => {
       improved => runtime.transcriptSegments.push(improved)
     );
     expect(runtime.transcriptSegments.map(item => item.id)).toEqual([
-      'later',
       'improved-mic',
       'improved-system',
+      'later',
+    ]);
+  });
+
+  it('keeps the combined transcript in spoken order after a full pass', () => {
+    const runtime = { transcriptSegments: [segment('kept', 10000, 12000)] };
+    replaceLiveTranscriptWithFullPass(
+      runtime,
+      [segment('improved', 0, 4000)],
+      improved => runtime.transcriptSegments.push(improved)
+    );
+    expect(runtime.transcriptSegments.map(item => item.id)).toEqual([
+      'improved',
+      'kept',
     ]);
   });
 });

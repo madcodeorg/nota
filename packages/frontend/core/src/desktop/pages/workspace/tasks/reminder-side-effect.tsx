@@ -20,7 +20,6 @@ import * as styles from './reminder-side-effect.css';
 const CHECK_INTERVAL_MS = 30 * 1000;
 /** Lets the workspace DB and doc list load before missed reminders fire. */
 const FIRST_CHECK_DELAY_MS = 5 * 1000;
-const MAX_GROUP_LINKS = 5;
 
 /**
  * While Nota is open, shows due page and block reminders as an in-app
@@ -68,7 +67,7 @@ export const ReminderSideEffect = () => {
             title: `You missed ${count} reminders`,
             message: (
               <div className={styles.reminderLinks}>
-                {alert.reminders.slice(0, MAX_GROUP_LINKS).map(reminder => (
+                {alert.reminders.map(reminder => (
                   <button
                     key={reminder.id}
                     type="button"
@@ -78,9 +77,6 @@ export const ReminderSideEffect = () => {
                     {title(reminder)}
                   </button>
                 ))}
-                {count > MAX_GROUP_LINKS ? (
-                  <span>and {count - MAX_GROUP_LINKS} more</span>
-                ) : null}
               </div>
             ),
           },

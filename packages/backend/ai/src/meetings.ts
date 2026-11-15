@@ -2840,6 +2840,7 @@ export function replaceLiveTranscriptWithFullPass<
     replaceLiveSegmentsWithRecovery(runtime, segment, { anySource: true })
   );
   improved.forEach(apply);
+  sortTranscriptSegments(runtime);
 }
 
 const FULL_PASS_MAX_GAP_MS = 800;
@@ -2951,6 +2952,7 @@ async function transcribeStoppedMeetingFallback(
           runtime.meeting.sttLanguage
         )
       : [];
+    let improvedWith: string | null = null;
     if (fullPassModelId) {
       try {
         const improved = dedupeRecoveredTranscriptSegments(
@@ -2964,12 +2966,9 @@ async function transcribeStoppedMeetingFallback(
             applyTranscriptSegment(runtime, segment)
           );
           await persistMeetings(config);
-          await discardMeetingFallbackAudioAfterRecovery({
-            fallbackAudioSpool: runtime.fallbackAudioSpool,
-            unresolvedGroups: 0,
-          });
-          runtime.stt.message = `Improved the transcript with ${fullPassModelId}.`;
-          return;
+          // Phrases the pass left empty still go through gap recovery below,
+          // which keeps the audio until every uncovered gap is resolved.
+          improvedWith = fullPassModelId;
         }
       } catch (fullPassError) {
         console.warn(
@@ -3055,19 +3054,22 @@ async function transcribeStoppedMeetingFallback(
       fallbackAudioSpool: runtime.fallbackAudioSpool,
       unresolvedGroups,
     });
-    runtime.stt.message = fallbackSegments.length
-      ? `Recovered ${fallbackSegments.length} missing transcript segment${
-          fallbackSegments.length === 1 ? '' : 's'
-        } from ${recoveredChunks} captured speech chunk${
-          recoveredChunks === 1 ? '' : 's'
-        }.`
-      : recoveredChunks
-        ? `Checked ${recoveredChunks} transcript gap chunk${
-            recoveredChunks === 1 ? '' : 's'
-          }; the local model produced no additional text.`
-        : `Verified all ${verifiedChunks || capturedChunks} captured speech chunk${
-            (verifiedChunks || capturedChunks) === 1 ? '' : 's'
-          } against the live transcript.`;
+    runtime.stt.message =
+      improvedWith && !fallbackSegments.length
+        ? `Improved the transcript with ${improvedWith}.`
+        : fallbackSegments.length
+          ? `Recovered ${fallbackSegments.length} missing transcript segment${
+              fallbackSegments.length === 1 ? '' : 's'
+            } from ${recoveredChunks} captured speech chunk${
+              recoveredChunks === 1 ? '' : 's'
+            }.`
+          : recoveredChunks
+            ? `Checked ${recoveredChunks} transcript gap chunk${
+                recoveredChunks === 1 ? '' : 's'
+              }; the local model produced no additional text.`
+            : `Verified all ${verifiedChunks || capturedChunks} captured speech chunk${
+                (verifiedChunks || capturedChunks) === 1 ? '' : 's'
+              } against the live transcript.`;
   } catch (transcriptionError) {
     runtime.stt.message = `Post-meeting transcription unavailable; captured speech remains on disk for retry: ${errorMessage(
       transcriptionError

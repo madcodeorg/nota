@@ -235,7 +235,11 @@ export async function addTask(
   if (!note) throw new Error(`Tasks note has no note block: ${docId}`);
   // A fresh note starts with one empty paragraph; replace it.
   const only = note.children.length === 1 ? note.children[0] : null;
-  if (only?.flavour === 'affine:paragraph' && !only.text?.toString().trim()) {
+  if (
+    only?.flavour === 'affine:paragraph' &&
+    !only.text?.toString().trim() &&
+    !only.children.length
+  ) {
     store.deleteBlock(only);
   }
 
