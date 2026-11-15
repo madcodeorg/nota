@@ -27,6 +27,7 @@ import {
   patchReferenceRenderer,
   type ReferenceReactRenderer,
 } from './reference-renderer';
+import { patchReminderSlashMenu } from './reminder-slash-menu';
 import { patchSideBarService } from './side-bar-service';
 
 const optionsSchema = z.object({
@@ -119,6 +120,9 @@ export class AffineEditorViewExtension extends ViewExtensionProvider<AffineEdito
       context.register([
         patchDocModeService(docService, docsService, editorService),
       ]);
+      if (context.scope === 'page' || context.scope === 'edgeless') {
+        context.register(patchReminderSlashMenu(framework));
+      }
     }
   }
 }

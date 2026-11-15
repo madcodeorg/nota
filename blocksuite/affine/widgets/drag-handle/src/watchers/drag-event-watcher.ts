@@ -34,6 +34,7 @@ import {
   getBlockComponentsExcludeSubtrees,
   getRectByBlockComponent,
   getScrollContainer,
+  isColumnModel,
   matchModels,
 } from '@blocksuite/affine-shared/utils';
 import {
@@ -214,6 +215,42 @@ export class DragEventWatcher {
     const edge = dropPayload.edge;
     const scale = this.widget.scale.peek();
     let result: DropResult | null = null;
+
+    // a column is not a sibling of blocks: drop into an empty column, or
+    // after the last block when hovering the free space below it
+    if (isColumnModel(dropModel)) {
+      const lastChild = dropModel.children.at(-1);
+      const lastChildView = lastChild && this.std.view.getBlock(lastChild.id);
+      if (lastChildView) {
+        return this._getDropResult(lastChildView, dragPayload, {
+          ...dropPayload,
+          edge: 'bottom',
+        });
+      }
+      if (
+        lastChild ||
+        !snapshot.content.every(block =>
+          schema.safeValidate(block.flavour, dropModel.flavour)
+        )
+      ) {
+        return null;
+      }
+      const domRect = dropBlock.getBoundingClientRect();
+      return {
+        placement: 'in',
+        rect: Rect.fromLWTH(
+          domRect.left,
+          domRect.width,
+          domRect.top,
+          3 * scale
+        ),
+        modelState: {
+          model: dropModel,
+          rect: domRect,
+          element: dropBlock,
+        },
+      };
+    }
 
     if (edge === 'right' && matchModels(dropModel, [ListBlockModel])) {
       const domRect = getRectByBlockComponent(dropBlock);

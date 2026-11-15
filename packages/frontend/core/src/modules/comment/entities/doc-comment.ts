@@ -27,12 +27,16 @@ import {
   timer,
 } from 'rxjs';
 
+import { WorkspaceDBService } from '../../db';
 import { type DocDisplayMetaService } from '../../doc-display-meta';
 import { GlobalContextService } from '../../global-context';
+import { WorkspaceService } from '../../workspace';
+import { isUserOwnedWorkspaceFlavour } from '../../workspace/metadata';
 import type { SnapshotHelper } from '../services/snapshot-helper';
 import type {
   CommentAttachment,
   CommentId,
+  CommentStore,
   DocComment,
   DocCommentChangeListResult,
   DocCommentContent,
@@ -41,6 +45,7 @@ import type {
   PendingComment,
 } from '../types';
 import { DocCommentStore } from './doc-comment-store';
+import { LocalDocCommentStore } from './local-doc-comment-store';
 import { findMentions } from './utils';
 
 type DisposeCallback = () => void;
@@ -62,14 +67,31 @@ export class DocCommentEntity extends Entity<{
   ) {
     super();
   }
-  private readonly store = this.framework.createEntity(DocCommentStore, {
-    docId: this.props.docId,
-    getDocMode: () =>
-      this.docMode$.value === 'edgeless' ? DocMode.edgeless : DocMode.page,
-    getDocTitle: () => {
-      return this.docDisplayMetaService.title$(this.props.docId).value;
-    },
-  });
+  /**
+   * Local and Google Drive workspaces keep comments in the workspace DB and
+   * have no members, mentions or attachment uploads.
+   */
+  readonly isLocal = isUserOwnedWorkspaceFlavour(
+    this.framework.get(WorkspaceService).workspace.flavour
+  );
+
+  private readonly store: CommentStore = this.isLocal
+    ? this.createLocalStore()
+    : this.framework.createEntity(DocCommentStore, {
+        docId: this.props.docId,
+        getDocMode: () =>
+          this.docMode$.value === 'edgeless' ? DocMode.edgeless : DocMode.page,
+        getDocTitle: () => {
+          return this.docDisplayMetaService.title$(this.props.docId).value;
+        },
+      });
+
+  private createLocalStore() {
+    const table = this.framework.get(WorkspaceDBService).db.docComments;
+    return new LocalDocCommentStore(table, this.props.docId, () =>
+      table.isLoading$.waitFor(loading => !loading)
+    );
+  }
 
   loading$ = new LiveData<boolean>(false);
   comments$ = new LiveData<DocComment[]>([]);
@@ -90,6 +112,7 @@ export class DocCommentEntity extends Entity<{
     selections: BaseSelection[];
   }>();
   private readonly commentResolved$ = new Subject<CommentId>();
+  private readonly commentUnresolved$ = new Subject<CommentId>();
   private readonly commentDeleted$ = new Subject<CommentId>();
   readonly commentHighlighted$ = new LiveData<CommentId | null>(null);
 
@@ -132,7 +155,7 @@ export class DocCommentEntity extends Entity<{
     if (!doc) {
       throw new Error('Failed to create doc');
     }
-    const mention: string | undefined = reply?.user.id;
+    const mention = this.isLocal ? undefined : reply?.user.id;
     if (mention) {
       // insert mention at the end of the paragraph
       const paragraph = doc.getModelsByFlavour('affine:paragraph').at(-1);
@@ -239,7 +262,10 @@ export class DocCommentEntity extends Entity<{
       },
       mentions,
     });
-    const currentComments = this.comments$.value;
+    // a watched store may already list the new comment
+    const currentComments = this.comments$.value.filter(
+      c => c.id !== comment.id
+    );
     this.comments$.setValue([...currentComments, comment]);
     this.commentAdded$.next({
       id: comment.id,
@@ -289,7 +315,13 @@ export class DocCommentEntity extends Entity<{
     const currentComments = this.comments$.value;
     const updatedComments = currentComments.map(comment =>
       comment.id === pendingReply.commentId
-        ? { ...comment, replies: [...(comment.replies || []), reply] }
+        ? {
+            ...comment,
+            replies: [
+              ...(comment.replies || []).filter(r => r.id !== reply.id),
+              reply,
+            ],
+          }
         : comment
     );
     this.comments$.setValue(updatedComments);
@@ -342,6 +374,9 @@ export class DocCommentEntity extends Entity<{
     const isEditingDraft = pending.id === this.editingDraft$.value?.id;
     if (!isPendingComment && !isPendingReply && !isEditingDraft) {
       throw new Error('Pending comment/reply not found');
+    }
+    if (!this.store.uploadCommentAttachment) {
+      throw new Error('Comment attachments are not supported');
     }
     const url = await this.store.uploadCommentAttachment(file);
 
@@ -419,7 +454,7 @@ export class DocCommentEntity extends Entity<{
       );
       this.comments$.setValue(updatedComments);
 
-      this.commentResolved$.next(id);
+      (resolved ? this.commentResolved$ : this.commentUnresolved$).next(id);
       track.$.commentPanel.$.resolveComment({
         type: resolved ? 'on' : 'off',
       });
@@ -445,16 +480,22 @@ export class DocCommentEntity extends Entity<{
           first()
         )
         .subscribe(() => {
+          const ids = this.comments$.value
+            .filter(comment =>
+              type === 'all'
+                ? true
+                : type === 'resolved'
+                  ? comment.resolved
+                  : !comment.resolved
+            )
+            .map(comment => comment.id);
+          // The editor drops highlights of comments missing here. Local
+          // deletes already remove them from the doc, and a comments table
+          // that has not synced yet must not wipe them.
           resolve(
-            this.comments$.value
-              .filter(comment =>
-                type === 'all'
-                  ? true
-                  : type === 'resolved'
-                    ? comment.resolved
-                    : !comment.resolved
-              )
-              .map(comment => comment.id)
+            this.isLocal && type === 'all'
+              ? [...new Set([...ids, ...this.getCommentsInEditor()])]
+              : ids
           );
         });
     });
@@ -471,6 +512,11 @@ export class DocCommentEntity extends Entity<{
 
   onCommentResolved(callback: (id: CommentId) => void): DisposeCallback {
     const subscription = this.commentResolved$.subscribe(callback);
+    return () => subscription.unsubscribe();
+  }
+
+  onCommentUnresolved(callback: (id: CommentId) => void): DisposeCallback {
+    const subscription = this.commentUnresolved$.subscribe(callback);
     return () => subscription.unsubscribe();
   }
 
@@ -498,6 +544,16 @@ export class DocCommentEntity extends Entity<{
     // Initial load
     this.revalidate();
     this.revalidateCommentsInEditor();
+
+    const watched$ = this.store.watchComments?.();
+    if (watched$) {
+      const subscription = watched$.subscribe(comments => {
+        this.comments$.setValue(comments);
+        this.revalidateCommentsInEditor();
+      });
+      this.pollingDisposable = () => subscription.unsubscribe();
+      return;
+    }
 
     // Set up polling every 10 seconds
     const polling$ = timer(10000, 10000).pipe(
@@ -732,6 +788,7 @@ export class DocCommentEntity extends Entity<{
     this.stop();
     this.commentAdded$.complete();
     this.commentResolved$.complete();
+    this.commentUnresolved$.complete();
     this.commentDeleted$.complete();
     this.commentHighlighted$.complete();
     super.dispose();

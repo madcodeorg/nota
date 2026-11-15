@@ -55,6 +55,7 @@
     { "path": "./blocksuite/affine/blocks/bookmark" },
     { "path": "./blocksuite/affine/blocks/callout" },
     { "path": "./blocksuite/affine/blocks/code" },
+    { "path": "./blocksuite/affine/blocks/columns" },
     { "path": "./blocksuite/affine/blocks/data-view" },
     { "path": "./blocksuite/affine/blocks/database" },
     { "path": "./blocksuite/affine/blocks/divider" },

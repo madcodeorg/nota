@@ -5,6 +5,7 @@ import { MultiSelectCell } from './multi-select/cell-renderer.js';
 import { NumberCell } from './number/cell-renderer.js';
 import { ProgressCell } from './progress/cell-renderer.js';
 import { SelectCell } from './select/cell-renderer.js';
+import { StatusCell } from './status/cell-renderer.js';
 import { TextCell } from './text/cell-renderer.js';
 
 export function propertyPresetsEffects() {
@@ -15,5 +16,6 @@ export function propertyPresetsEffects() {
   customElements.define('affine-database-number-cell', NumberCell);
   customElements.define('affine-database-progress-cell', ProgressCell);
   customElements.define('affine-database-select-cell', SelectCell);
+  customElements.define('affine-database-status-cell', StatusCell);
   customElements.define('affine-database-text-cell', TextCell);
 }

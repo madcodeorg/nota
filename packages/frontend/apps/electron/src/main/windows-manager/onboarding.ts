@@ -7,6 +7,7 @@ import { isDev } from '../config';
 import { persistentConfig } from '../config-storage/persist';
 import { logger } from '../logger';
 import { buildWebPreferences } from '../web-preferences';
+import { centeredBounds } from './bounds';
 import { getMainWindow, initAndShowMainWindow } from './main-window';
 import { launchStage } from './stage';
 import { retryUnreadyActiveTab, waitForActiveTabUI } from './tab-views';
@@ -21,6 +22,8 @@ const getWindowAdditionalArguments = async () => {
   ];
 };
 
+const LINUX_ONBOARDING_SIZE = { width: 948, height: 618 };
+
 async function createOnboardingWindow(additionalArguments: string[]) {
   logger.info('creating onboarding window');
 
@@ -31,9 +34,16 @@ async function createOnboardingWindow(additionalArguments: string[]) {
 
   // A normal transparent window overlays the desktop without entering a Space
   // or covering the system menu bar and Dock.
-  const { x, y, width, height } = screen.getDisplayNearestPoint(
+  const workArea = screen.getDisplayNearestPoint(
     screen.getCursorScreenPoint()
   ).workArea;
+  // Linux window managers draw a framed window, so a screen-sized one shows as
+  // a large empty panel around the card. Fit the window to the setup card
+  // (900x570 plus 24px padding) and center it instead.
+  const { x, y, width, height } =
+    process.platform === 'linux'
+      ? centeredBounds(workArea, LINUX_ONBOARDING_SIZE)
+      : workArea;
 
   const browserWindow = new BrowserWindow({
     width,
@@ -42,11 +52,15 @@ async function createOnboardingWindow(additionalArguments: string[]) {
     y,
     backgroundColor: supportsDesktopOverlay ? '#00000000' : '#efeee7',
     frame: !supportsDesktopOverlay,
+    // On Linux the size is the card's, so measure it inside the frame and
+    // keep the app menu out of the setup window.
+    useContentSize: process.platform === 'linux',
+    autoHideMenuBar: process.platform === 'linux',
     show: false,
     resizable: false,
     closable: true,
     minimizable: false,
-    movable: false,
+    movable: process.platform === 'linux',
     titleBarStyle: supportsDesktopOverlay ? 'hidden' : 'default',
     maximizable: false,
     fullscreenable: false,

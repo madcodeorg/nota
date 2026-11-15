@@ -24,6 +24,7 @@ export interface CommentProvider {
     callback: (id: CommentId, selections: BaseSelection[]) => void
   ) => DisposableMember;
   onCommentResolved: (callback: (id: CommentId) => void) => DisposableMember;
+  onCommentUnresolved?: (callback: (id: CommentId) => void) => DisposableMember;
   onCommentDeleted: (callback: (id: CommentId) => void) => DisposableMember;
   onCommentHighlighted: (
     callback: (id: CommentId | null) => void

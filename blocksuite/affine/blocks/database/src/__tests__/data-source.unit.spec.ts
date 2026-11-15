@@ -11,6 +11,7 @@ import { Slice, Text, type Workspace } from '@blocksuite/store';
 import { TestWorkspace } from '@blocksuite/store/test';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 
+import { processTable } from '../adapters/utils.js';
 import { DatabaseBlockDataSource } from '../data-source.js';
 
 const workspaces: TestWorkspace[] = [];
@@ -620,5 +621,75 @@ describe('derived values in the real local database model', () => {
     workspace.removeDoc(targetDoc.id);
     expect(value.value).toHaveProperty('error');
     expect(source.relationOptions(relation)).toBeUndefined();
+  });
+});
+
+describe('status property in the real local database model', () => {
+  test('defaults, converts with select and rich text, exports names and survives a snapshot round-trip', async () => {
+    const { workspace, store, database } = setup();
+    const { model, source } = database();
+    const row = source.rowAdd('end');
+    const status = source.propertyAdd('end', { type: 'status' })!;
+    const options = source.propertyDataGet(status).options as {
+      id: string;
+      value: string;
+      color: string;
+      group: string;
+    }[];
+    expect(options.map(v => [v.value, v.group])).toEqual([
+      ['Not started', 'todo'],
+      ['In progress', 'inProgress'],
+      ['Done', 'complete'],
+    ]);
+    const done = options[2]!;
+    source.cellValueChange(row, status, done.id);
+
+    const snapshot = store.getTransformer().docToSnapshot(store)!;
+    const table = processTable(
+      model.props.columns,
+      [{ id: row, props: { text: 'Task' } } as never],
+      model.props.cells
+    );
+    expect(table.rows[0]!.cells.map(cell => cell.value)).toEqual([
+      'Task',
+      'Done',
+    ]);
+
+    const copy = (await store
+      .getTransformer([replaceIdMiddleware(workspace.idGenerator)])
+      .snapshotToDoc(snapshot))!;
+    const copied = Object.values(copy.blocks.value).find(
+      block => block.model.flavour === 'affine:database'
+    )!.model as DatabaseBlockModel;
+    const copiedColumn = copied.props.columns.find(
+      column => column.type === 'status'
+    )!;
+    expect(copiedColumn.data).toEqual(source.propertyDataGet(status));
+    expect(
+      new DatabaseBlockDataSource(copied).cellValueGet(
+        copied.children[0]!.id,
+        copiedColumn.id
+      )
+    ).toBe(done.id);
+
+    source.propertyTypeSet(status, 'select');
+    expect(source.propertyDataGet(status).options).toEqual(
+      options.map(({ id, value, color }) => ({ id, value, color }))
+    );
+    expect(source.cellValueGet(row, status)).toBe(done.id);
+    source.propertyTypeSet(status, 'status');
+    expect(source.propertyDataGet(status).options).toEqual(options);
+    expect(source.cellValueGet(row, status)).toBe(done.id);
+
+    source.propertyTypeSet(status, 'rich-text');
+    expect(source.cellValueGet(row, status)?.toString()).toBe('Done');
+    source.propertyTypeSet(status, 'status');
+    const converted = source.propertyDataGet(status).options as typeof options;
+    expect(converted.map(v => v.value)).toEqual([
+      'Not started',
+      'In progress',
+      'Done',
+    ]);
+    expect(source.cellValueGet(row, status)).toBe(converted[2]!.id);
   });
 });

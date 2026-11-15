@@ -1,6 +1,6 @@
 {
   "name": "@nota/revert-update",
-  "version": "0.1.14",
+  "version": "0.1.15",
   "private": true,
   "type": "module",
   "description": "Generate a revert update from two Yjs snapshot binaries",
@@ -10,10 +10,10 @@
   },
   "dependencies": {
     "@nota-tools/cli": "workspace:*",
-    "yjs": "^13.6.27"
+    "yjs": "^13.6.33"
   },
   "devDependencies": {
-    "@types/node": "^22.0.0",
+    "@types/node": "^22.20.5",
     "typescript": "^5.9.3"
   }
 }

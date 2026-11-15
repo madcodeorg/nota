@@ -3,7 +3,11 @@ import {
   getTagColor,
   type SelectTag,
 } from '@blocksuite/data-view';
-import { presetPropertyConverts } from '@blocksuite/data-view/property-presets';
+import {
+  defaultStatusOptions,
+  presetPropertyConverts,
+  statusOptionIdByName,
+} from '@blocksuite/data-view/property-presets';
 import { propertyModelPresets } from '@blocksuite/data-view/property-pure-presets';
 import { clamp } from '@blocksuite/global/gfx';
 import { nanoid, Text } from '@blocksuite/store';
@@ -73,6 +77,30 @@ export const databasePropertyConverts = [
         property: {
           options: Object.values(options),
         },
+      };
+    }
+  ),
+  createPropertyConvert(
+    richTextPropertyModelConfig,
+    propertyModelPresets.statusPropertyModelConfig,
+    (_property, cells) => {
+      const options = defaultStatusOptions();
+      return {
+        cells: cells.map(
+          v => statusOptionIdByName(options, v?.toString() ?? '') ?? undefined
+        ),
+        property: { options },
+      };
+    }
+  ),
+  createPropertyConvert(
+    propertyModelPresets.statusPropertyModelConfig,
+    richTextPropertyModelConfig,
+    (property, cells) => {
+      const optionMap = new Map(property.options.map(v => [v.id, v.value]));
+      return {
+        property: {},
+        cells: cells.map(v => new Text(v ? optionMap.get(v) : '').yText),
       };
     }
   ),

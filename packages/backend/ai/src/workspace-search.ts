@@ -72,9 +72,7 @@ export interface WorkspaceContentDocumentInput {
 }
 
 type SearchType =
-  | 'lexical-fallback'
-  | 'local-hash-embedding'
-  | 'local-neural-embedding';
+  'lexical-fallback' | 'local-hash-embedding' | 'local-neural-embedding';
 
 type WorkspaceContentVisibility = 'private' | 'workspace';
 
@@ -1226,6 +1224,9 @@ async function loadEmbeddingPipeline(config: AiBackendConfig) {
 
     return transformers.pipeline('feature-extraction', modelId, {
       device: 'cpu',
+      // The registry downloads onnx/model_quantized.onnx; transformers only
+      // looks for that file when asked for q8 (its default is fp32, model.onnx).
+      dtype: 'q8',
       local_files_only: !allowRemote,
     });
   })();

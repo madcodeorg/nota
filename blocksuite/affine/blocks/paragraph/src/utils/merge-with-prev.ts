@@ -3,6 +3,7 @@ import {
   BookmarkBlockModel,
   CalloutBlockModel,
   CodeBlockModel,
+  type ColumnBlockModel,
   DatabaseBlockModel,
   DividerBlockModel,
   EdgelessTextBlockModel,
@@ -22,7 +23,10 @@ import {
   focusTitle,
   getDocTitleInlineEditor,
   getPrevContentBlock,
+  isColumnModel,
+  isColumnsModel,
   matchModels,
+  removeColumn,
 } from '@blocksuite/affine-shared/utils';
 import { IS_ANDROID, IS_MOBILE } from '@blocksuite/global/env';
 import { BlockSelection, type EditorHost } from '@blocksuite/std';
@@ -47,6 +51,11 @@ export function mergeWithPrev(editorHost: EditorHost, model: BlockModel) {
   const parent = doc.getParent(model);
   if (!parent) return false;
 
+  // never merge text across column boundaries
+  if (isColumnModel(parent) && parent.firstChild() === model) {
+    return handleColumnStart(editorHost, model, parent);
+  }
+
   const prevBlock = getPrevContentBlock(editorHost, model);
   if (!prevBlock) {
     return handleNoPreviousSibling(editorHost, model);
@@ -54,7 +63,10 @@ export function mergeWithPrev(editorHost: EditorHost, model: BlockModel) {
 
   const modelIndex = parent.children.indexOf(model);
   const prevSibling = doc.getPrev(model);
-  if (matchModels(prevSibling, [CalloutBlockModel])) {
+  if (
+    matchModels(prevSibling, [CalloutBlockModel]) ||
+    isColumnsModel(prevSibling)
+  ) {
     editorHost.selection.setGroup('note', [
       editorHost.selection.create(BlockSelection, {
         blockId: prevSibling.id,
@@ -142,6 +154,51 @@ export function mergeWithPrev(editorHost: EditorHost, model: BlockModel) {
   }
 
   return false;
+}
+
+/**
+ * Backspace at the start of the first block of a column: an empty block is
+ * removed (together with the column when it was the only block), anything
+ * else stays untouched so text never jumps into another column.
+ */
+function handleColumnStart(
+  editorHost: EditorHost,
+  model: BlockModel,
+  column: ColumnBlockModel
+) {
+  const doc = model.store;
+  if ((model.text?.length ?? 0) > 0 || model.children.length > 0) return true;
+
+  doc.captureSync();
+
+  if (column.children.length > 1) {
+    const next = doc.getNext(model);
+    doc.deleteBlock(model);
+    if (next) focusTextModel(editorHost.std, next.id, 0);
+    return true;
+  }
+
+  const columns = column.parent;
+  const index = columns?.children.indexOf(column) ?? -1;
+  const prevColumn = index > 0 ? columns?.children[index - 1] : null;
+  const nextColumn = columns?.children[index + 1];
+  let focusTarget: BlockModel | null | undefined;
+  if (prevColumn) {
+    focusTarget = prevColumn.lastChild();
+  } else {
+    focusTarget = nextColumn?.firstChild();
+  }
+
+  removeColumn(doc, column);
+
+  if (focusTarget?.text) {
+    focusTextModel(
+      editorHost.std,
+      focusTarget.id,
+      prevColumn ? focusTarget.text.length : 0
+    );
+  }
+  return true;
 }
 
 function handleNoPreviousSibling(editorHost: EditorHost, model: ExtendedModel) {

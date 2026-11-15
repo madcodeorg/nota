@@ -331,7 +331,6 @@
   "com.affine.auth.verify.email.message": "Din nuvarande e-post är {{email}}. Vi skickar en tillfällig verifieringslänk till denna e-post.",
   "com.affine.backButton": "Tillbaka",
   "com.affine.banner.content": "Denna demo är begränsad. <1>Ladda ner Nota-klienten</1> för de senaste funktionerna och prestanda.",
-  "com.affine.banner.local-warning": "Dina lokala data lagras i webbläsaren och kan gå förlorade. Ta inga risker - aktivera molnet nu!",
   "com.affine.brand.affineCloud": "Nota Cloud",
   "com.affine.calendar-date-picker.month-names": "Jan,Feb,Mar,Apr,Maj,Jun,Jul,Aug,Sep,Okt,Nov,Dec",
   "com.affine.calendar-date-picker.today": "Idag",

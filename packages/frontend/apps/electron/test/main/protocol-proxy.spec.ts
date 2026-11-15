@@ -34,6 +34,70 @@ describe('custom protocol backend proxy', () => {
     }
   });
 
+  it('releases an event stream whose reader stopped pulling, as after a page reload', async () => {
+    vi.useFakeTimers();
+    try {
+      let aborted = false;
+      const fetcher = vi.fn(async (_url: string, init: RequestInit) => {
+        init.signal!.addEventListener('abort', () => (aborted = true), {
+          once: true,
+        });
+        return new Response(
+          new ReadableStream<Uint8Array>({
+            pull(controller) {
+              controller.enqueue(new TextEncoder().encode(': heartbeat\n\n'));
+            },
+          }),
+          { headers: { 'content-type': 'text/event-stream' } }
+        );
+      });
+      const response = await fetchProtocolResponse(
+        new Request('https://nota.local/events'),
+        'http://127.0.0.1/events',
+        fetcher,
+        true,
+        1000
+      );
+      const reader = response.body!.getReader();
+      await reader.read();
+      // A live reader keeps pulling, so the stream stays open.
+      await vi.advanceTimersByTimeAsync(500);
+      await reader.read();
+      await vi.advanceTimersByTimeAsync(900);
+      expect(aborted).toBe(false);
+      // The reader is gone: nobody pulls the next chunk.
+      await vi.advanceTimersByTimeAsync(1100);
+      expect(aborted).toBe(true);
+      await expect(reader.read()).rejects.toThrow('stalled');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('does not time out ordinary responses that are read slowly', async () => {
+    vi.useFakeTimers();
+    try {
+      let aborted = false;
+      const response = await fetchProtocolResponse(
+        new Request('https://nota.local/file'),
+        'http://127.0.0.1/file',
+        async (_url, init) => {
+          init.signal!.addEventListener('abort', () => (aborted = true));
+          return new Response('a large file', {
+            headers: { 'content-type': 'application/octet-stream' },
+          });
+        },
+        true,
+        1000
+      );
+      await vi.advanceTimersByTimeAsync(5000);
+      expect(aborted).toBe(false);
+      expect(await response.text()).toBe('a large file');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('preserves authenticated uploads and manual redirect handling', async () => {
     const request = new Request('https://nota.local/settings', {
       method: 'POST',

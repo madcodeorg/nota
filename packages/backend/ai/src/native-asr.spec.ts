@@ -53,15 +53,18 @@ describe('persistent native ASR adapter', () => {
   test('encodes little-endian PCM and rejects oversized helper input', () => {
     const frame = encodeNativeAsrRequest(
       new Int16Array([-32768, 42, 32767]),
-      'fr'
+      'fr',
+      'Nota'
     );
     expect(frame.readUInt32LE(0)).toBe(3);
     expect(frame.readUInt16LE(4)).toBe(2);
     expect(frame.subarray(6, 8).toString()).toBe('fr');
+    expect(frame.readUInt16LE(8)).toBe(4);
+    expect(frame.subarray(10, 14).toString()).toBe('Nota');
     expect([
-      frame.readInt16LE(8),
-      frame.readInt16LE(10),
-      frame.readInt16LE(12),
+      frame.readInt16LE(14),
+      frame.readInt16LE(16),
+      frame.readInt16LE(18),
     ]).toEqual([-32768, 42, 32767]);
     expect(() =>
       encodeNativeAsrRequest(new Int16Array(31 * 16000), 'auto')
@@ -89,6 +92,73 @@ describe('persistent native ASR adapter', () => {
     expect(mock.requests.map(frame => frame.subarray(6, 8).toString())).toEqual(
       ['fr', 'de']
     );
+  });
+
+  test('auto language ignores short phrases and locks after two long phrases agree', async () => {
+    const mock = helper(true, false);
+    spawn.mockReturnValue(mock.child);
+    const decoder = await createNativeAsrDecoder('whisper.cpp', '/test/model');
+    const phrase = async (seconds: number, language: string) => {
+      const before = mock.requests.length;
+      decoder.pushPcm16(new Int16Array(seconds * 16000).fill(5));
+      const result = decoder.finish();
+      await vi.waitFor(() => expect(mock.requests).toHaveLength(before + 1));
+      mock.child.stdout.write(`{"text":"text","language":"${language}"}\n`);
+      await result;
+    };
+    await phrase(1, 'ms');
+    await phrase(4, 'en');
+    await phrase(4, 'en');
+    await phrase(1, 'nl');
+    expect(
+      mock.requests.map(frame =>
+        frame.subarray(6, 6 + frame.readUInt16LE(4)).toString()
+      )
+    ).toEqual(['auto', 'auto', 'auto', 'en']);
+  });
+
+  test('drops low-confidence phrases and only prompts long ones with the previous text', async () => {
+    const mock = helper(true, false);
+    spawn.mockReturnValue(mock.child);
+    const decoder = await createNativeAsrDecoder('whisper.cpp', '/test/model');
+    const phrase = async (seconds: number, reply: object) => {
+      const before = mock.requests.length;
+      decoder.pushPcm16(new Int16Array(seconds * 16000).fill(5));
+      const result = decoder.finish();
+      await vi.waitFor(() => expect(mock.requests).toHaveLength(before + 1));
+      mock.child.stdout.write(JSON.stringify(reply) + '\n');
+      return result;
+    };
+    const prompt = (index: number) => {
+      const frame = mock.requests[index];
+      const offset = 8 + frame.readUInt16LE(4);
+      return frame.subarray(offset, offset + frame.readUInt16LE(offset - 2));
+    };
+    expect(
+      (await phrase(4, { text: 'Budget is approved', language: 'en' })).text
+    ).toBe('Budget is approved');
+    expect(
+      await phrase(1, {
+        text: 'Thank you for watching',
+        language: 'en',
+        noSpeechProb: 0.9,
+        avgLogprob: -1.1,
+      })
+    ).toEqual({ text: '', language: null });
+    // The dropped phrase must not become the prompt, and short audio gets none.
+    expect(prompt(1).toString()).toBe('');
+    await phrase(4, { text: 'Next topic', language: 'en', avgLogprob: -0.3 });
+    expect(prompt(2).toString()).toBe('');
+    await phrase(4, { text: 'Roadmap', language: 'en', avgLogprob: -0.3 });
+    expect(prompt(3).toString()).toBe('Next topic');
+    expect(
+      (
+        await phrase(2, {
+          text: 'Yes yes yes yes yes yes yes yes yes',
+          language: 'en',
+        })
+      ).text
+    ).toBe('');
   });
 
   test('transcribes all 45 seconds through bounded requests and reuses the loaded model', async () => {

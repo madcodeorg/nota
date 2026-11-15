@@ -2,7 +2,7 @@
   "name": "@nota/templates",
   "private": true,
   "sideEffect": false,
-  "version": "0.1.14",
+  "version": "0.1.15",
   "scripts": {
     "build": "node ./build-onboarding.mjs && node ./build-edgeless.mjs && node ./build-stickers.mjs",
     "postinstall": "yarn build"
@@ -15,7 +15,7 @@
     "./build-edgeless": "./build-edgeless.mjs"
   },
   "devDependencies": {
-    "jszip": "^3.10.1",
-    "vitest": "^4.1.11"
+    "jszip": "^3.10.2",
+    "vitest": "^4.1.12"
   }
 }
