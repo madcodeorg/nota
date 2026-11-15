@@ -3,6 +3,7 @@ import { describe, expect, test, vi } from 'vitest';
 import {
   ensureMeetingAudioContextRunning,
   meetingMicrophoneConstraints,
+  meetingMicrophoneWarning,
   preferredMeetingMicrophoneDeviceId,
 } from './meeting-microphone';
 
@@ -91,5 +92,28 @@ describe('meeting microphone selection', () => {
       echoCancellation: false,
       noiseSuppression: false,
     });
+  });
+});
+
+describe('meeting microphone warning', () => {
+  test('warns when the default input is a Bluetooth headset', () => {
+    expect(
+      meetingMicrophoneWarning([
+        device('default', 'audioinput', 'Default - Galaxy Buds2 Pro'),
+        device('built-in', 'audioinput', 'MacBook Pro Microphone'),
+      ])
+    ).toContain('Galaxy Buds2 Pro');
+  });
+
+  test('stays quiet for built-in and unlabeled inputs', () => {
+    expect(
+      meetingMicrophoneWarning([
+        device('default', 'audioinput', 'Default - MacBook Pro Microphone'),
+      ])
+    ).toBeNull();
+    expect(
+      meetingMicrophoneWarning([device('default', 'audioinput', '')])
+    ).toBeNull();
+    expect(meetingMicrophoneWarning([])).toBeNull();
   });
 });

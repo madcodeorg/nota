@@ -350,7 +350,6 @@
   "com.affine.auth.verify.email.message": "Deine aktuelle E-Mail ist {{email}}. Wir werden einen temporären Bestätigungslink an diese E-Mail senden.",
   "com.affine.backButton": "Zurück",
   "com.affine.banner.content": "Dir gefällt die Demo? <1>Lade den Nota Client herunter</1>, um das volle Potenzial zu entdecken.",
-  "com.affine.banner.local-warning": "Deine lokalen Daten sind im Browser gespeichert und können verloren gehen. Riskiere es nicht - aktiviere Nota Cloud jetzt!",
   "com.affine.brand.affineCloud": "Nota Cloud",
   "com.affine.calendar-date-picker.month-names": "Jan,Feb,Mär,Apr,Mai,Jun,Jul,Aug,Sep,Okt,Nov,Dez",
   "com.affine.calendar-date-picker.today": "Heute",

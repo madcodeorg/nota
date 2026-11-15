@@ -9,6 +9,7 @@ export const PackageList = [
       'blocksuite/affine/blocks/bookmark',
       'blocksuite/affine/blocks/callout',
       'blocksuite/affine/blocks/code',
+      'blocksuite/affine/blocks/columns',
       'blocksuite/affine/blocks/data-view',
       'blocksuite/affine/blocks/database',
       'blocksuite/affine/blocks/divider',
@@ -135,6 +136,21 @@ export const PackageList = [
       'blocksuite/affine/inlines/latex',
       'blocksuite/affine/inlines/link',
       'blocksuite/affine/inlines/preset',
+      'blocksuite/affine/model',
+      'blocksuite/affine/rich-text',
+      'blocksuite/affine/shared',
+      'blocksuite/affine/widgets/slash-menu',
+      'blocksuite/framework/global',
+      'blocksuite/framework/std',
+      'blocksuite/framework/store',
+    ],
+  },
+  {
+    location: 'blocksuite/affine/blocks/columns',
+    name: '@blocksuite/affine-block-columns',
+    workspaceDependencies: [
+      'blocksuite/affine/components',
+      'blocksuite/affine/ext-loader',
       'blocksuite/affine/model',
       'blocksuite/affine/rich-text',
       'blocksuite/affine/shared',
@@ -823,7 +839,6 @@ export const PackageList = [
       'blocksuite/affine/components',
       'blocksuite/affine/ext-loader',
       'blocksuite/affine/model',
-      'blocksuite/affine/rich-text',
       'blocksuite/affine/shared',
       'blocksuite/framework/global',
       'blocksuite/framework/std',
@@ -874,6 +889,7 @@ export const PackageList = [
       'blocksuite/affine/components',
       'blocksuite/affine/ext-loader',
       'blocksuite/affine/model',
+      'blocksuite/affine/rich-text',
       'blocksuite/affine/shared',
       'blocksuite/framework/global',
       'blocksuite/framework/std',
@@ -1492,6 +1508,7 @@ export type PackageName =
   | '@blocksuite/affine-block-bookmark'
   | '@blocksuite/affine-block-callout'
   | '@blocksuite/affine-block-code'
+  | '@blocksuite/affine-block-columns'
   | '@blocksuite/affine-block-data-view'
   | '@blocksuite/affine-block-database'
   | '@blocksuite/affine-block-divider'

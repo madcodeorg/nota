@@ -1,11 +1,7 @@
 import { BrowserWarning, LocalDemoTips } from '@nota/component/nota-banner';
 import { Trans, useI18n } from '@nota/i18n';
-import { useLiveData, useService } from '@nota/infra';
-import { useCallback, useState } from 'react';
+import { useState } from 'react';
 
-import { useEnableCloud } from '../components/hooks/nota/use-enable-cloud';
-import { AuthService } from '../modules/cloud';
-import { GlobalDialogService } from '../modules/dialogs';
 import type { Workspace } from '../modules/workspace';
 
 const minimumChromeVersion = 106;
@@ -55,23 +51,13 @@ const OSWarningMessage = () => {
 };
 
 export const TopTip = ({
-  pageId,
   workspace,
 }: {
   pageId?: string;
   workspace: Workspace;
 }) => {
-  const loginStatus = useLiveData(useService(AuthService).session.status$);
-  const isLoggedIn = loginStatus === 'authenticated';
-
   const [showWarning, setShowWarning] = useState(shouldShowWarning);
   const [showLocalDemoTips, setShowLocalDemoTips] = useState(true);
-  const confirmEnableCloud = useEnableCloud();
-
-  const globalDialogService = useService(GlobalDialogService);
-  const onLogin = useCallback(() => {
-    globalDialogService.open('sign-in', {});
-  }, [globalDialogService]);
 
   if (
     !BUILD_CONFIG.isElectron &&
@@ -80,11 +66,6 @@ export const TopTip = ({
   ) {
     return (
       <LocalDemoTips
-        isLoggedIn={isLoggedIn}
-        onLogin={onLogin}
-        onEnableCloud={() =>
-          confirmEnableCloud(workspace, { openPageId: pageId })
-        }
         onClose={() => {
           setShowLocalDemoTips(false);
         }}

@@ -72,7 +72,7 @@ export const imageBlockHtmlAdapterMatcher: BlockHtmlAdapterMatcher = {
             properties: {
               src: `assets/${blobName}`,
               alt: blobName,
-              title: (o.node.props.caption as string | undefined) ?? null,
+              title: o.node.props.caption as string | undefined,
               ...widthStyle,
             },
             children: [],

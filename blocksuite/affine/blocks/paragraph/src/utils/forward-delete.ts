@@ -11,7 +11,10 @@ import {
 } from '@blocksuite/affine-model';
 import { EMBED_BLOCK_MODEL_LIST } from '@blocksuite/affine-shared/consts';
 import {
+  getClosestColumn,
   getNextContentBlock,
+  isColumnModel,
+  isColumnsModel,
   matchModels,
 } from '@blocksuite/affine-shared/utils';
 import {
@@ -38,6 +41,14 @@ export function forwardDelete(std: BlockStdScope) {
   if (!parent) return;
 
   const nextSibling = store.getNext(model);
+
+  // never merge text across column boundaries (its own children are fine)
+  if (
+    (!nextSibling && isColumnModel(parent) && !model.children.length) ||
+    isColumnsModel(nextSibling)
+  ) {
+    return true;
+  }
 
   if (
     matchModels(nextSibling, [
@@ -69,6 +80,10 @@ export function forwardDelete(std: BlockStdScope) {
   }
 
   const nextBlock = getNextContentBlock(host, model);
+  // nested blocks can still reach the next column through their ancestors
+  if (nextBlock && getClosestColumn(nextBlock) !== getClosestColumn(model)) {
+    return true;
+  }
   if (nextBlock?.text) {
     model.props.text.join(nextBlock.text);
     if (nextBlock.children) {

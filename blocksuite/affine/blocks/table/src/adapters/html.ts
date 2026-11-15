@@ -112,7 +112,7 @@ export const tableBlockHtmlAdapterMatcher: BlockHtmlAdapterMatcher = {
           type: 'element',
           tagName: 'table',
           properties: {
-            border: true,
+            border: '',
             style: 'border-collapse: collapse;border-spacing: 0;',
           },
           children: [tableBodyAst],

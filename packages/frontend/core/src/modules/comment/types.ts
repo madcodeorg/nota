@@ -5,6 +5,7 @@ import type {
   Store,
 } from '@blocksuite/affine/store';
 import type { CommentChangeAction, PublicUserType } from '@nota/graphql';
+import type { Observable } from 'rxjs';
 
 export type CommentId = string;
 
@@ -71,3 +72,38 @@ export type DocCommentChangeListResult = {
   endCursor: string;
   hasNextPage: boolean;
 };
+
+/**
+ * Storage backend of a doc's comments. Server-backed workspaces use GraphQL,
+ * local and Google Drive workspaces use the workspace DB.
+ */
+export interface CommentStore {
+  listComments(options: { after?: string }): Promise<DocCommentListResult>;
+  listCommentChanges(options: {
+    after?: string;
+  }): Promise<DocCommentChangeListResult>;
+  /**
+   * Live comments, when the backend can push changes instead of being polled.
+   */
+  watchComments?(): Observable<DocComment[]>;
+  createComment(input: {
+    content: DocCommentContent;
+    mentions?: string[];
+  }): Promise<DocComment>;
+  updateComment(
+    commentId: string,
+    input: { content: DocCommentContent }
+  ): Promise<void>;
+  resolveComment(commentId: string, resolved?: boolean): Promise<boolean>;
+  deleteComment(commentId: string): Promise<boolean>;
+  createReply(
+    commentId: string,
+    input: { content: DocCommentContent; mentions?: string[] }
+  ): Promise<DocCommentReply>;
+  updateReply(
+    replyId: string,
+    input: { content: DocCommentContent }
+  ): Promise<void>;
+  deleteReply(replyId: string): Promise<void>;
+  uploadCommentAttachment?(file: File): Promise<string>;
+}

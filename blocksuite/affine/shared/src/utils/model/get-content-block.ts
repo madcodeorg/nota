@@ -4,6 +4,7 @@ import type { BlockModel } from '@blocksuite/store';
 
 import { DocModeProvider } from '../../services/doc-mode-service.js';
 import { matchModels } from './checker.js';
+import { isColumnModel } from './columns.js';
 
 /**
  *
@@ -115,7 +116,12 @@ export function getNextContentBlock(
 
   const doc = model.store;
   if (model.children.length) {
-    return model.children[0];
+    const firstChild = model.children[0];
+    // a columns layout only holds columns, step into the first column's content
+    if (isColumnModel(firstChild)) {
+      return getNextContentBlock(editorHost, firstChild, map);
+    }
+    return firstChild;
   }
   let currentBlock: typeof model | null = model;
   while (currentBlock) {

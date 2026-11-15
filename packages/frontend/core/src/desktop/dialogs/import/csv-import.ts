@@ -1,5 +1,8 @@
 import {
   DatabaseBlockDataSource,
+  defaultStatusOptions,
+  type StatusOption,
+  statusOptionIdByName,
   updateCell,
 } from '@blocksuite/affine/blocks/database';
 import type {
@@ -70,6 +73,13 @@ export function prepareCsvImport(
           color: cssVarV2('chip/label/blue'),
         }));
       }
+      if (column.type === 'status') {
+        const options = defaultStatusOptions();
+        preview.rows.forEach(row =>
+          statusOptionIdByName(options, row[i] ?? '')
+        );
+        data.options = options;
+      }
       return { id: nanoid(), type: column.type, name: column.name, data };
     });
     const databaseId = store.addBlock(
@@ -105,7 +115,12 @@ export function prepareCsvImport(
               ? ((column.data.options as { id: string; value: string }[]).find(
                   option => option.value === raw
                 )?.id ?? null)
-              : convertCsvValue(raw, mapping[index].type);
+              : column.type === 'status'
+                ? statusOptionIdByName(
+                    column.data.options as StatusOption[],
+                    raw
+                  )
+                : convertCsvValue(raw, mapping[index].type);
         // Keep empty checkbox cells absent rather than converting them to false.
         if (value !== null)
           updateCell(database, rowId, { columnId: column.id, value });

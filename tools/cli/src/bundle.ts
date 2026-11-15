@@ -250,21 +250,29 @@ export class BundleCommand extends PackageCommand {
       throw new Error('Failed to create rspack compiler');
     }
 
-    const electronRendererDevServerConfig: RspackDevServerConfiguration =
-      pkg.name === '@nota/electron-renderer'
-        ? {
-            client: {
-              webSocketURL: 'ws://localhost:8080/ws',
-            },
-            liveReload: false,
-          }
-        : {};
+    // Resolve the port first: the live-reload socket URL must be explicit
+    // (Electron pages use a custom protocol) and has to match the port the
+    // server actually takes. Without PORT, a busy 8080 moves up to the next
+    // free port; with PORT, that exact port is used.
+    const requestedPort = devServerConfig?.port ?? process.env.PORT;
+    const port: number = await RspackDevServer.getFreePort(
+      requestedPort === undefined ? 'auto' : String(requestedPort),
+      String(DEFAULT_DEV_SERVER_CONFIG.host)
+    );
+    const isElectronRenderer = pkg.name === '@nota/electron-renderer';
+    const portDevServerConfig: RspackDevServerConfiguration = {
+      port,
+      client: {
+        webSocketURL: `ws://${isElectronRenderer ? 'localhost' : '0.0.0.0'}:${port}/ws`,
+      },
+      ...(isElectronRenderer ? { liveReload: false } : {}),
+    };
 
     const devServer = new RspackDevServer(
       merge(
         {},
         DEFAULT_DEV_SERVER_CONFIG,
-        electronRendererDevServerConfig,
+        portDevServerConfig,
         devServerConfig
       ),
       compiler

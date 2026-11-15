@@ -210,6 +210,16 @@ const fetchArtworkPool = async () => {
         .slice(index, index + OBJECT_FETCH_BATCH_SIZE)
         .map(fetchObject)
     );
+    // When the first batch fails completely, the API is offline or rate
+    // limiting us (its 403 carries no CORS header, so browsers log each one).
+    // Stop instead of sending hundreds more failing requests. Later batches
+    // keep going so a brief failure does not cache a small pool for a day.
+    if (
+      artworkByImage.size === 0 &&
+      records.every(record => record.status === 'rejected')
+    ) {
+      break;
+    }
     for (const record of records) {
       const artwork =
         record.status === 'fulfilled'

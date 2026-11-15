@@ -5,7 +5,7 @@ export default defineConfig({
     target: 'es2018',
   },
   test: {
-    globalSetup: '../../scripts/vitest-global.js',
+    globalSetup: '../../../scripts/vitest-global.js',
     include: ['src/__tests__/**/*.unit.spec.ts'],
     testTimeout: 1000,
     coverage: {

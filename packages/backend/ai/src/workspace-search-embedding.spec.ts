@@ -417,7 +417,8 @@ test('missing local models fall back without enabling downloads', async () => {
   expect(mock.factory).toHaveBeenCalledWith(
     'feature-extraction',
     'test-model',
-    expect.objectContaining({ local_files_only: true })
+    // q8 selects the downloaded onnx/model_quantized.onnx.
+    expect.objectContaining({ dtype: 'q8', local_files_only: true })
   );
 });
 
