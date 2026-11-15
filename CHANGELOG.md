@@ -2,6 +2,17 @@
 
 All notable changes to Nota are recorded here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Installers and release notes are published on [GitHub Releases](https://github.com/madcodeorg/nota/releases).
 
+## 0.1.16-beta.1
+
+- Tasks: add tasks straight from the Tasks page with a due date, and switch to a board with To do, In progress and Done columns.
+- Reminders: "Remind me" on any page, or `/remind` on a block, with desktop notifications and a summary of reminders missed while Nota was closed.
+- Comments now work in local and Google Drive workspaces: comment on text, reply, edit, resolve and jump to the commented text.
+- Columns: place blocks side by side in 2, 3 or 4 resizable columns with `/columns`.
+- Databases get a Status property with To do, In progress and Complete groups that work with the board view, filters and sorting.
+- Meetings: more accurate transcription, model and language settings before a meeting, and an optional full pass after it with a larger model.
+- Linux: meeting recording from system audio, more reliable meetings, working neural search and smaller packages.
+- The collapsed sidebar's hover panel no longer shows a stray line next to the icon rail.
+
 ## 0.1.15-beta.1
 
 - Tasks: add tasks straight from the Tasks page with a due date, and switch to a board with To do, In progress and Done columns.
