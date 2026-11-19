@@ -78,15 +78,29 @@ export const navStyle = style({
   height: '100%',
   display: 'flex',
   flexDirection: 'column',
+  opacity: 1,
+  transition: 'opacity 160ms ease 100ms',
+  selectors: {
+    [`${navWrapperStyle}[data-open="false"] &`]: {
+      opacity: 0,
+      pointerEvents: 'none',
+      transition: 'opacity 0s',
+    },
+    [`${navWrapperStyle}[data-open="true"][data-is-floating="true"] &`]: {
+      opacity: 1,
+      transition: 'opacity 140ms ease 40ms',
+    },
+  },
 });
 // Always-visible icon rail to the left of the collapsible panel.
 export const railColumnStyle = style({
   position: 'relative',
-  zIndex: 4,
+  zIndex: 5,
   flex: '0 0 52px',
   width: 52,
   height: '100%',
   display: 'flex',
+  background: 'var(--nota-frame-background)',
   color: cssVarV2('text/primary'),
   '@media': { print: { display: 'none' } },
 });

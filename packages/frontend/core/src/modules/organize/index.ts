@@ -9,6 +9,7 @@ import { FolderStore } from './stores/folder';
 
 export type { FolderNode } from './entities/folder-node';
 export { OrganizeService } from './services/organize';
+export type { OrganizeBreadcrumbItem } from './types';
 
 export function configureOrganizeModule(framework: Framework) {
   framework

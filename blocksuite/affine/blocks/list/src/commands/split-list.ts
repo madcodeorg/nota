@@ -114,7 +114,23 @@ export const splitListCommand: Command<{
 
   let newListId: string | null = null;
 
-  if (model.children.length > 0 && !model.props.collapsed) {
+  if (
+    model.props.type === 'toggle' &&
+    !model.props.collapsed &&
+    inlineIndex > 0
+  ) {
+    // Pressing Enter inside an open Toggle creates a child paragraph inside it
+    // (Notion-style collapsible container behavior).
+    const afterText = model.props.text.split(inlineIndex);
+    newListId = doc.addBlock(
+      'affine:paragraph',
+      {
+        text: afterText,
+      },
+      model,
+      0
+    );
+  } else if (model.children.length > 0 && !model.props.collapsed) {
     const afterText = model.props.text.split(inlineIndex);
     if (inlineIndex === 0) {
       /**

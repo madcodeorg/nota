@@ -1,4 +1,4 @@
-import { style } from '@vanilla-extract/css';
+import { globalStyle, style } from '@vanilla-extract/css';
 export const editor = style({
   flex: 1,
   selectors: {
@@ -8,6 +8,11 @@ export const editor = style({
       vars: {
         '--affine-editor-width': '100%',
         '--affine-editor-side-padding': '72px',
+      },
+    },
+    '&.small-text': {
+      vars: {
+        '--affine-font-base': '14px',
       },
     },
   },
@@ -23,4 +28,8 @@ export const editor = style({
       },
     },
   },
+});
+
+globalStyle(`${editor}[data-page-font] .doc-title-container`, {
+  fontFamily: 'var(--affine-font-family)',
 });

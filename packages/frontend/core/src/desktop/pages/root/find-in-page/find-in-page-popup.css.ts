@@ -33,19 +33,17 @@ export const anchor = style({
 });
 
 export const contentContainer = style({
-  width: 400,
-  height: 48,
+  width: 420,
   backgroundColor: cssVar('backgroundOverlayPanelColor'),
   borderRadius: '8px',
   boxShadow: cssVar('shadow3'),
   minHeight: 48,
   outline: 'none',
   display: 'flex',
+  flexDirection: 'column',
   gap: 8,
-  alignItems: 'center',
-  justifyContent: 'space-between',
   border: `0.5px solid ${cssVar('borderColor')}`,
-  padding: '8px 12px 8px 8px',
+  padding: '8px 10px 8px 8px',
   zIndex: `calc(${cssVar('zIndexModal')} + 1)`,
   willChange: 'transform, opacity',
   selectors: {
@@ -56,6 +54,58 @@ export const contentContainer = style({
     '&[data-state=exited], &[data-state=exiting]': {
       animation: `${contentHide} ${animationTimeout} cubic-bezier(0.42, 0, 0.58, 1)`,
       animationFillMode: 'forwards',
+    },
+  },
+});
+
+export const row = style({
+  display: 'flex',
+  gap: 6,
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  width: '100%',
+});
+
+export const replaceInput = style({
+  flex: 1,
+  height: 30,
+  padding: '0 8px',
+  borderRadius: 4,
+  border: `1px solid ${cssVar('borderColor')}`,
+  background: cssVar('white10'),
+  color: cssVar('textPrimaryColor'),
+  fontSize: 13,
+  outline: 'none',
+  minWidth: 0,
+  selectors: {
+    '&:focus': {
+      borderColor: cssVar('primaryColor'),
+    },
+  },
+});
+
+export const actionPill = style({
+  height: 30,
+  padding: '0 8px',
+  borderRadius: 4,
+  border: `1px solid ${cssVarV2('layer/insideBorder/border')}`,
+  background: cssVarV2('layer/background/secondary'),
+  color: cssVarV2('text/primary'),
+  fontSize: 12,
+  fontWeight: 500,
+  cursor: 'pointer',
+  flexShrink: 0,
+  selectors: {
+    '&:hover:not(:disabled)': {
+      background: cssVarV2('layer/background/hoverOverlay'),
+    },
+    '&[data-active="true"]': {
+      borderColor: cssVarV2('button/primary'),
+      color: cssVarV2('button/primary'),
+    },
+    '&:disabled': {
+      opacity: 0.45,
+      cursor: 'default',
     },
   },
 });
