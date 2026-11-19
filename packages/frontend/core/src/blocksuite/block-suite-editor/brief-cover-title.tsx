@@ -1,6 +1,6 @@
 import type { DocTitle } from '@blocksuite/affine/fragments/doc-title';
 import type { Store } from '@blocksuite/affine/store';
-import { notify } from '@nota/component';
+import { notify, Popover } from '@nota/component';
 import { LitDocTitle } from '@nota/core/blocksuite/editors';
 import { DocsService } from '@nota/core/modules/doc';
 import {
@@ -11,18 +11,42 @@ import {
   loadArtworkPool,
   pickFreshArtwork,
 } from '@nota/core/utils/met-artwork';
-import { useLiveData, useService } from '@nota/infra';
-import dayjs from 'dayjs';
-import { forwardRef, useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  clampCoverPositionY,
+  COVER_PRESETS,
+  isPageCoverCustom,
+  isValidCoverUrl,
+  type PageCoverPreset,
+  validateCoverImageFile,
+} from '@nota/core/utils/page-cover';
+import { useLiveData, useService } from '@nota/infra';
+import clsx from 'clsx';
+import dayjs from 'dayjs';
+import {
+  type ChangeEvent,
+  type FormEvent,
+  forwardRef,
+  type PointerEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import {
+  RiDragMove2Line,
   RiExternalLinkLine,
   RiEyeOffLine,
   RiImageAddLine,
+  RiImageEditLine,
   RiShuffleLine,
+  RiUpload2Line,
 } from 'react-icons/ri';
 
 import * as styles from './brief-cover-title.css';
 import { DocIconPicker } from './doc-icon-picker';
+
+type CoverPickerTab = 'gallery' | 'upload' | 'link';
 
 const getDocCreatedDate = (page: Store, fallbackCreatedAt: number) => {
   const createDate = page.meta?.createDate;
@@ -46,11 +70,32 @@ export const BriefCoverTitle = forwardRef<
   const savedArtwork = isArtwork(properties?.coverArtwork)
     ? properties.coverArtwork
     : null;
+  const savedCustom = isPageCoverCustom(properties?.coverCustom)
+    ? properties.coverCustom
+    : null;
+  const savedPositionY = clampCoverPositionY(properties?.coverPositionY);
   const hidden = !!properties?.coverHidden;
   const editable = !readonly && !!record;
+
+  const isCustomCover = !!savedCustom && savedCustom.kind !== 'artwork';
   const [unsavedArtwork, setUnsavedArtwork] = useState<Artwork | null>(null);
   const [brokenImageUrl, setBrokenImageUrl] = useState<string | null>(null);
-  const needsArtwork = !savedArtwork && !hidden;
+  const [blobCoverUrl, setBlobCoverUrl] = useState<string | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerTab, setPickerTab] = useState<CoverPickerTab>('gallery');
+  const [linkInput, setLinkInput] = useState('');
+  const [pickerError, setPickerError] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [repositioning, setRepositioning] = useState(false);
+  const [draftPositionY, setDraftPositionY] = useState(savedPositionY);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const dragStartRef = useRef<{ y: number; positionY: number } | null>(null);
+
+  const needsArtwork = !savedArtwork && !hidden && !isCustomCover;
+
+  useEffect(() => {
+    setDraftPositionY(savedPositionY);
+  }, [savedPositionY]);
 
   useEffect(() => {
     if (!needsArtwork) {
@@ -80,14 +125,54 @@ export const BriefCoverTitle = forwardRef<
     };
   }, [needsArtwork, readonly, record]);
 
+  const blobId = savedCustom?.kind === 'blob' ? savedCustom.blobId : null;
+  useEffect(() => {
+    if (!blobId || hidden) {
+      setBlobCoverUrl(null);
+      return;
+    }
+    let disposed = false;
+    let objectUrl: string | null = null;
+    page.blobSync
+      .get(blobId)
+      .then(blob => {
+        if (disposed || !blob) {
+          return;
+        }
+        objectUrl = URL.createObjectURL(blob);
+        setBlobCoverUrl(objectUrl);
+      })
+      .catch(() => {
+        if (!disposed) {
+          setBlobCoverUrl(null);
+        }
+      });
+    return () => {
+      disposed = true;
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
+    };
+  }, [blobId, hidden, page.blobSync]);
+
   const artwork = savedArtwork ?? unsavedArtwork;
-  const shown =
+  const shownArtwork =
     artwork && artwork.imageUrl === brokenImageUrl ? DEFAULT_ARTWORK : artwork;
+  const activePositionY = repositioning ? draftPositionY : savedPositionY;
+
+  const isImageCover =
+    !isCustomCover || savedCustom.kind === 'blob' || savedCustom.kind === 'url';
 
   const shuffleArtwork = useCallback(() => {
     loadArtworkPool()
       .then(pool => {
-        record?.setProperty('coverArtwork', pickFreshArtwork(pool, artwork));
+        record?.updateProperties({
+          coverArtwork: pickFreshArtwork(pool, artwork),
+          coverCustom: { kind: 'artwork' },
+          coverHidden: false,
+        });
+        setBrokenImageUrl(null);
+        setPickerOpen(false);
       })
       .catch(() => {
         notify.error({
@@ -97,13 +182,253 @@ export const BriefCoverTitle = forwardRef<
       });
   }, [artwork, record]);
 
+  const selectGradientPreset = useCallback(
+    (preset: PageCoverPreset) => {
+      record?.updateProperties({
+        coverCustom: {
+          kind: 'gradient',
+          value: preset.value,
+          label: preset.label,
+        },
+        coverHidden: false,
+      });
+      setRepositioning(false);
+      setPickerError(null);
+      setPickerOpen(false);
+    },
+    [record]
+  );
+
+  const handleFileChange = useCallback(
+    async (event: ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      event.target.value = '';
+      if (!file || !record) {
+        return;
+      }
+      const validation = validateCoverImageFile(file);
+      if (!validation.ok) {
+        setPickerError(validation.error);
+        return;
+      }
+      setUploading(true);
+      setPickerError(null);
+      try {
+        const nextBlobId = await page.blobSync.set(file);
+        record.updateProperties({
+          coverCustom: { kind: 'blob', blobId: nextBlobId },
+          coverPositionY: 50,
+          coverHidden: false,
+        });
+        setPickerOpen(false);
+      } catch {
+        setPickerError('Could not save cover image to local storage.');
+      } finally {
+        setUploading(false);
+      }
+    },
+    [page.blobSync, record]
+  );
+
+  const handleLinkSubmit = useCallback(
+    (event: FormEvent) => {
+      event.preventDefault();
+      const trimmed = linkInput.trim();
+      if (!isValidCoverUrl(trimmed)) {
+        setPickerError('Enter a valid https:// image URL.');
+        return;
+      }
+      record?.updateProperties({
+        coverCustom: { kind: 'url', url: trimmed },
+        coverPositionY: 50,
+        coverHidden: false,
+      });
+      setBrokenImageUrl(null);
+      setPickerError(null);
+      setLinkInput('');
+      setPickerOpen(false);
+    },
+    [linkInput, record]
+  );
+
   const hideCover = useCallback(() => {
+    setRepositioning(false);
+    setPickerOpen(false);
     record?.setProperty('coverHidden', true);
   }, [record]);
 
   const showCover = useCallback(() => {
     record?.setProperty('coverHidden', false);
   }, [record]);
+
+  const startReposition = useCallback(() => {
+    setDraftPositionY(savedPositionY);
+    setPickerOpen(false);
+    setRepositioning(true);
+  }, [savedPositionY]);
+
+  const saveReposition = useCallback(() => {
+    record?.setProperty('coverPositionY', clampCoverPositionY(draftPositionY));
+    setRepositioning(false);
+  }, [draftPositionY, record]);
+
+  const cancelReposition = useCallback(() => {
+    setDraftPositionY(savedPositionY);
+    setRepositioning(false);
+  }, [savedPositionY]);
+
+  const handlePointerDown = useCallback(
+    (event: PointerEvent<HTMLDivElement>) => {
+      if (!repositioning) return;
+      event.currentTarget.setPointerCapture(event.pointerId);
+      dragStartRef.current = { y: event.clientY, positionY: draftPositionY };
+    },
+    [draftPositionY, repositioning]
+  );
+
+  const handlePointerMove = useCallback(
+    (event: PointerEvent<HTMLDivElement>) => {
+      const start = dragStartRef.current;
+      if (!repositioning || !start) return;
+      const deltaY = event.clientY - start.y;
+      setDraftPositionY(clampCoverPositionY(start.positionY - deltaY * 0.35));
+    },
+    [repositioning]
+  );
+
+  const handlePointerUp = useCallback((event: PointerEvent<HTMLDivElement>) => {
+    if (!dragStartRef.current) return;
+    dragStartRef.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  }, []);
+
+  const pickerContent = (
+    <div className={styles.coverPicker} data-testid="page-cover-picker">
+      <div
+        className={styles.coverTabs}
+        role="tablist"
+        aria-label="Cover source"
+      >
+        {(
+          [
+            { id: 'gallery', label: 'Gallery' },
+            { id: 'upload', label: 'Upload' },
+            { id: 'link', label: 'Link' },
+          ] as const
+        ).map(tab => (
+          <button
+            key={tab.id}
+            type="button"
+            role="tab"
+            aria-selected={pickerTab === tab.id}
+            className={styles.coverTab}
+            data-active={pickerTab === tab.id}
+            data-testid={`page-cover-tab-${tab.id}`}
+            onClick={() => {
+              setPickerTab(tab.id);
+              setPickerError(null);
+            }}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {pickerTab === 'gallery' ? (
+        <>
+          <div className={styles.presetGrid}>
+            {COVER_PRESETS.map(preset => {
+              const active =
+                savedCustom?.kind === 'gradient' &&
+                savedCustom.value === preset.value;
+              return (
+                <button
+                  key={preset.id}
+                  type="button"
+                  aria-label={preset.label}
+                  title={preset.label}
+                  className={styles.presetSwatch}
+                  data-active={active}
+                  data-testid={`page-cover-preset-${preset.id}`}
+                  style={{ background: preset.value }}
+                  onClick={() => selectGradientPreset(preset)}
+                />
+              );
+            })}
+          </div>
+          <button
+            type="button"
+            className={styles.pickerSecondaryButton}
+            data-testid="page-cover-met-artwork"
+            onClick={shuffleArtwork}
+          >
+            <RiShuffleLine aria-hidden />
+            Use Met Museum artwork
+          </button>
+        </>
+      ) : null}
+
+      {pickerTab === 'upload' ? (
+        <div className={styles.pickerForm}>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/gif,image/avif"
+            style={{ display: 'none' }}
+            data-testid="page-cover-file-input"
+            onChange={event => {
+              handleFileChange(event).catch(() => {});
+            }}
+          />
+          <button
+            type="button"
+            className={styles.pickerSecondaryButton}
+            disabled={uploading}
+            data-testid="page-cover-upload-button"
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <RiUpload2Line aria-hidden />
+            {uploading ? 'Uploading…' : 'Upload image from device'}
+          </button>
+          <p className={styles.pickerHint}>
+            Stored locally in your workspace (PNG, JPG, WebP, GIF, AVIF up to 10
+            MB).
+          </p>
+        </div>
+      ) : null}
+
+      {pickerTab === 'link' ? (
+        <form className={styles.pickerForm} onSubmit={handleLinkSubmit}>
+          <input
+            type="url"
+            className={styles.pickerInput}
+            placeholder="https://example.com/cover.jpg"
+            value={linkInput}
+            data-testid="page-cover-url-input"
+            onChange={event => {
+              setLinkInput(event.target.value);
+              setPickerError(null);
+            }}
+          />
+          <button
+            type="submit"
+            className={styles.pickerSecondaryButton}
+            data-testid="page-cover-url-submit"
+          >
+            Apply image URL
+          </button>
+        </form>
+      ) : null}
+
+      {pickerError ? (
+        <p className={styles.pickerError} role="alert">
+          {pickerError}
+        </p>
+      ) : null}
+    </div>
+  );
 
   return (
     <section
@@ -113,29 +438,101 @@ export const BriefCoverTitle = forwardRef<
     >
       {!hidden ? (
         <div className={styles.hero}>
-          <div className={styles.heroArt}>
-            {shown ? (
+          <div
+            className={clsx(
+              styles.heroArt,
+              repositioning && styles.heroRepositioning
+            )}
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerUp}
+            onPointerCancel={handlePointerUp}
+          >
+            {savedCustom?.kind === 'gradient' ? (
+              <div
+                aria-label={savedCustom.label}
+                className={styles.heroGradient}
+                data-testid="page-cover-gradient"
+                style={{ background: savedCustom.value }}
+              />
+            ) : savedCustom?.kind === 'blob' && blobCoverUrl ? (
               <img
-                alt={`${shown.title}, ${shown.artist}, ${shown.date}`}
+                alt="Page cover"
+                className={styles.heroImage}
+                data-testid="page-cover-blob-image"
+                decoding="async"
+                draggable={false}
+                src={blobCoverUrl}
+                style={{ objectPosition: `center ${activePositionY}%` }}
+              />
+            ) : savedCustom?.kind === 'url' &&
+              savedCustom.url !== brokenImageUrl ? (
+              <img
+                alt="Page cover"
+                className={styles.heroImage}
+                data-testid="page-cover-url-image"
+                decoding="async"
+                draggable={false}
+                onError={() => setBrokenImageUrl(savedCustom.url)}
+                referrerPolicy="no-referrer"
+                src={savedCustom.url}
+                style={{ objectPosition: `center ${activePositionY}%` }}
+              />
+            ) : !isCustomCover && shownArtwork ? (
+              <img
+                alt={`${shownArtwork.title}, ${shownArtwork.artist}, ${shownArtwork.date}`}
                 className={styles.heroImage}
                 decoding="async"
-                onError={() => setBrokenImageUrl(shown.imageUrl)}
+                draggable={false}
+                onError={() => setBrokenImageUrl(shownArtwork.imageUrl)}
                 referrerPolicy="no-referrer"
-                src={shown.imageUrl}
+                src={shownArtwork.imageUrl}
+                style={{ objectPosition: `center ${activePositionY}%` }}
               />
             ) : null}
           </div>
           {editable ? (
             <div className={styles.heroActions}>
-              <button
-                aria-label="Shuffle artwork"
-                className={styles.heroAction}
-                onClick={shuffleArtwork}
-                title="Shuffle artwork"
-                type="button"
+              <Popover
+                open={pickerOpen}
+                onOpenChange={setPickerOpen}
+                content={pickerContent}
+                contentOptions={{ align: 'end' }}
               >
-                <RiShuffleLine aria-hidden />
-              </button>
+                <button
+                  aria-label="Change cover"
+                  className={styles.heroActionLabel}
+                  data-testid="page-cover-change-button"
+                  title="Change cover"
+                  type="button"
+                >
+                  <RiImageEditLine aria-hidden size={14} />
+                  Change cover
+                </button>
+              </Popover>
+              {isImageCover ? (
+                <button
+                  aria-label="Reposition cover"
+                  className={styles.heroAction}
+                  data-testid="page-cover-reposition-button"
+                  onClick={repositioning ? saveReposition : startReposition}
+                  title="Reposition cover"
+                  type="button"
+                >
+                  <RiDragMove2Line aria-hidden />
+                </button>
+              ) : null}
+              {!isCustomCover ? (
+                <button
+                  aria-label="Shuffle artwork"
+                  className={styles.heroAction}
+                  onClick={shuffleArtwork}
+                  title="Shuffle artwork"
+                  type="button"
+                >
+                  <RiShuffleLine aria-hidden />
+                </button>
+              ) : null}
               <button
                 aria-label="Hide cover"
                 className={styles.heroAction}
@@ -147,16 +544,52 @@ export const BriefCoverTitle = forwardRef<
               </button>
             </div>
           ) : null}
-          {shown ? (
+          {repositioning ? (
+            <div
+              className={styles.repositionBar}
+              data-testid="page-cover-reposition-bar"
+            >
+              <span>Drag cover or adjust</span>
+              <input
+                aria-label="Cover vertical position"
+                className={styles.repositionSlider}
+                max={100}
+                min={0}
+                onChange={event =>
+                  setDraftPositionY(
+                    clampCoverPositionY(Number(event.target.value))
+                  )
+                }
+                type="range"
+                value={draftPositionY}
+              />
+              <button
+                className={styles.repositionButton}
+                data-testid="page-cover-reposition-save"
+                onClick={saveReposition}
+                type="button"
+              >
+                Save
+              </button>
+              <button
+                className={styles.repositionButton}
+                onClick={cancelReposition}
+                type="button"
+              >
+                Cancel
+              </button>
+            </div>
+          ) : null}
+          {!repositioning && !isCustomCover && shownArtwork ? (
             <div className={styles.credit}>
-              <div className={styles.creditTitle}>{shown.title}</div>
+              <div className={styles.creditTitle}>{shownArtwork.title}</div>
               <div>
-                {shown.artist}, {shown.date}
+                {shownArtwork.artist}, {shownArtwork.date}
               </div>
-              {isHttpsUrl(shown.sourceUrl) ? (
+              {isHttpsUrl(shownArtwork.sourceUrl) ? (
                 <a
                   className={styles.creditSource}
-                  href={shown.sourceUrl}
+                  href={shownArtwork.sourceUrl}
                   rel="noreferrer"
                   target="_blank"
                 >

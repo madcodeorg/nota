@@ -6,16 +6,24 @@ import {
   HastUtils,
 } from '@blocksuite/affine-shared/adapters';
 import { getTagColor } from '@blocksuite/data-view';
+import {
+  getDateStart,
+  guessStatusGroup,
+  parseDatePropertyString,
+  type StatusGroupId,
+} from '@blocksuite/data-view/property-pure-presets';
 import { type BlockSnapshot, nanoid } from '@blocksuite/store';
 
 const ColumnClassMap: Record<string, string> = {
   typesSelect: 'select',
   typesMultipleSelect: 'multi-select',
+  typesStatus: 'status',
   typesNumber: 'number',
   typesCheckbox: 'checkbox',
   typesText: 'rich-text',
   typesTitle: 'title',
   typesDate: 'date',
+  typesLastEditedTime: 'last-edited-time',
 };
 
 const NotionDatabaseToken = '.collection-content';
@@ -29,6 +37,7 @@ type BlocksuiteTableColumn = {
       id: string;
       value: string;
       color: string;
+      group?: StatusGroupId;
     }[];
   };
   id: string;
@@ -174,20 +183,30 @@ export const databaseBlockNotionHtmlAdapterMatcher: BlockNotionHtmlAdapterMatche
                     HastUtils.getTextContent(timeElement).trim();
 
                   if (rawColumnData.startsWith('@')) {
-                    rawColumnData = rawColumnData.slice(1);
+                    rawColumnData = rawColumnData.slice(1).trim();
                   }
 
                   const columnDate = new Date(rawColumnData);
                   const timestamp = columnDate.getTime();
+                  const parsedDateValue =
+                    !Number.isNaN(timestamp) && !/→|->/.test(rawColumnData)
+                      ? timestamp
+                      : parseDatePropertyString(rawColumnData);
 
-                  if (!Number.isNaN(timestamp)) {
+                  if (parsedDateValue != null) {
                     column.data = {};
-                    if (column.type !== 'date') {
+                    if (
+                      column.type !== 'date' &&
+                      column.type !== 'last-edited-time'
+                    ) {
                       column.type = 'date';
                     }
                     row[column.id] = {
                       columnId: column.id,
-                      value: timestamp,
+                      value:
+                        column.type === 'last-edited-time'
+                          ? getDateStart(parsedDateValue)
+                          : parsedDateValue,
                     };
                   } else {
                     row[column.id] = {
@@ -195,11 +214,18 @@ export const databaseBlockNotionHtmlAdapterMatcher: BlockNotionHtmlAdapterMatche
                       value: HastUtils.getTextContent(child),
                     };
                   }
-                } else if (HastUtils.querySelector(child, '.selected-value')) {
+                } else if (
+                  HastUtils.querySelector(child, '.selected-value') ||
+                  HastUtils.querySelector(child, '.status-value')
+                ) {
                   if (!('options' in column.data)) {
                     column.data.options = [];
                   }
-                  if (!['multi-select', 'select'].includes(column.type)) {
+                  if (HastUtils.querySelector(child, '.status-value')) {
+                    column.type = 'status';
+                  } else if (
+                    !['multi-select', 'select', 'status'].includes(column.type)
+                  ) {
                     column.type = 'select';
                   }
                   if (
@@ -211,19 +237,29 @@ export const databaseBlockNotionHtmlAdapterMatcher: BlockNotionHtmlAdapterMatche
                   }
                   child.type === 'element' &&
                     child.children.forEach(span => {
+                      const label = HastUtils.getTextContent(span);
                       const filteredArray = column.data.options?.filter(
-                        option =>
-                          option.value === HastUtils.getTextContent(span)
+                        option => option.value === label
                       );
                       const id = filteredArray?.length
                         ? (filteredArray[0]?.id ?? nanoid())
                         : nanoid();
                       if (!filteredArray?.length) {
-                        column.data.options?.push({
-                          id,
-                          value: HastUtils.getTextContent(span),
-                          color: getTagColor(),
-                        });
+                        if (column.type === 'status') {
+                          const group = guessStatusGroup(label);
+                          column.data.options?.push({
+                            id,
+                            value: label,
+                            color: getTagColor(),
+                            group,
+                          });
+                        } else {
+                          column.data.options?.push({
+                            id,
+                            value: label,
+                            color: getTagColor(),
+                          });
+                        }
                       }
                       optionIds.push(id);
                     });
@@ -304,11 +340,13 @@ export const databaseBlockNotionHtmlAdapterMatcher: BlockNotionHtmlAdapterMatche
                   if (!cell) {
                     return;
                   }
-                  if (
-                    columns.find(column => column.id === columnId)?.type ===
-                    'select'
-                  ) {
-                    cell.value = (cell.value as string[])[0];
+                  const columnType = columns.find(
+                    column => column.id === columnId
+                  )?.type;
+                  if (columnType === 'select' || columnType === 'status') {
+                    cell.value = Array.isArray(cell.value)
+                      ? cell.value[0]
+                      : undefined;
                   }
                 });
                 cells[children.at(i)?.id ?? nanoid()] = row;

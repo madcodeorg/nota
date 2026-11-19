@@ -9,6 +9,7 @@ import {
 import { nanoid } from 'nanoid';
 
 import type { Artwork } from '../../../utils/met-artwork';
+import type { PageCoverCustom } from '../../../utils/page-cover';
 import type { DocCommentContent } from '../../comment/types';
 import type { WorkspacePropertyType } from '../../workspace-property';
 
@@ -34,7 +35,11 @@ export const AFFiNE_WORKSPACE_DB_SCHEMA = {
     createdBy: f.string().optional(),
     updatedBy: f.string().optional(),
     coverArtwork: f.json<Artwork>().optional(),
+    coverCustom: f.json<PageCoverCustom>().optional(),
+    coverPositionY: f.number().optional(),
     coverHidden: f.boolean().optional(),
+    fontStyle: f.string().optional(),
+    smallText: f.boolean().optional(),
     locked: f.boolean().optional(),
     tasksInbox: f.boolean().optional(),
   }),

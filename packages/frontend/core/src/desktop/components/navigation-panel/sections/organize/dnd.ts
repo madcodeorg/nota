@@ -13,6 +13,12 @@ export const organizeChildrenDropEffect: NavigationPanelTreeNodeDropEffect =
       if (data.source.data.entity?.type === 'folder') {
         return 'move';
       }
+      if (data.source.data.entity?.type === 'doc') {
+        return data.source.data.from?.at ===
+          'navigation-panel:organize:folder-node'
+          ? 'move'
+          : 'link';
+      }
     } else {
       return; // not supported
     }

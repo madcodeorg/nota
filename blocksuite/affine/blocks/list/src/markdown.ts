@@ -10,15 +10,19 @@ import { matchModels, toNumberedList } from '@blocksuite/affine-shared/utils';
 import type { BlockComponent } from '@blocksuite/std';
 import { InlineMarkdownExtension } from '@blocksuite/std/inline';
 
+// group 2: number
+// group 3: bullet
+// group 4: bullet
+// group 5: todo
+// group 6: todo checked
+// group 7: toggle
+export const LIST_MARKDOWN_PATTERN =
+  /^((\d+\.)|(-)|(\*)|(\[ ?\])|(\[x\])|(>>))\s$/;
+
 export const ListMarkdownExtension =
   InlineMarkdownExtension<AffineTextAttributes>({
     name: 'list',
-    // group 2: number
-    // group 3: bullet
-    // group 4: bullet
-    // group 5: todo
-    // group 6: todo checked
-    pattern: /^((\d+\.)|(-)|(\*)|(\[ ?\])|(\[x\]))\s$/,
+    pattern: LIST_MARKDOWN_PATTERN,
     action: ({ inlineEditor, pattern, inlineRange, prefixText }) => {
       if (inlineEditor.yTextString.slice(0, inlineRange.index).includes('\n')) {
         return;
@@ -35,6 +39,8 @@ export const ListMarkdownExtension =
         type = 'bulleted';
       } else if (match[5] || match[6]) {
         type = 'todo';
+      } else if (match[7]) {
+        type = 'toggle';
       } else {
         return;
       }

@@ -15,6 +15,7 @@ import {
 } from '@nota/core/modules/editor-setting';
 import { FeatureFlagService } from '@nota/core/modules/feature-flag';
 import { WorkspaceService } from '@nota/core/modules/workspace';
+import type { PageFontStyle } from '@nota/core/utils/page-cover';
 import { useLiveData, useService } from '@nota/infra';
 import track from '@nota/track';
 import { Slot } from '@radix-ui/react-slot';
@@ -44,6 +45,7 @@ export interface EditorProps extends HTMLAttributes<HTMLDivElement> {
   mode: DocMode;
   shared?: boolean;
   readonly?: boolean;
+  fontStyleOverride?: PageFontStyle;
   defaultOpenProperty?: DefaultOpenProperty;
   // on Editor ready
   onEditorReady?: (editor: AffineEditorContainer) => (() => void) | void;
@@ -55,6 +57,7 @@ const BlockSuiteEditorImpl = ({
   className,
   shared,
   readonly,
+  fontStyleOverride: _fontStyleOverride,
   style,
   onEditorReady,
   defaultOpenProperty,
@@ -275,8 +278,12 @@ export const BlockSuiteEditor = (props: EditorProps) => {
     }))
   );
   const fontFamily = useMemo(() => {
+    const activeFontKey =
+      props.fontStyleOverride && props.fontStyleOverride !== 'default'
+        ? props.fontStyleOverride
+        : settings.fontFamily;
     const fontStyle = fontStyleOptions.find(
-      option => option.key === settings.fontFamily
+      option => option.key === activeFontKey
     );
     if (!fontStyle) {
       return cssVar('fontSansFamily');
@@ -286,7 +293,7 @@ export const BlockSuiteEditor = (props: EditorProps) => {
     return customFontFamily && fontStyle.key === 'Custom'
       ? `${customFontFamily}, ${fontStyle.value}`
       : fontStyle.value;
-  }, [settings.customFontFamily, settings.fontFamily]);
+  }, [props.fontStyleOverride, settings.customFontFamily, settings.fontFamily]);
 
   useEffect(() => {
     if (props.page.root) {

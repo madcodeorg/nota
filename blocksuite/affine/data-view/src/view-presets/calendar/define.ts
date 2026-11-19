@@ -2,10 +2,14 @@ import { viewType } from '../../core/view/data-view.js';
 import type { CardViewData } from '../card-view-manager.js';
 import { CalendarSingleView } from './calendar-view-manager.js';
 
+export type CalendarViewScope = 'month' | 'week';
+
 export type CalendarViewData = CardViewData & {
   mode: 'calendar';
   dateColumn?: string;
   month?: string;
+  modeScope?: CalendarViewScope;
+  weekStart?: string;
 };
 
 export const calendarViewType = viewType('calendar');

@@ -9,6 +9,8 @@ import { WorkspaceServerService } from '@nota/core/modules/cloud';
 import { EditorSettingService } from '@nota/core/modules/editor-setting';
 import type { FrameworkProvider } from '@nota/infra';
 
+import { createTocSlashMenuExtension } from './toc-slash-menu';
+
 export function getEditorConfigExtension(
   framework: FrameworkProvider
 ): ExtensionType[] {
@@ -25,5 +27,6 @@ export function getEditorConfigExtension(
     ToolbarMoreMenuConfigExtension(createToolbarMoreMenuConfig(framework)),
 
     createCustomToolbarExtension(editorSettingService.editorSetting, baseUrl),
+    createTocSlashMenuExtension(),
   ].flat();
 }

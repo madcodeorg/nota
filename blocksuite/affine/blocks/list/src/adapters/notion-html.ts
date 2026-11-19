@@ -45,8 +45,7 @@ export const listBlockNotionHtmlAdapterMatcher: BlockNotionHtmlAdapterMatcher =
             const firstElementChild = HastUtils.getElementChildren(o.node)[0];
             const notionListType =
               walkerContext.getNodeContext('hast:list:type');
-            const listType =
-              notionListType === 'toggle' ? 'bulleted' : notionListType;
+            const listType = notionListType ?? 'bulleted';
             let delta: DeltaInsert[] = [];
             if (notionListType === 'toggle') {
               delta = deltaConverter.astToDelta(

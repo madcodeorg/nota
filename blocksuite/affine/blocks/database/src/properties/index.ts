@@ -6,6 +6,7 @@ import {
   rollupColumnConfig,
 } from './computed/cell-renderer.js';
 import { createdTimeColumnConfig } from './created-time/cell-renderer.js';
+import { lastEditedTimeColumnConfig } from './last-edited-time/cell-renderer.js';
 import { linkColumnConfig } from './link/cell-renderer.js';
 import { richTextColumnConfig } from './rich-text/cell-renderer.js';
 import { titleColumnConfig } from './title/cell-renderer.js';
@@ -38,6 +39,7 @@ export const databaseBlockProperties = {
   richTextColumnConfig,
   titleColumnConfig,
   createdTimeColumnConfig,
+  lastEditedTimeColumnConfig,
   relationColumnConfig,
   formulaColumnConfig,
   rollupColumnConfig,

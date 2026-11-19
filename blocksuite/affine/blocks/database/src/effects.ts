@@ -9,6 +9,7 @@ import {
   RelationCell,
 } from './properties/computed/cell-renderer';
 import { CreatedTimeCell } from './properties/created-time/cell-renderer';
+import { LastEditedTimeCell } from './properties/last-edited-time/cell-renderer';
 import { LinkCell } from './properties/link/cell-renderer';
 import { RichTextCell } from './properties/rich-text/cell-renderer';
 import { IconCell } from './properties/title/icon';
@@ -21,6 +22,10 @@ export function effects() {
   customElements.define('data-view-header-area-text', HeaderAreaTextCell);
   customElements.define('affine-database-rich-text-cell', RichTextCell);
   customElements.define('affine-database-created-time-cell', CreatedTimeCell);
+  customElements.define(
+    'affine-database-last-edited-time-cell',
+    LastEditedTimeCell
+  );
   customElements.define('affine-database-computed-cell', ComputedCell);
   customElements.define('affine-database-relation-cell', RelationCell);
   customElements.define('center-peek', CenterPeek);

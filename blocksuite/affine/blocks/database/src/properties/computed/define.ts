@@ -6,6 +6,8 @@ import { computedText, isComputedError } from './evaluate.js';
 export const relationDataSchema = zod.object({
   targetDocId: zod.string(),
   targetDatabaseId: zod.string(),
+  reciprocal: zod.boolean().optional(),
+  reciprocalColumnId: zod.string().optional(),
 });
 export type RelationData = zod.infer<typeof relationDataSchema>;
 export const formulaDataSchema = zod.object({

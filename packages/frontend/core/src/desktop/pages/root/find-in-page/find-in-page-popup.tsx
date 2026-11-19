@@ -4,7 +4,8 @@ import {
   CloseIcon,
   SearchIcon,
 } from '@blocksuite/icons/rc';
-import { IconButton, observeResize, RowInput } from '@nota/component';
+import { IconButton, observeResize, RowInput, toast } from '@nota/component';
+import { activeDocEditor$ } from '@nota/core/components/root-app-sidebar/ai-panel-slot';
 import { FindInPageService } from '@nota/core/modules/find-in-page';
 import { useLiveData, useService } from '@nota/infra';
 import * as Popover from '@radix-ui/react-popover';
@@ -19,9 +20,15 @@ import {
   useRef,
   useState,
 } from 'react';
+import { RiFindReplaceLine } from 'react-icons/ri';
 import { useTransitionState } from 'react-transition-state';
 
 import * as styles from './find-in-page-popup.css';
+import {
+  findTextMatchesInDoc,
+  replaceAllInDoc,
+  replaceMatchInDoc,
+} from './replace-in-doc';
 
 const animationTimeout = 120;
 
@@ -82,11 +89,17 @@ const CanvasText = ({
 
 export const FindInPagePopup = () => {
   const [value, setValue] = useState('');
+  const [replaceValue, setReplaceValue] = useState('');
+  const [showReplace, setShowReplace] = useState(false);
+  const [caseSensitive, setCaseSensitive] = useState(false);
 
   const findInPage = useService(FindInPageService).findInPage;
   const visible = useLiveData(findInPage.visible$);
   const result = useLiveData(findInPage.result$);
   const isSearching = useLiveData(findInPage.isSearching$);
+  const activeEditor = useLiveData(activeDocEditor$);
+  const activeDoc = activeEditor?.doc ?? null;
+  const canReplace = !!activeDoc && !activeDoc.readonly && value.length > 0;
 
   const inputRef = useRef<HTMLInputElement>(null);
   const [active, setActive] = useState(false);
@@ -192,6 +205,59 @@ export const FindInPagePopup = () => {
       [findInPage]
     );
 
+  const handleReplaceOne = useCallback(() => {
+    if (!activeDoc || activeDoc.readonly || !value) {
+      return;
+    }
+    const matches = findTextMatchesInDoc(activeDoc, value, { caseSensitive });
+    const ordinal = result?.activeMatchOrdinal
+      ? Math.max(0, result.activeMatchOrdinal - 1)
+      : 0;
+    const occurrenceIndex =
+      matches.length > 0 ? Math.min(ordinal, matches.length - 1) : 0;
+    const { replaced, remaining } = replaceMatchInDoc(
+      activeDoc,
+      value,
+      replaceValue,
+      { caseSensitive, occurrenceIndex }
+    );
+    if (!replaced) {
+      toast('No editable matches in this note');
+      return;
+    }
+    if (remaining > 0) {
+      requestAnimationFrame(() => findInPage.refresh());
+    } else {
+      findInPage.clear();
+    }
+  }, [activeDoc, caseSensitive, findInPage, replaceValue, result, value]);
+
+  const handleReplaceAll = useCallback(() => {
+    if (!activeDoc || activeDoc.readonly || !value) {
+      return;
+    }
+    const { replacedCount } = replaceAllInDoc(activeDoc, value, replaceValue, {
+      caseSensitive,
+    });
+    if (replacedCount === 0) {
+      toast('No editable matches in this note');
+      return;
+    }
+    toast(
+      replacedCount === 1
+        ? 'Replaced 1 match'
+        : `Replaced ${replacedCount} matches`
+    );
+    const remaining = findTextMatchesInDoc(activeDoc, value, {
+      caseSensitive,
+    }).length;
+    if (remaining > 0) {
+      requestAnimationFrame(() => findInPage.refresh());
+    } else {
+      findInPage.clear();
+    }
+  }, [activeDoc, caseSensitive, findInPage, replaceValue, value]);
+
   return (
     <Popover.Root open={status !== 'exited'} onOpenChange={onChangeVisible}>
       <Popover.Anchor className={styles.anchor} data-find-in-page-anchor />
@@ -209,65 +275,132 @@ export const FindInPagePopup = () => {
             e.preventDefault();
           }}
         >
-          <div
-            className={clsx(styles.inputContainer, {
-              active: active || isSearching,
-            })}
-          >
-            <SearchIcon className={styles.searchIcon} />
-            <div className={styles.inputMain}>
-              <RowInput
+          <div className={styles.row}>
+            <div
+              className={clsx(styles.inputContainer, {
+                active: active || isSearching,
+              })}
+            >
+              <SearchIcon className={styles.searchIcon} />
+              <div className={styles.inputMain}>
+                <RowInput
+                  type="text"
+                  autoFocus
+                  value={value}
+                  ref={inputRef}
+                  style={{
+                    visibility: isSearching ? 'hidden' : 'visible',
+                  }}
+                  onBlur={handleBlur}
+                  onFocus={handleFocus}
+                  className={styles.input}
+                  onKeyDown={handleKeydown}
+                  onChange={handleValueChange}
+                  onScroll={handleScroll}
+                  onCompositionStart={handleCompositionStart}
+                  onCompositionEnd={handleCompositionEnd}
+                />
+                <CanvasText
+                  className={styles.inputHack}
+                  text={value}
+                  scrollLeft={scrollLeft}
+                />
+              </div>
+              <div className={styles.count}>
+                {value.length > 0 && result && result.matches !== 0 ? (
+                  <>
+                    <span>{result?.activeMatchOrdinal || 0}</span>
+                    <span>/</span>
+                    <span>{result?.matches || 0}</span>
+                  </>
+                ) : value.length && !isSearching ? (
+                  <span>No matches</span>
+                ) : null}
+              </div>
+            </div>
+
+            <div className={styles.arrowButtonContainer}>
+              <IconButton
+                size="24"
+                className={styles.arrowButton}
+                onClick={handleBackWard}
+                icon={<ArrowUpSmallIcon />}
+              />
+              <IconButton
+                size="24"
+                className={styles.arrowButton}
+                onClick={handleForward}
+                icon={<ArrowDownSmallIcon />}
+              />
+            </div>
+
+            <IconButton
+              aria-label="Toggle find and replace"
+              data-testid="find-in-page-toggle-replace"
+              tooltip={showReplace ? 'Hide replace' : 'Find and replace'}
+              onClick={() => setShowReplace(prev => !prev)}
+              icon={<RiFindReplaceLine size={16} />}
+            />
+
+            <IconButton onClick={handleDone} icon={<CloseIcon />} />
+          </div>
+
+          {showReplace ? (
+            <div className={styles.row} data-testid="find-in-page-replace-row">
+              <input
                 type="text"
-                autoFocus
-                value={value}
-                ref={inputRef}
-                style={{
-                  visibility: isSearching ? 'hidden' : 'visible',
+                className={styles.replaceInput}
+                placeholder={
+                  activeDoc?.readonly ? 'Page is locked' : 'Replace with…'
+                }
+                value={replaceValue}
+                disabled={!activeDoc || activeDoc.readonly}
+                data-testid="find-in-page-replace-input"
+                onChange={e => setReplaceValue(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && canReplace) {
+                    e.preventDefault();
+                    handleReplaceOne();
+                  }
                 }}
-                onBlur={handleBlur}
-                onFocus={handleFocus}
-                className={styles.input}
-                onKeyDown={handleKeydown}
-                onChange={handleValueChange}
-                onScroll={handleScroll}
-                onCompositionStart={handleCompositionStart}
-                onCompositionEnd={handleCompositionEnd}
               />
-              <CanvasText
-                className={styles.inputHack}
-                text={value}
-                scrollLeft={scrollLeft}
-              />
+              <button
+                type="button"
+                className={styles.actionPill}
+                data-active={caseSensitive}
+                aria-pressed={caseSensitive}
+                title="Match case"
+                data-testid="find-in-page-match-case"
+                onClick={() => {
+                  setCaseSensitive(prev => {
+                    const next = !prev;
+                    findInPage.setMatchCase(next);
+                    return next;
+                  });
+                }}
+              >
+                Aa
+              </button>
+              <button
+                type="button"
+                className={styles.actionPill}
+                disabled={!canReplace}
+                data-testid="find-in-page-replace-one"
+                onClick={handleReplaceOne}
+              >
+                Replace
+              </button>
+              <button
+                type="button"
+                className={styles.actionPill}
+                disabled={!canReplace}
+                data-testid="find-in-page-replace-all"
+                onClick={handleReplaceAll}
+              >
+                All
+              </button>
             </div>
-            <div className={styles.count}>
-              {value.length > 0 && result && result.matches !== 0 ? (
-                <>
-                  <span>{result?.activeMatchOrdinal || 0}</span>
-                  <span>/</span>
-                  <span>{result?.matches || 0}</span>
-                </>
-              ) : value.length ? (
-                <span>No matches</span>
-              ) : null}
-            </div>
-          </div>
-
-          <div className={styles.arrowButtonContainer}>
-            <IconButton
-              size="24"
-              className={styles.arrowButton}
-              onClick={handleBackWard}
-              icon={<ArrowUpSmallIcon />}
-            />
-            <IconButton
-              size="24"
-              className={styles.arrowButton}
-              onClick={handleForward}
-              icon={<ArrowDownSmallIcon />}
-            />
-          </div>
-
-          <IconButton onClick={handleDone} icon={<CloseIcon />} />
+          ) : null}
         </Popover.Content>
       </Popover.Portal>
     </Popover.Root>

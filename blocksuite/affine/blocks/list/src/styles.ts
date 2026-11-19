@@ -32,6 +32,27 @@ export const listPrefix = css`
     width: 20px;
     height: 20px;
   }
+
+  .affine-list-block__toggle-prefix {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    width: 24px;
+    height: 24px;
+    border-radius: 4px;
+    color: var(--affine-icon-color);
+    transition: background-color 0.12s ease;
+  }
+
+  .affine-list-block__toggle-prefix:hover {
+    background-color: var(--affine-hover-color);
+  }
+
+  .affine-list-block__toggle-prefix > svg {
+    width: 18px;
+    height: 18px;
+  }
 `;
 
 export const listBlockStyles = css`

@@ -39,7 +39,9 @@ export const PageDetailEditor = ({
 
   const doc = useService(DocService).doc;
   const docMeta = useLiveData(doc.meta$) as DocMetaWithHeaderImage | null;
-  const pageWidth = useLiveData(doc.properties$.selector(p => p.pageWidth));
+  const pageWidth = useLiveData(doc.pageWidth$);
+  const fontStyle = useLiveData(doc.fontStyle$);
+  const smallText = useLiveData(doc.smallText$);
 
   const isSharedMode = editor.isSharedMode;
   const editorSetting = useService(EditorSettingService).editorSetting;
@@ -77,8 +79,13 @@ export const PageDetailEditor = ({
       <BlockSuiteEditor
         className={clsx(styles.editor, {
           'full-screen': !isSharedMode && fullWidthLayout,
+          'small-text': !isSharedMode && smallText,
           'is-public': isSharedMode,
         })}
+        data-page-font={
+          !isSharedMode && fontStyle !== 'default' ? fontStyle : undefined
+        }
+        fontStyleOverride={!isSharedMode ? fontStyle : 'default'}
         mode={mode}
         defaultOpenProperty={defaultOpenProperty}
         page={editor.doc.blockSuiteDoc}

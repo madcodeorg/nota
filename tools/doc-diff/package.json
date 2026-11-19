@@ -1,6 +1,6 @@
 {
   "name": "@nota/doc-diff",
-  "version": "0.1.16",
+  "version": "0.1.17",
   "private": true,
   "type": "module",
   "description": "Diff Nota Yjs snapshot docs (rootdoc/folder/favorite)",
