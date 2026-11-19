@@ -857,7 +857,7 @@ __metadata:
     file-type: "npm:^21.3.4"
     lit: "npm:^3.3.3"
     rxjs: "npm:^7.8.2"
-    zod: "npm:^3.25.76"
+    zod: "npm:^4.6.6"
   languageName: unknown
   linkType: soft
 
@@ -885,7 +885,7 @@ __metadata:
     rxjs: "npm:^7.8.2"
     vitest: "npm:^4.1.12"
     yjs: "npm:^13.6.33"
-    zod: "npm:^3.25.76"
+    zod: "npm:^4.6.6"
   languageName: unknown
   linkType: soft
 
@@ -914,7 +914,7 @@ __metadata:
     emoji-mart: "npm:^5.6.0"
     lit: "npm:^3.3.3"
     rxjs: "npm:^7.8.2"
-    zod: "npm:^3.25.76"
+    zod: "npm:^4.6.6"
   languageName: unknown
   linkType: soft
 
@@ -945,7 +945,7 @@ __metadata:
     lit: "npm:^3.3.3"
     rxjs: "npm:^7.8.2"
     shiki: "npm:^3.23.0"
-    zod: "npm:^3.25.76"
+    zod: "npm:^4.6.6"
   languageName: unknown
   linkType: soft
 
@@ -991,7 +991,7 @@ __metadata:
     "@types/mdast": "npm:^4.0.4"
     lit: "npm:^3.3.3"
     rxjs: "npm:^7.8.2"
-    zod: "npm:^3.25.76"
+    zod: "npm:^4.6.6"
   languageName: unknown
   linkType: soft
 
@@ -1024,7 +1024,7 @@ __metadata:
     rxjs: "npm:^7.8.2"
     vitest: "npm:^4.1.12"
     yjs: "npm:^13.6.33"
-    zod: "npm:^3.25.76"
+    zod: "npm:^4.6.6"
   languageName: unknown
   linkType: soft
 
@@ -1047,7 +1047,7 @@ __metadata:
     "@types/mdast": "npm:^4.0.4"
     lit: "npm:^3.3.3"
     rxjs: "npm:^7.8.2"
-    zod: "npm:^3.25.76"
+    zod: "npm:^4.6.6"
   languageName: unknown
   linkType: soft
 
@@ -1074,7 +1074,7 @@ __metadata:
     "@toeverything/theme": "npm:^1.1.23"
     lit: "npm:^3.3.3"
     rxjs: "npm:^7.8.2"
-    zod: "npm:^3.25.76"
+    zod: "npm:^4.6.6"
   languageName: unknown
   linkType: soft
 
@@ -1105,7 +1105,7 @@ __metadata:
     rxjs: "npm:^7.8.2"
     vitest: "npm:^4.1.12"
     yjs: "npm:^13.6.33"
-    zod: "npm:^3.25.76"
+    zod: "npm:^4.6.6"
   languageName: unknown
   linkType: soft
 
@@ -1136,7 +1136,7 @@ __metadata:
     rxjs: "npm:^7.8.2"
     vitest: "npm:^4.1.12"
     yjs: "npm:^13.6.33"
-    zod: "npm:^3.25.76"
+    zod: "npm:^4.6.6"
   languageName: unknown
   linkType: soft
 
@@ -1164,7 +1164,7 @@ __metadata:
     lit: "npm:^3.3.3"
     rxjs: "npm:^7.8.2"
     yjs: "npm:^13.6.33"
-    zod: "npm:^3.25.76"
+    zod: "npm:^4.6.6"
   languageName: unknown
   linkType: soft
 
@@ -1191,7 +1191,7 @@ __metadata:
     file-type: "npm:^21.3.4"
     lit: "npm:^3.3.3"
     rxjs: "npm:^7.8.2"
-    zod: "npm:^3.25.76"
+    zod: "npm:^4.6.6"
   languageName: unknown
   linkType: soft
 
@@ -1221,7 +1221,7 @@ __metadata:
     lit: "npm:^3.3.3"
     remark-math: "npm:^6.0.0"
     rxjs: "npm:^7.8.2"
-    zod: "npm:^3.25.76"
+    zod: "npm:^4.6.6"
   languageName: unknown
   linkType: soft
 
@@ -1248,7 +1248,7 @@ __metadata:
     lit: "npm:^3.3.3"
     rxjs: "npm:^7.8.2"
     vitest: "npm:^4.1.12"
-    zod: "npm:^3.25.76"
+    zod: "npm:^4.6.6"
   languageName: unknown
   linkType: soft
 
@@ -1280,7 +1280,7 @@ __metadata:
     lit: "npm:^3.3.3"
     lodash-es: "npm:^4.18.1"
     rxjs: "npm:^7.8.2"
-    zod: "npm:^3.25.76"
+    zod: "npm:^4.6.6"
   languageName: unknown
   linkType: soft
 
@@ -1306,7 +1306,7 @@ __metadata:
     lit: "npm:^3.3.3"
     rxjs: "npm:^7.8.2"
     vitest: "npm:^4.1.12"
-    zod: "npm:^3.25.76"
+    zod: "npm:^4.6.6"
   languageName: unknown
   linkType: soft
 
@@ -1357,7 +1357,7 @@ __metadata:
     lodash-es: "npm:^4.18.1"
     rxjs: "npm:^7.8.2"
     yjs: "npm:^13.6.33"
-    zod: "npm:^3.25.76"
+    zod: "npm:^4.6.6"
   languageName: unknown
   linkType: soft
 
@@ -1387,7 +1387,7 @@ __metadata:
     lodash-es: "npm:^4.18.1"
     nanoid: "npm:^5.1.16"
     rxjs: "npm:^7.8.2"
-    zod: "npm:^3.25.76"
+    zod: "npm:^4.6.6"
   languageName: unknown
   linkType: soft
 
@@ -1416,7 +1416,7 @@ __metadata:
     rxjs: "npm:^7.8.2"
     vitest: "npm:^4.1.12"
     yjs: "npm:^13.6.33"
-    zod: "npm:^3.25.76"
+    zod: "npm:^4.6.6"
   languageName: unknown
   linkType: soft
 
@@ -1443,7 +1443,7 @@ __metadata:
     lit: "npm:^3.3.3"
     rxjs: "npm:^7.8.2"
     yjs: "npm:^13.6.33"
-    zod: "npm:^3.25.76"
+    zod: "npm:^4.6.6"
   languageName: unknown
   linkType: soft
 
@@ -1477,7 +1477,7 @@ __metadata:
     rxjs: "npm:^7.8.2"
     shiki: "npm:^3.23.0"
     yjs: "npm:^13.6.33"
-    zod: "npm:^3.25.76"
+    zod: "npm:^4.6.6"
   languageName: unknown
   linkType: soft
 
@@ -1488,7 +1488,7 @@ __metadata:
     "@blocksuite/global": "workspace:*"
     "@blocksuite/store": "workspace:*"
     vitest: "npm:^4.1.12"
-    zod: "npm:^3.25.76"
+    zod: "npm:^4.6.6"
   languageName: unknown
   linkType: soft
 
@@ -1514,7 +1514,7 @@ __metadata:
     lodash-es: "npm:^4.18.1"
     rxjs: "npm:^7.8.2"
     yjs: "npm:^13.6.33"
-    zod: "npm:^3.25.76"
+    zod: "npm:^4.6.6"
   languageName: unknown
   linkType: soft
 
@@ -1560,7 +1560,7 @@ __metadata:
     "@toeverything/theme": "npm:^1.1.23"
     lit: "npm:^3.3.3"
     rxjs: "npm:^7.8.2"
-    zod: "npm:^3.25.76"
+    zod: "npm:^4.6.6"
   languageName: unknown
   linkType: soft
 
@@ -1587,7 +1587,7 @@ __metadata:
     lit: "npm:^3.3.3"
     lodash-es: "npm:^4.18.1"
     rxjs: "npm:^7.8.2"
-    zod: "npm:^3.25.76"
+    zod: "npm:^4.6.6"
   languageName: unknown
   linkType: soft
 
@@ -1613,7 +1613,7 @@ __metadata:
     "@vanilla-extract/css": "npm:^1.21.3"
     lit: "npm:^3.3.3"
     rxjs: "npm:^7.8.2"
-    zod: "npm:^3.25.76"
+    zod: "npm:^4.6.6"
   languageName: unknown
   linkType: soft
 
@@ -1640,7 +1640,7 @@ __metadata:
     lodash-es: "npm:^4.18.1"
     rxjs: "npm:^7.8.2"
     yjs: "npm:^13.6.33"
-    zod: "npm:^3.25.76"
+    zod: "npm:^4.6.6"
   languageName: unknown
   linkType: soft
 
@@ -1668,7 +1668,7 @@ __metadata:
     lodash-es: "npm:^4.18.1"
     rxjs: "npm:^7.8.2"
     yjs: "npm:^13.6.33"
-    zod: "npm:^3.25.76"
+    zod: "npm:^4.6.6"
   languageName: unknown
   linkType: soft
 
@@ -1698,7 +1698,7 @@ __metadata:
     rxjs: "npm:^7.8.2"
     vitest: "npm:^4.1.12"
     yjs: "npm:^13.6.33"
-    zod: "npm:^3.25.76"
+    zod: "npm:^4.6.6"
   languageName: unknown
   linkType: soft
 
@@ -1728,7 +1728,7 @@ __metadata:
     lodash-es: "npm:^4.18.1"
     rxjs: "npm:^7.8.2"
     yjs: "npm:^13.6.33"
-    zod: "npm:^3.25.76"
+    zod: "npm:^4.6.6"
   languageName: unknown
   linkType: soft
 
@@ -1763,7 +1763,7 @@ __metadata:
     rxjs: "npm:^7.8.2"
     simple-xml-to-json: "npm:^1.2.7"
     yjs: "npm:^13.6.33"
-    zod: "npm:^3.25.76"
+    zod: "npm:^4.6.6"
   languageName: unknown
   linkType: soft
 
@@ -1793,7 +1793,7 @@ __metadata:
     lodash-es: "npm:^4.18.1"
     rxjs: "npm:^7.8.2"
     yjs: "npm:^13.6.33"
-    zod: "npm:^3.25.76"
+    zod: "npm:^4.6.6"
   languageName: unknown
   linkType: soft
 
@@ -1821,7 +1821,7 @@ __metadata:
     rxjs: "npm:^7.8.2"
     vitest: "npm:^4.1.12"
     yjs: "npm:^13.6.33"
-    zod: "npm:^3.25.76"
+    zod: "npm:^4.6.6"
   languageName: unknown
   linkType: soft
 
@@ -1849,7 +1849,7 @@ __metadata:
     lodash-es: "npm:^4.18.1"
     rxjs: "npm:^7.8.2"
     yjs: "npm:^13.6.33"
-    zod: "npm:^3.25.76"
+    zod: "npm:^4.6.6"
   languageName: unknown
   linkType: soft
 
@@ -1878,7 +1878,7 @@ __metadata:
     lodash-es: "npm:^4.18.1"
     rxjs: "npm:^7.8.2"
     yjs: "npm:^13.6.33"
-    zod: "npm:^3.25.76"
+    zod: "npm:^4.6.6"
   languageName: unknown
   linkType: soft
 
@@ -1905,7 +1905,7 @@ __metadata:
     lodash-es: "npm:^4.18.1"
     rxjs: "npm:^7.8.2"
     yjs: "npm:^13.6.33"
-    zod: "npm:^3.25.76"
+    zod: "npm:^4.6.6"
   languageName: unknown
   linkType: soft
 
@@ -1941,7 +1941,7 @@ __metadata:
     rxjs: "npm:^7.8.2"
     vitest: "npm:^4.1.12"
     yjs: "npm:^13.6.33"
-    zod: "npm:^3.25.76"
+    zod: "npm:^4.6.6"
   languageName: unknown
   linkType: soft
 
@@ -1972,7 +1972,7 @@ __metadata:
     rxjs: "npm:^7.8.2"
     vitest: "npm:^4.1.12"
     yjs: "npm:^13.6.33"
-    zod: "npm:^3.25.76"
+    zod: "npm:^4.6.6"
   languageName: unknown
   linkType: soft
 
@@ -2007,7 +2007,7 @@ __metadata:
     rxjs: "npm:^7.8.2"
     shiki: "npm:^3.23.0"
     yjs: "npm:^13.6.33"
-    zod: "npm:^3.25.76"
+    zod: "npm:^4.6.6"
   languageName: unknown
   linkType: soft
 
@@ -2036,7 +2036,7 @@ __metadata:
     lodash-es: "npm:^4.18.1"
     rxjs: "npm:^7.8.2"
     yjs: "npm:^13.6.33"
-    zod: "npm:^3.25.76"
+    zod: "npm:^4.6.6"
   languageName: unknown
   linkType: soft
 
@@ -2064,7 +2064,7 @@ __metadata:
     lodash-es: "npm:^4.18.1"
     rxjs: "npm:^7.8.2"
     yjs: "npm:^13.6.33"
-    zod: "npm:^3.25.76"
+    zod: "npm:^4.6.6"
   languageName: unknown
   linkType: soft
 
@@ -2106,7 +2106,7 @@ __metadata:
     rxjs: "npm:^7.8.2"
     shiki: "npm:^3.23.0"
     yjs: "npm:^13.6.33"
-    zod: "npm:^3.25.76"
+    zod: "npm:^4.6.6"
   languageName: unknown
   linkType: soft
 
@@ -2134,7 +2134,7 @@ __metadata:
     lodash-es: "npm:^4.18.1"
     rxjs: "npm:^7.8.2"
     yjs: "npm:^13.6.33"
-    zod: "npm:^3.25.76"
+    zod: "npm:^4.6.6"
   languageName: unknown
   linkType: soft
 
@@ -2151,7 +2151,7 @@ __metadata:
     lodash-es: "npm:^4.18.1"
     rxjs: "npm:^7.8.2"
     yjs: "npm:^13.6.33"
-    zod: "npm:^3.25.76"
+    zod: "npm:^4.6.6"
   languageName: unknown
   linkType: soft
 
@@ -2178,7 +2178,7 @@ __metadata:
     lodash-es: "npm:^4.18.1"
     rxjs: "npm:^7.8.2"
     yjs: "npm:^13.6.33"
-    zod: "npm:^3.25.76"
+    zod: "npm:^4.6.6"
   languageName: unknown
   linkType: soft
 
@@ -2229,7 +2229,7 @@ __metadata:
     unist-util-visit: "npm:^5.2.0"
     vitest: "npm:^4.1.12"
     yjs: "npm:^13.6.33"
-    zod: "npm:^3.25.76"
+    zod: "npm:^4.6.6"
   languageName: unknown
   linkType: soft
 
@@ -2260,7 +2260,7 @@ __metadata:
     lit: "npm:^3.3.3"
     lodash-es: "npm:^4.18.1"
     rxjs: "npm:^7.8.2"
-    zod: "npm:^3.25.76"
+    zod: "npm:^4.6.6"
   languageName: unknown
   linkType: soft
 
@@ -2466,7 +2466,7 @@ __metadata:
     mammoth: "npm:^1.13.0"
     rxjs: "npm:^7.8.2"
     yjs: "npm:^13.6.33"
-    zod: "npm:^3.25.76"
+    zod: "npm:^4.6.6"
   languageName: unknown
   linkType: soft
 
@@ -2735,7 +2735,7 @@ __metadata:
     rxjs: "npm:^7.8.2"
     vitest: "npm:^4.1.12"
     yjs: "npm:^13.6.33"
-    zod: "npm:^3.25.76"
+    zod: "npm:^4.6.6"
   languageName: unknown
   linkType: soft
 
@@ -2748,7 +2748,7 @@ __metadata:
     lit: "npm:^3.3.3"
     rxjs: "npm:^7.8.2"
     vitest: "npm:^4.1.12"
-    zod: "npm:^3.25.76"
+    zod: "npm:^4.6.6"
   languageName: unknown
   linkType: soft
 
@@ -2790,7 +2790,7 @@ __metadata:
     vite-plugin-wasm: "npm:^3.6.0"
     vitest: "npm:^4.1.12"
     yjs: "npm:^13.6.33"
-    zod: "npm:^3.25.76"
+    zod: "npm:^4.6.6"
   languageName: unknown
   linkType: soft
 
@@ -2830,7 +2830,7 @@ __metadata:
     y-indexeddb: "npm:^9.0.12"
     y-protocols: "npm:^1.0.7"
     yjs: "npm:^13.6.33"
-    zod: "npm:^3.25.76"
+    zod: "npm:^4.6.6"
   languageName: unknown
   linkType: soft
 
@@ -2860,7 +2860,7 @@ __metadata:
     vitest: "npm:^4.1.12"
     w3c-keyname: "npm:^2.2.8"
     yjs: "npm:^13.6.33"
-    zod: "npm:^3.25.76"
+    zod: "npm:^4.6.6"
   languageName: unknown
   linkType: soft
 
@@ -2885,7 +2885,7 @@ __metadata:
     vitest: "npm:^4.1.12"
     y-protocols: "npm:^1.0.7"
     yjs: "npm:^13.6.33"
-    zod: "npm:^3.25.76"
+    zod: "npm:^4.6.6"
   languageName: unknown
   linkType: soft
 
@@ -8545,7 +8545,7 @@ __metadata:
     tailwindcss-animate: "npm:^1.0.7"
     vaul: "npm:^1.1.2"
     vitest: "npm:^4.1.12"
-    zod: "npm:^3.25.76"
+    zod: "npm:^4.6.6"
   languageName: unknown
   linkType: soft
 
@@ -8596,7 +8596,7 @@ __metadata:
     typescript: "npm:^5.9.3"
     undici: "npm:^7.30.1"
     vitest: "npm:^4.1.12"
-    zod: "npm:^3.25.76"
+    zod: "npm:^4.6.6"
   languageName: unknown
   linkType: soft
 
@@ -8726,7 +8726,7 @@ __metadata:
     unplugin-swc: "npm:^1.6.0"
     vite: "npm:^7.3.7"
     vitest: "npm:^4.1.12"
-    zod: "npm:^3.25.76"
+    zod: "npm:^4.6.6"
   peerDependencies:
     "@blocksuite/affine": "*"
     "@swc/core": ^1.0.0
@@ -8854,7 +8854,7 @@ __metadata:
     vitest: "npm:^4.1.12"
     y-protocols: "npm:^1.0.7"
     yjs: "npm:^13.6.33"
-    zod: "npm:^3.25.76"
+    zod: "npm:^4.6.6"
   languageName: unknown
   linkType: soft
 
@@ -8981,7 +8981,7 @@ __metadata:
     uuid: "npm:^14.0.3"
     vitest: "npm:^4.1.12"
     yjs: "npm:^13.6.33"
-    zod: "npm:^3.25.76"
+    zod: "npm:^4.6.6"
   languageName: unknown
   linkType: soft
 
@@ -8990,7 +8990,7 @@ __metadata:
   resolution: "@nota/env@workspace:packages/common/env"
   dependencies:
     vitest: "npm:^4.1.12"
-    zod: "npm:^3.25.76"
+    zod: "npm:^4.6.6"
   peerDependencies:
     "@blocksuite/affine": "workspace:*"
     "@nota/templates": "workspace:*"
@@ -9073,7 +9073,7 @@ __metadata:
     rxjs: "npm:^7.8.2"
     vitest: "npm:^4.1.12"
     yjs: "npm:^13.6.33"
-    zod: "npm:^3.25.76"
+    zod: "npm:^4.6.6"
   peerDependencies:
     electron: "*"
     react-dom: ^19.0.0
@@ -33793,10 +33793,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"zod@npm:^3.25.76":
-  version: 3.25.76
-  resolution: "zod@npm:3.25.76"
-  checksum: 10/f0c963ec40cd96858451d1690404d603d36507c1fc9682f2dae59ab38b578687d542708a7fdbf645f77926f78c9ed558f57c3d3aa226c285f798df0c4da16995
+"zod@npm:^4.6.6":
+  version: 4.6.6
+  resolution: "zod@npm:4.6.6"
+  checksum: 10/ce628fb33400b531f48b63ad1bd9b5ab95ec3ac60d4e8025892d90af9ca5d03b168aaaf74071928345ad1b1bcd735a7d5cf33230ece7de885240bb0f2b7bb492
   languageName: node
   linkType: hard
 
