@@ -109,11 +109,15 @@ export const processTable = (
       const rawValue =
         col.type === 'created-time'
           ? (v.props['meta:createdAt'] ?? cell?.value)
-          : col.type === 'created-by'
-            ? (v.props['meta:createdBy'] ?? cell?.value)
-            : col.type === 'type'
-              ? v.flavour
-              : cell?.value;
+          : col.type === 'last-edited-time'
+            ? (v.props['meta:updatedAt'] ??
+              v.props['meta:createdAt'] ??
+              cell?.value)
+            : col.type === 'created-by'
+              ? (v.props['meta:createdBy'] ?? cell?.value)
+              : col.type === 'type'
+                ? v.flavour
+                : cell?.value;
       if (rawValue == null) {
         row.cells.push({
           value: '',
@@ -124,7 +128,7 @@ export const processTable = (
       if (isDelta(rawValue)) {
         value = rawValue;
       } else if (
-        col.type === 'created-time' &&
+        (col.type === 'created-time' || col.type === 'last-edited-time') &&
         typeof rawValue === 'number' &&
         Number.isFinite(rawValue)
       ) {

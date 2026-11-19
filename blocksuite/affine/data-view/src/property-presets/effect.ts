@@ -1,5 +1,5 @@
 import { CheckboxCell } from './checkbox/cell-renderer.js';
-import { DateCell } from './date/cell-renderer.js';
+import { DateCell, DateCellPopover } from './date/cell-renderer.js';
 import { ImageCell } from './image/cell-renderer.js';
 import { MultiSelectCell } from './multi-select/cell-renderer.js';
 import { NumberCell } from './number/cell-renderer.js';
@@ -11,6 +11,7 @@ import { TextCell } from './text/cell-renderer.js';
 export function propertyPresetsEffects() {
   customElements.define('affine-database-checkbox-cell', CheckboxCell);
   customElements.define('affine-database-date-cell', DateCell);
+  customElements.define('affine-database-date-popover', DateCellPopover);
   customElements.define('affine-database-image-cell', ImageCell);
   customElements.define('affine-database-multi-select-cell', MultiSelectCell);
   customElements.define('affine-database-number-cell', NumberCell);

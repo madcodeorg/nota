@@ -2,6 +2,81 @@ export type FormulaValue = string | number | boolean | null;
 export type ComputedError = { error: string };
 export type ComputedValue = FormulaValue | string[] | ComputedError;
 
+export type FormulaPropertyDescriptor = {
+  id: string;
+  name: string;
+};
+
+export type PropertyRefResolution =
+  | { kind: 'resolved'; id: string }
+  | { kind: 'missing' }
+  | { kind: 'ambiguous'; matches: string[] };
+
+export const SUPPORTED_FORMULA_FUNCTIONS = [
+  'if',
+  'empty',
+  'abs',
+  'round',
+  'floor',
+  'ceil',
+  'min',
+  'max',
+  'concat',
+  'lower',
+  'upper',
+  'length',
+  'format',
+  'date',
+  'dateAdd',
+  'dateDiff',
+] as const;
+
+export type SupportedFormulaFunctionName =
+  (typeof SUPPORTED_FORMULA_FUNCTIONS)[number];
+
+const supportedFunctionSet = new Set<string>(SUPPORTED_FORMULA_FUNCTIONS);
+
+const unaryFunctionSet = new Set<string>([
+  'abs',
+  'round',
+  'floor',
+  'ceil',
+  'lower',
+  'upper',
+  'length',
+  'empty',
+  'format',
+  'date',
+]);
+
+export function resolveFormulaPropertyRef(
+  reference: string,
+  properties: readonly FormulaPropertyDescriptor[]
+): PropertyRefResolution {
+  const byId = properties.find(property => property.id === reference);
+  if (byId) return { kind: 'resolved', id: byId.id };
+
+  const normalized = reference.trim().toLowerCase();
+  if (!normalized) return { kind: 'missing' };
+
+  const ciMatches = properties.filter(
+    property => property.name.trim().toLowerCase() === normalized
+  );
+  if (ciMatches.length === 0) return { kind: 'missing' };
+  if (ciMatches.length === 1) {
+    return { kind: 'resolved', id: ciMatches[0]!.id };
+  }
+
+  const exactMatches = ciMatches.filter(
+    property => property.name === reference
+  );
+  if (exactMatches.length === 1) {
+    return { kind: 'resolved', id: exactMatches[0]!.id };
+  }
+
+  return { kind: 'ambiguous', matches: ciMatches.map(property => property.id) };
+}
+
 export const isComputedError = (value: unknown): value is ComputedError =>
   !!value && typeof value === 'object' && 'error' in value;
 
@@ -125,9 +200,77 @@ const boolean = (value: FormulaValue): boolean => {
   return value;
 };
 
+export type FormulaSyntaxValidation =
+  { valid: true; propRefs: string[] } | { valid: false; error: string };
+
+export function validateFormulaSyntax(
+  expression: string
+): FormulaSyntaxValidation {
+  if (!expression.trim()) {
+    return { valid: false, error: 'Configure the formula' };
+  }
+  try {
+    const root = parse(expression);
+    const propRefs: string[] = [];
+    const visit = (node: Node): void => {
+      if (node.kind === 'value') return;
+      if (node.kind === 'unary') {
+        visit(node.value);
+        return;
+      }
+      if (node.kind === 'binary') {
+        visit(node.left);
+        visit(node.right);
+        return;
+      }
+      if (node.name === 'prop') {
+        if (
+          node.args.length !== 1 ||
+          node.args[0]?.kind !== 'value' ||
+          typeof node.args[0].value !== 'string'
+        ) {
+          throw new Error('prop needs a quoted column name or ID');
+        }
+        propRefs.push(node.args[0].value);
+        return;
+      }
+      if (!supportedFunctionSet.has(node.name)) {
+        throw new Error(`Unknown function: ${node.name}`);
+      }
+      if (node.name === 'if' && node.args.length !== 3) {
+        throw new Error('if needs three arguments');
+      }
+      if (unaryFunctionSet.has(node.name) && node.args.length !== 1) {
+        throw new Error(`${node.name} needs one argument`);
+      }
+      if (
+        (node.name === 'dateAdd' || node.name === 'dateDiff') &&
+        node.args.length !== 2
+      ) {
+        throw new Error(`${node.name} needs two arguments`);
+      }
+      if (
+        (node.name === 'min' || node.name === 'max') &&
+        node.args.length === 0
+      ) {
+        throw new Error(`${node.name} needs values`);
+      }
+      node.args.forEach(visit);
+    };
+    visit(root);
+    return { valid: true, propRefs };
+  } catch (error) {
+    return {
+      valid: false,
+      error: error instanceof Error ? error.message : 'Invalid formula',
+    };
+  }
+}
+
 export function evaluateFormula(
   expression: string,
-  property: (id: string) => unknown
+  property: (id: string) => unknown,
+  properties?: readonly FormulaPropertyDescriptor[]
 ): ComputedValue {
   if (!expression.trim()) return { error: 'Configure the formula' };
   try {
@@ -160,12 +303,10 @@ export function evaluateFormula(
           case '<=':
           case '>':
           case '>=': {
-            if (
-              !(
-                (typeof a === 'number' && typeof b === 'number') ||
-                (typeof a === 'string' && typeof b === 'string')
-              )
-            ) {
+            if (!(
+              (typeof a === 'number' && typeof b === 'number') ||
+              (typeof a === 'string' && typeof b === 'string')
+            )) {
               throw new Error('Comparison requires matching numbers or text');
             }
             return node.op === '<'
@@ -201,9 +342,23 @@ export function evaluateFormula(
           node.args[0]?.kind !== 'value' ||
           typeof node.args[0].value !== 'string'
         ) {
-          throw new Error('prop needs a quoted column ID');
+          throw new Error('prop needs a quoted column name or ID');
         }
-        const value = property(node.args[0].value);
+        const reference = node.args[0].value;
+        let resolvedId = reference;
+        if (properties) {
+          const resolved = resolveFormulaPropertyRef(reference, properties);
+          if (resolved.kind === 'missing') {
+            throw new Error('Referenced property is missing');
+          }
+          if (resolved.kind === 'ambiguous') {
+            throw new Error(
+              `Ambiguous property name: "${reference}" (use column ID)`
+            );
+          }
+          resolvedId = resolved.id;
+        }
+        const value = property(resolvedId);
         if (isComputedError(value)) throw new Error(value.error);
         if (value == null) return null;
         if (['number', 'string', 'boolean'].includes(typeof value))

@@ -1,4 +1,8 @@
 import type { DocMode, RootBlockModel } from '@blocksuite/affine/model';
+import {
+  isPageFontStyle,
+  type PageFontStyle,
+} from '@nota/core/utils/page-cover';
 import { Entity } from '@nota/infra';
 import { throttle } from 'lodash-es';
 import type { Transaction } from 'yjs';
@@ -69,6 +73,11 @@ export class Doc extends Entity {
   readonly createdBy$ = this.record.createdBy$;
   readonly updatedBy$ = this.record.updatedBy$;
   readonly locked$ = this.record.properties$.selector(p => !!p.locked);
+  readonly fontStyle$ = this.record.properties$.selector(p =>
+    isPageFontStyle(p.fontStyle) ? p.fontStyle : ('default' as PageFontStyle)
+  );
+  readonly smallText$ = this.record.properties$.selector(p => !!p.smallText);
+  readonly pageWidth$ = this.record.properties$.selector(p => p.pageWidth);
 
   setCreatedAt(createdAt: number) {
     this.record.setMeta({ createDate: createdAt });
@@ -108,6 +117,18 @@ export class Doc extends Entity {
 
   setLocked(locked: boolean) {
     this.record.setProperty('locked', locked);
+  }
+
+  setFontStyle(fontStyle: PageFontStyle) {
+    this.record.setProperty('fontStyle', fontStyle);
+  }
+
+  setSmallText(smallText: boolean) {
+    this.record.setProperty('smallText', smallText);
+  }
+
+  setPageWidth(pageWidth: 'standard' | 'fullWidth') {
+    this.record.setProperty('pageWidth', pageWidth);
   }
 
   setPrimaryMode(mode: DocMode) {

@@ -5,7 +5,7 @@ import {
 } from '@nota/infra';
 import { map, of, switchMap } from 'rxjs';
 
-import type { FolderStore } from '../stores/folder';
+import { type FolderStore, isContainerNodeType } from '../stores/folder';
 
 export class FolderNode extends Entity<{
   id: string | null;
@@ -25,10 +25,10 @@ export class FolderNode extends Entity<{
   data$ = this.info$.map(info => info?.data);
   name$ = this.info$.map(info => (info?.type === 'folder' ? info.data : ''));
   children$ = LiveData.from<FolderNode[]>(
-    // watch children if this is a folder, otherwise return empty array
+    // watch children for folder and page (doc) container nodes
     this.type$.pipe(
       switchMap(type =>
-        type === 'folder'
+        isContainerNodeType(type)
           ? this.store
               .watchNodeChildren(this.id)
               .pipe(
@@ -79,15 +79,15 @@ export class FolderNode extends Entity<{
   }
 
   filterInvalidChildren(child: { type: string }): boolean {
-    if (this.id === null && child.type !== 'folder') {
-      return false; // root node can only have folders
+    if (this.id === null && !isContainerNodeType(child.type)) {
+      return false; // root node can only have folders or pages
     }
     return true;
   }
 
   createFolder(name: string, index: string) {
-    if (this.type$.value !== 'folder') {
-      throw new Error('Cannot create folder on non-folder node');
+    if (!isContainerNodeType(this.type$.value)) {
+      throw new Error('Cannot create folder on non-container node');
     }
     return this.store.createFolder(this.id, name, index);
   }
@@ -97,13 +97,13 @@ export class FolderNode extends Entity<{
     targetId: string,
     index: string
   ) {
-    if (this.id === null) {
-      throw new Error('Cannot create link on root node');
+    if (this.id === null && type !== 'doc') {
+      throw new Error('Cannot create non-page link on root node');
     }
-    if (this.type$.value !== 'folder') {
-      throw new Error('Cannot create link on non-folder node');
+    if (!isContainerNodeType(this.type$.value)) {
+      throw new Error('Cannot create link on non-container node');
     }
-    this.store.createLink(this.id, type, targetId, index);
+    return this.store.createLink(this.id, type, targetId, index);
   }
 
   delete() {

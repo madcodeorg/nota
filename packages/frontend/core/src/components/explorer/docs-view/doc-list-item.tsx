@@ -11,6 +11,7 @@ import { ExplorerIconService } from '@nota/core/modules/explorer-icon/services/e
 import { WorkbenchLink } from '@nota/core/modules/workbench';
 import type { AffineDNDData } from '@nota/core/types/dnd';
 import { isArtwork } from '@nota/core/utils/met-artwork';
+import { isPageCoverCustom } from '@nota/core/utils/page-cover';
 import { useI18n } from '@nota/i18n';
 import { useLiveData, useService } from '@nota/infra';
 import track from '@nota/track';
@@ -295,8 +296,17 @@ const DocListThumb = memo(function DocListThumb({ id }: { id: string }) {
     return null;
   }
 
+  const customCover =
+    !customIcon &&
+    !properties?.coverHidden &&
+    isPageCoverCustom(properties?.coverCustom) &&
+    properties.coverCustom.kind !== 'artwork'
+      ? properties.coverCustom
+      : null;
+
   const artwork =
     !customIcon &&
+    !customCover &&
     !properties?.coverHidden &&
     isArtwork(properties?.coverArtwork) &&
     properties.coverArtwork.imageUrl !== brokenImageUrl
@@ -305,7 +315,22 @@ const DocListThumb = memo(function DocListThumb({ id }: { id: string }) {
 
   return (
     <div className={styles.listThumb}>
-      {artwork ? (
+      {customCover?.kind === 'gradient' ? (
+        <div
+          className={styles.listThumbImage}
+          style={{ background: customCover.value }}
+        />
+      ) : customCover?.kind === 'url' && customCover.url !== brokenImageUrl ? (
+        <img
+          alt=""
+          className={styles.listThumbImage}
+          decoding="async"
+          loading="lazy"
+          onError={() => setBrokenImageUrl(customCover.url)}
+          referrerPolicy="no-referrer"
+          src={customCover.url}
+        />
+      ) : artwork ? (
         <img
           alt=""
           className={styles.listThumbImage}

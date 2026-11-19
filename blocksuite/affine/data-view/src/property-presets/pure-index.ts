@@ -8,6 +8,9 @@ import { selectPropertyModelConfig } from './select/define.js';
 import { statusPropertyModelConfig } from './status/define.js';
 import { textPropertyModelConfig } from './text/define.js';
 
+export * from './date/define.js';
+export * from './status/define.js';
+
 export const propertyModelPresets = {
   checkboxPropertyModelConfig,
   datePropertyModelConfig,

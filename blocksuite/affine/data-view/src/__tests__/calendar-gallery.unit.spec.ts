@@ -12,8 +12,13 @@ import { textPropertyModelConfig } from '../property-presets/text/define.js';
 import { CalendarSingleView } from '../view-presets/calendar/calendar-view-manager.js';
 import {
   calendarDayKey,
+  calendarDayKeys,
   calendarMonth,
   calendarMonthDays,
+  calendarTimeBadge,
+  calendarWeekDays,
+  calendarWeekStart,
+  moveCalendarDateValue,
   partitionCalendarRows,
 } from '../view-presets/calendar/date-utils.js';
 import type { CalendarViewData } from '../view-presets/calendar/define.js';
@@ -196,6 +201,179 @@ describe('calendar days', () => {
         new Date(2026, 9, 1).getTime()
       );
     }
+  });
+
+  test('calculates Monday-first week days safely across DST transitions and invalid anchors', () => {
+    vi.stubEnv('TZ', 'America/Toronto');
+    const dstWeek = calendarWeekDays(new Date(2026, 2, 8)); // Sunday of DST spring-forward
+    expect(dstWeek).toHaveLength(7);
+    expect(dstWeek[0]?.getDay()).toBe(1);
+    expect(dstWeek[6]?.getDay()).toBe(0);
+    expect(dstWeek.map(date => calendarDayKey(date.getTime()))).toEqual([
+      '2026-03-02',
+      '2026-03-03',
+      '2026-03-04',
+      '2026-03-05',
+      '2026-03-06',
+      '2026-03-07',
+      '2026-03-08',
+    ]);
+    expect(dstWeek.every(date => date.getHours() === 0)).toBe(true);
+
+    const nextWeek = calendarWeekDays(new Date(2026, 2, 9));
+    expect(nextWeek.map(date => calendarDayKey(date.getTime()))).toEqual([
+      '2026-03-09',
+      '2026-03-10',
+      '2026-03-11',
+      '2026-03-12',
+      '2026-03-13',
+      '2026-03-14',
+      '2026-03-15',
+    ]);
+
+    expect(calendarDayKey(calendarWeekStart('2026-10-08').getTime())).toBe(
+      '2026-10-05'
+    );
+    const fallback = new Date(2026, 9, 15); // Thu Oct 15 -> Mon Oct 12
+    for (const invalid of [
+      '2026-02-30',
+      '2026-13-01',
+      '2026-00-01',
+      'bad',
+      '',
+      undefined,
+    ]) {
+      expect(
+        calendarDayKey(calendarWeekStart(invalid, fallback).getTime())
+      ).toBe('2026-10-12');
+    }
+  });
+
+  test('expands date ranges, exposes time badges, and handles invalid or reversed ranges', () => {
+    vi.stubEnv('TZ', 'America/Toronto');
+    const plain = new Date(2026, 9, 5, 14, 30).getTime();
+    expect(calendarDayKeys(plain)).toEqual(['2026-10-05']);
+    expect(calendarTimeBadge(plain)).toBeUndefined();
+
+    const range = {
+      start: new Date(2026, 2, 7, 9, 5).getTime(),
+      end: new Date(2026, 2, 9, 17, 45).getTime(),
+      includeTime: true,
+    };
+    expect(calendarDayKey(range)).toBe('2026-03-07');
+    expect(calendarDayKeys(range)).toEqual([
+      '2026-03-07',
+      '2026-03-08',
+      '2026-03-09',
+    ]);
+    expect(calendarTimeBadge(range)).toBe('09:05');
+
+    const singleWithTime = {
+      start: new Date(2026, 9, 6, 18, 0).getTime(),
+      includeTime: true,
+    };
+    expect(calendarDayKeys(singleWithTime)).toEqual(['2026-10-06']);
+    expect(calendarTimeBadge(singleWithTime)).toBe('18:00');
+    expect(
+      calendarTimeBadge({
+        start: new Date(2026, 9, 6, 18, 0).getTime(),
+        includeTime: false,
+      })
+    ).toBeUndefined();
+
+    const reversed = {
+      start: new Date(2026, 9, 10, 12, 0).getTime(),
+      end: new Date(2026, 9, 8, 9, 0).getTime(),
+    };
+    expect(calendarDayKeys(reversed)).toEqual(['2026-10-10']);
+
+    const hugeRange = {
+      start: new Date(2026, 0, 1).getTime(),
+      end: new Date(2029, 0, 1).getTime(),
+    };
+    expect(calendarDayKeys(hugeRange)).toHaveLength(366);
+
+    for (const invalid of [
+      null,
+      undefined,
+      NaN,
+      { start: NaN },
+      { start: '2026-10-05' },
+    ]) {
+      expect(calendarDayKeys(invalid)).toEqual([]);
+      expect(calendarDayKey(invalid)).toBeUndefined();
+      expect(calendarTimeBadge(invalid)).toBeUndefined();
+    }
+
+    const rows = [
+      { id: 'plain', date: plain },
+      { id: 'range', date: range },
+      { id: 'reversed', date: reversed },
+      { id: 'undated', date: null },
+      { id: 'invalid', date: { start: NaN } },
+    ];
+    const partitioned = partitionCalendarRows(rows, row => row.date);
+    expect(partitioned.days.get('2026-10-05')?.map(r => r.id)).toEqual([
+      'plain',
+    ]);
+    expect(partitioned.days.get('2026-03-07')?.map(r => r.id)).toEqual([
+      'range',
+    ]);
+    expect(partitioned.days.get('2026-03-08')?.map(r => r.id)).toEqual([
+      'range',
+    ]);
+    expect(partitioned.days.get('2026-03-09')?.map(r => r.id)).toEqual([
+      'range',
+    ]);
+    expect(partitioned.days.get('2026-10-10')?.map(r => r.id)).toEqual([
+      'reversed',
+    ]);
+    expect(partitioned.undated.map(r => r.id)).toEqual(['undated', 'invalid']);
+  });
+
+  test('moves undated, plain number, and range date values while preserving time and duration', () => {
+    vi.stubEnv('TZ', 'America/Toronto');
+    const target = new Date(2026, 9, 12);
+
+    // Undated -> local start-of-day
+    expect(moveCalendarDateValue(null, target)).toBe(
+      new Date(2026, 9, 12, 0, 0, 0, 0).getTime()
+    );
+    expect(moveCalendarDateValue(undefined, target)).toBe(
+      new Date(2026, 9, 12, 0, 0, 0, 0).getTime()
+    );
+
+    // Plain number -> preserves local time-of-day
+    const plainSource = new Date(2026, 9, 5, 14, 35, 12).getTime();
+    expect(moveCalendarDateValue(plainSource, target)).toBe(
+      new Date(2026, 9, 12, 14, 35, 12).getTime()
+    );
+
+    // Multi-day range across DST -> preserves calendar duration, local times, and includeTime
+    const rangeSource = {
+      start: new Date(2026, 2, 7, 9, 30).getTime(),
+      end: new Date(2026, 2, 9, 17, 45).getTime(),
+      includeTime: true,
+    };
+    const movedRange = moveCalendarDateValue(
+      rangeSource,
+      new Date(2026, 2, 10)
+    );
+    expect(movedRange).toEqual({
+      start: new Date(2026, 2, 10, 9, 30).getTime(),
+      end: new Date(2026, 2, 12, 17, 45).getTime(),
+      includeTime: true,
+    });
+
+    // Single-day range object without end -> preserves includeTime without adding end
+    const singleRange = {
+      start: new Date(2026, 9, 5, 8, 15).getTime(),
+      includeTime: true,
+    };
+    expect(moveCalendarDateValue(singleRange, target)).toEqual({
+      start: new Date(2026, 9, 12, 8, 15).getTime(),
+      includeTime: true,
+    });
   });
 });
 
@@ -498,5 +676,265 @@ describe('row opening and gallery covers', () => {
       });
       element.remove();
     }
+  });
+
+  test('switches between Month and Week views, steps by 7 days in Week mode, and stays local in readonly mode', async () => {
+    if (!customElements.get('dv-calendar-view-ui'))
+      customElements.define('dv-calendar-view-ui', CalendarViewUI);
+    const { calendar, manager, views, readonly } = fixture();
+    expect(calendar.modeScope$.value).toBe('month');
+    const root = {
+      setSelection: vi.fn(),
+      openDetailPanel: vi.fn(),
+      selection$: signal(undefined),
+      config: {},
+    } as unknown as DataViewRootUILogic;
+    const logic = new CalendarViewUILogic(root, calendar);
+    const element = document.createElement('dv-calendar-view-ui');
+    element.logic = logic;
+    document.body.append(element);
+    await element.updateComplete;
+
+    expect(element.querySelectorAll('.calendar-day')).toHaveLength(42);
+
+    // Switch to Week mode via toolbar button
+    element
+      .querySelector<HTMLButtonElement>('[data-calendar-scope="week"]')!
+      .click();
+    await element.updateComplete;
+    expect(calendar.modeScope$.value).toBe('week');
+    expect(element.querySelectorAll('.calendar-day')).toHaveLength(7);
+
+    // Step forward and backward by 7 days in Week mode
+    logic.weekStartSet(new Date(2026, 9, 5));
+    await element.updateComplete;
+    expect(
+      Array.from(element.querySelectorAll<HTMLElement>('.calendar-day')).map(
+        day => day.dataset.dayKey
+      )
+    ).toEqual([
+      '2026-10-05',
+      '2026-10-06',
+      '2026-10-07',
+      '2026-10-08',
+      '2026-10-09',
+      '2026-10-10',
+      '2026-10-11',
+    ]);
+
+    logic.movePeriod(1);
+    await element.updateComplete;
+    expect(calendarDayKey(logic.weekStart$.value.getTime())).toBe('2026-10-12');
+    logic.movePeriod(-1);
+    expect(calendarDayKey(logic.weekStart$.value.getTime())).toBe('2026-10-05');
+
+    // Persistence across reload
+    views.value = JSON.parse(JSON.stringify(views.value));
+    const reloaded = new CalendarSingleView(manager, 'calendar');
+    expect(reloaded.modeScope$.value).toBe('week');
+    expect(calendarDayKey(reloaded.weekStart$.value.getTime())).toBe(
+      '2026-10-05'
+    );
+
+    // Readonly navigation does not mutate persisted view data
+    readonly.value = true;
+    const before = JSON.stringify(views.value);
+    logic.movePeriod(1);
+    expect(calendarDayKey(logic.weekStart$.value.getTime())).toBe('2026-10-12');
+    logic.modeScopeSet('month');
+    expect(logic.modeScope$.value).toBe('month');
+    expect(JSON.stringify(views.value)).toBe(before);
+    element.remove();
+  });
+
+  test('reschedules dated, undated, and multi-day cards via drag-and-drop and renders time badges and visible property pills', async () => {
+    if (!customElements.get('dv-calendar-view-ui'))
+      customElements.define('dv-calendar-view-ui', CalendarViewUI);
+    const { calendar, cells, readonly } = fixture();
+    // Unhide status so it shows as a property pill on calendar cards
+    calendar.propertyGetOrCreate('status').hideSet(false);
+    // Give row 'three' a multi-day range with time
+    cells.value = {
+      ...cells.value,
+      three: {
+        ...cells.value.three,
+        date: {
+          start: new Date(2026, 9, 5, 9, 30).getTime(),
+          end: new Date(2026, 9, 7, 16, 0).getTime(),
+          includeTime: true,
+        },
+      },
+    };
+    const openDetailPanel = vi.fn();
+    const root = {
+      setSelection: vi.fn(),
+      openDetailPanel,
+      selection$: signal(undefined),
+      config: {},
+    } as unknown as DataViewRootUILogic;
+    const logic = new CalendarViewUILogic(root, calendar);
+    const element = document.createElement('dv-calendar-view-ui');
+    element.logic = logic;
+    document.body.append(element);
+    await element.updateComplete;
+
+    // Multi-day row renders on Oct 5, 6, 7 with time badge on start day and visible property pill
+    const oct5 = element.querySelector<HTMLElement>(
+      '[data-day-key="2026-10-05"]'
+    )!;
+    const oct6 = element.querySelector<HTMLElement>(
+      '[data-day-key="2026-10-06"]'
+    )!;
+    const oct7 = element.querySelector<HTMLElement>(
+      '[data-day-key="2026-10-07"]'
+    )!;
+    const startCard = oct5.querySelector<HTMLButtonElement>(
+      '[data-row-id="three"]'
+    )!;
+    expect(startCard.getAttribute('draggable')).toBe('true');
+    expect(startCard.dataset.rangePosition).toBe('start');
+    expect(startCard.querySelector('.calendar-row-time')?.textContent).toBe(
+      '09:30'
+    );
+    expect(
+      startCard.querySelector('[data-property-id="status"]')?.textContent
+    ).toBe('Done');
+    expect(
+      oct6.querySelector<HTMLButtonElement>('[data-row-id="three"]')?.dataset
+        .rangePosition
+    ).toBe('middle');
+    expect(
+      oct7.querySelector<HTMLButtonElement>('[data-row-id="three"]')?.dataset
+        .rangePosition
+    ).toBe('end');
+
+    // Hiding the column removes its pill from calendar cards
+    calendar.propertyGetOrCreate('status').hideSet(true);
+    await element.updateComplete;
+    expect(element.querySelector('[data-property-id="status"]')).toBeNull();
+
+    // Drag-and-drop an undated card ('two') onto Oct 12
+    const undatedCard = element.querySelector<HTMLButtonElement>(
+      '.calendar-undated [data-row-id="two"]'
+    )!;
+    const oct12 = element.querySelector<HTMLElement>(
+      '[data-day-key="2026-10-12"]'
+    )!;
+    undatedCard.dispatchEvent(new Event('dragstart', { bubbles: true }));
+    oct12.dispatchEvent(
+      new Event('dragover', { bubbles: true, cancelable: true })
+    );
+    await element.updateComplete;
+    expect(oct12.dataset.dropTarget).toBe('true');
+    oct12.dispatchEvent(new Event('drop', { bubbles: true, cancelable: true }));
+    await element.updateComplete;
+    expect(oct12.dataset.dropTarget).toBe('false');
+    expect(cells.value.two?.date).toBe(new Date(2026, 9, 12, 0, 0).getTime());
+
+    // Drag-and-drop multi-day card ('three') onto Oct 10 preserves duration & includeTime
+    const oct10 = element.querySelector<HTMLElement>(
+      '[data-day-key="2026-10-10"]'
+    )!;
+    oct5
+      .querySelector<HTMLButtonElement>('[data-row-id="three"]')!
+      .dispatchEvent(new Event('dragstart', { bubbles: true }));
+    oct10.dispatchEvent(new Event('drop', { bubbles: true, cancelable: true }));
+    await element.updateComplete;
+    expect(cells.value.three?.date).toEqual({
+      start: new Date(2026, 9, 10, 9, 30).getTime(),
+      end: new Date(2026, 9, 12, 16, 0).getTime(),
+      includeTime: true,
+    });
+
+    // Drag-and-drop is blocked when readonly
+    readonly.value = true;
+    await element.updateComplete;
+    const beforeDate = cells.value.one?.date;
+    logic.moveRowToDate('one', new Date(2026, 9, 20));
+    expect(cells.value.one?.date).toBe(beforeDate);
+    expect(
+      element
+        .querySelector<HTMLButtonElement>('[data-row-id="one"]')!
+        .getAttribute('draggable')
+    ).toBe('false');
+
+    // Clicking card still opens detail panel
+    element.querySelector<HTMLButtonElement>('[data-row-id="one"]')!.click();
+    expect(openDetailPanel).toHaveBeenLastCalledWith({
+      view: calendar,
+      rowId: 'one',
+    });
+    element.remove();
+  });
+
+  test('supports persisted Gallery cardSize and coverFit options with defaults and UI controls', async () => {
+    if (!customElements.get('dv-gallery-view-ui'))
+      customElements.define('dv-gallery-view-ui', GalleryViewUI);
+    const { gallery, manager, views, readonly, cells } = fixture();
+    expect(gallery.cardSize$.value).toBe('medium');
+    expect(gallery.coverFit$.value).toBe('cover');
+
+    cells.value = {
+      ...cells.value,
+      one: { ...cells.value.one, cover: 'https://example.test/cover.png' },
+    };
+
+    const root = {
+      setSelection: vi.fn(),
+      openDetailPanel: vi.fn(),
+      selection$: signal(undefined),
+      config: {},
+    } as unknown as DataViewRootUILogic;
+    const element = document.createElement('dv-gallery-view-ui');
+    element.logic = new GalleryViewUILogic(root, gallery);
+    document.body.append(element);
+    await element.updateComplete;
+
+    const cardsGrid = element.querySelector<HTMLElement>('.gallery-cards')!;
+    const sizeSelect = element.querySelector<HTMLSelectElement>(
+      'select[aria-label="Gallery card size"]'
+    )!;
+    const fitSelect = element.querySelector<HTMLSelectElement>(
+      'select[aria-label="Gallery cover fit"]'
+    )!;
+    expect(cardsGrid.dataset.cardSize).toBe('medium');
+    expect(cardsGrid.dataset.coverFit).toBe('cover');
+    expect(sizeSelect.value).toBe('medium');
+    expect(fitSelect.value).toBe('cover');
+
+    sizeSelect.value = 'large';
+    sizeSelect.dispatchEvent(new Event('change'));
+    fitSelect.value = 'contain';
+    fitSelect.dispatchEvent(new Event('change'));
+    await element.updateComplete;
+
+    expect(gallery.cardSize$.value).toBe('large');
+    expect(gallery.coverFit$.value).toBe('contain');
+    expect(cardsGrid.dataset.cardSize).toBe('large');
+    expect(cardsGrid.dataset.coverFit).toBe('contain');
+    expect(
+      element.querySelector<HTMLImageElement>('.gallery-cover')?.dataset
+        .coverFit
+    ).toBe('contain');
+
+    // Survives reload
+    views.value = JSON.parse(JSON.stringify(views.value));
+    const reloaded = new GallerySingleView(manager, 'gallery');
+    expect(reloaded.cardSize$.value).toBe('large');
+    expect(reloaded.coverFit$.value).toBe('contain');
+
+    // Rejects mutations when readonly and falls back safely on invalid values
+    readonly.value = true;
+    reloaded.cardSizeSet('small');
+    reloaded.coverFitSet('cover');
+    expect(reloaded.cardSize$.value).toBe('large');
+    expect(reloaded.coverFit$.value).toBe('contain');
+
+    readonly.value = false;
+    reloaded.cardSizeSet('invalid' as never);
+    reloaded.coverFitSet('invalid' as never);
+    expect(reloaded.cardSize$.value).toBe('large');
+    expect(reloaded.coverFit$.value).toBe('contain');
+    element.remove();
   });
 });

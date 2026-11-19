@@ -2,6 +2,24 @@
 
 All notable changes to Nota are recorded here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Installers and release notes are published on [GitHub Releases](https://github.com/madcodeorg/nota/releases).
 
+## 0.1.17
+
+- Nested sub-pages and breadcrumbs: add sub-pages from the sidebar or page menu, drag pages onto pages to nest them, and navigate with header breadcrumbs.
+- Custom covers and page styling: pick from gallery presets, upload an image, link a cover URL, reposition covers, and switch between Sans, Serif, Mono, Small text and Full width in the page menu.
+- Toggle lists and Table of Contents: create collapsible toggle lists with `/toggle` or `>> `, and insert clickable heading jump-links with `/toc`.
+- Find & Replace: expand Replace inside Find (`Cmd/Ctrl+F`) with case-sensitive matching (`Aa`), Replace and Replace All.
+- Databases: Date ranges and timestamps (End date and Include time), Last Edited Time, workspace-wide two-way Relations, a visual Formula Editor with live preview and property/function chips, Calendar Month/Week switching with drag-across-days, and Gallery card sizing and cover fit.
+- Sidebar polish: fixed text briefly overlapping the collapsed icon rail while opening or closing the sidebar.
+
+## 0.1.17-beta.1
+
+- Nested sub-pages and breadcrumbs: add sub-pages from the sidebar or page menu, drag pages onto pages to nest them, and navigate with header breadcrumbs.
+- Custom covers and page styling: pick from gallery presets, upload an image, link a cover URL, reposition covers, and switch between Sans, Serif, Mono, Small text and Full width in the page menu.
+- Toggle lists and Table of Contents: create collapsible toggle lists with `/toggle` or `>> `, and insert clickable heading jump-links with `/toc`.
+- Find & Replace: expand Replace inside Find (`Cmd/Ctrl+F`) with case-sensitive matching (`Aa`), Replace and Replace All.
+- Databases: Date ranges and timestamps (End date and Include time), Last Edited Time, workspace-wide two-way Relations, a visual Formula Editor with live preview and property/function chips, Calendar Month/Week switching with drag-across-days, and Gallery card sizing and cover fit.
+- Sidebar polish: fixed text briefly overlapping the collapsed icon rail while opening or closing the sidebar.
+
 ## 0.1.16
 
 - Tasks: add tasks straight from the Tasks page with a due date, and switch to a board with To do, In progress and Done columns.

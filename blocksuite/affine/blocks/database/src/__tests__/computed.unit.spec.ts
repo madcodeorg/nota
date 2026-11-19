@@ -4,7 +4,16 @@ import {
   aggregateRollup,
   computedText,
   evaluateFormula,
+  resolveFormulaPropertyRef,
+  SUPPORTED_FORMULA_FUNCTIONS,
+  validateFormulaSyntax,
 } from '../properties/computed/evaluate.js';
+import {
+  buildPropertyReferenceSnippet,
+  formatFormulaPreviewValue,
+  FORMULA_FUNCTION_TEMPLATES,
+  insertFormulaSnippet,
+} from '../properties/computed/formula-editor.js';
 
 describe('bounded database formulas', () => {
   test('evaluates arithmetic and compares stable column references', () => {
@@ -105,5 +114,214 @@ describe('numeric database rollups', () => {
     expect(aggregateRollup('sum', ['4'])).toEqual({
       error: 'Rollup requires numeric values',
     });
+  });
+});
+
+describe('formula property name resolution', () => {
+  const properties = [
+    { id: 'col-price', name: 'Price' },
+    { id: 'col-qty', name: 'Qty' },
+    { id: 'title', name: 'Title' },
+  ];
+
+  test('resolves by column ID first and falls back to case-insensitive column name', () => {
+    expect(resolveFormulaPropertyRef('col-price', properties)).toEqual({
+      kind: 'resolved',
+      id: 'col-price',
+    });
+    expect(resolveFormulaPropertyRef('Price', properties)).toEqual({
+      kind: 'resolved',
+      id: 'col-price',
+    });
+    expect(resolveFormulaPropertyRef('price', properties)).toEqual({
+      kind: 'resolved',
+      id: 'col-price',
+    });
+    expect(resolveFormulaPropertyRef('  QTY  ', properties)).toEqual({
+      kind: 'resolved',
+      id: 'col-qty',
+    });
+    expect(resolveFormulaPropertyRef('missing', properties)).toEqual({
+      kind: 'missing',
+    });
+    expect(resolveFormulaPropertyRef('   ', properties)).toEqual({
+      kind: 'missing',
+    });
+
+    // Exact column ID wins even if another column is named identically to the ID.
+    expect(
+      resolveFormulaPropertyRef('col-a', [
+        { id: 'col-b', name: 'col-a' },
+        { id: 'col-a', name: 'Actual A' },
+      ])
+    ).toEqual({ kind: 'resolved', id: 'col-a' });
+  });
+
+  test('detects ambiguous duplicate names while allowing exact-case or ID disambiguation', () => {
+    const duplicateExact = [
+      { id: 'c1', name: 'Price' },
+      { id: 'c2', name: 'Price' },
+    ];
+    expect(resolveFormulaPropertyRef('Price', duplicateExact)).toEqual({
+      kind: 'ambiguous',
+      matches: ['c1', 'c2'],
+    });
+    expect(resolveFormulaPropertyRef('c1', duplicateExact)).toEqual({
+      kind: 'resolved',
+      id: 'c1',
+    });
+
+    const caseCollision = [
+      { id: 'c1', name: 'Price' },
+      { id: 'c2', name: 'price' },
+    ];
+    expect(resolveFormulaPropertyRef('Price', caseCollision)).toEqual({
+      kind: 'resolved',
+      id: 'c1',
+    });
+    expect(resolveFormulaPropertyRef('PRICE', caseCollision)).toEqual({
+      kind: 'ambiguous',
+      matches: ['c1', 'c2'],
+    });
+  });
+
+  test('evaluateFormula resolves both column names and legacy column IDs', () => {
+    const values: Record<string, unknown> = {
+      'col-price': 12.5,
+      'col-qty': 4,
+    };
+    expect(
+      evaluateFormula(
+        'prop("Price") * prop("qty")',
+        id => values[id] ?? null,
+        properties
+      )
+    ).toBe(50);
+    expect(
+      evaluateFormula(
+        'prop("col-price") * prop("col-qty")',
+        id => values[id] ?? null,
+        properties
+      )
+    ).toBe(50);
+    expect(
+      evaluateFormula('prop("Price")', () => 1, [
+        { id: 'c1', name: 'Price' },
+        { id: 'c2', name: 'Price' },
+      ])
+    ).toEqual({ error: 'Ambiguous property name: "Price" (use column ID)' });
+  });
+});
+
+describe('formula editor helpers and supported function catalog', () => {
+  test('function catalog matches evaluate.ts 1-to-1 and every example evaluates without error', () => {
+    const templateNames = FORMULA_FUNCTION_TEMPLATES.map(fn => fn.name);
+    expect(new Set(templateNames)).toEqual(
+      new Set(SUPPORTED_FORMULA_FUNCTIONS)
+    );
+    expect(templateNames.length).toBe(SUPPORTED_FORMULA_FUNCTIONS.length);
+
+    for (const fn of FORMULA_FUNCTION_TEMPLATES) {
+      expect(fn.signature.length).toBeGreaterThan(0);
+      expect(fn.description.length).toBeGreaterThan(0);
+      expect(fn.cursorOffset).toBeGreaterThan(0);
+      expect(fn.cursorOffset).toBeLessThanOrEqual(fn.template.length);
+
+      const syntax = validateFormulaSyntax(fn.example);
+      expect(syntax, `${fn.name} example syntax`).toEqual({
+        valid: true,
+        propRefs: [],
+      });
+
+      const result = evaluateFormula(fn.example, () => null);
+      expect(result, `${fn.name} example evaluation`).not.toHaveProperty(
+        'error'
+      );
+    }
+  });
+
+  test('validateFormulaSyntax rejects unknown functions and arity mismatches', () => {
+    expect(validateFormulaSyntax('')).toEqual({
+      valid: false,
+      error: 'Configure the formula',
+    });
+    expect(validateFormulaSyntax('sum(1, 2)')).toEqual({
+      valid: false,
+      error: 'Unknown function: sum',
+    });
+    expect(validateFormulaSyntax('round(1, 2)')).toEqual({
+      valid: false,
+      error: 'round needs one argument',
+    });
+    expect(validateFormulaSyntax('if(true, 1)')).toEqual({
+      valid: false,
+      error: 'if needs three arguments',
+    });
+    expect(validateFormulaSyntax('dateAdd(1)')).toEqual({
+      valid: false,
+      error: 'dateAdd needs two arguments',
+    });
+    expect(validateFormulaSyntax('min()')).toEqual({
+      valid: false,
+      error: 'min needs values',
+    });
+    expect(validateFormulaSyntax('prop(123)')).toEqual({
+      valid: false,
+      error: 'prop needs a quoted column name or ID',
+    });
+    expect(
+      validateFormulaSyntax('if(prop("Price") > 0, prop("Qty"), 0)')
+    ).toEqual({
+      valid: true,
+      propRefs: ['Price', 'Qty'],
+    });
+  });
+
+  test('insertFormulaSnippet inserts at cursor or replaces selection', () => {
+    expect(insertFormulaSnippet('prop("Price")', 13, 13, ' * 2')).toEqual({
+      value: 'prop("Price") * 2',
+      cursor: 17,
+    });
+    expect(insertFormulaSnippet('1 + 2', 2, 3, '*', 1)).toEqual({
+      value: '1 * 2',
+      cursor: 3,
+    });
+    expect(insertFormulaSnippet('', 0, 0, 'round()', 6)).toEqual({
+      value: 'round()',
+      cursor: 6,
+    });
+  });
+
+  test('buildPropertyReferenceSnippet prefers readable names and falls back to ID on collision', () => {
+    const uniqueProps = [
+      { id: 'c1', name: 'Price' },
+      { id: 'c2', name: 'Qty' },
+    ];
+    expect(buildPropertyReferenceSnippet(uniqueProps[0]!, uniqueProps)).toBe(
+      'prop("Price")'
+    );
+
+    const collidingProps = [
+      { id: 'c1', name: 'Price' },
+      { id: 'c2', name: 'Price' },
+      { id: 'c3', name: '   ' },
+    ];
+    expect(
+      buildPropertyReferenceSnippet(collidingProps[0]!, collidingProps)
+    ).toBe('prop("c1")');
+    expect(
+      buildPropertyReferenceSnippet(collidingProps[2]!, collidingProps)
+    ).toBe('prop("c3")');
+  });
+
+  test('formatFormulaPreviewValue formats dates, nulls, errors, and scalars', () => {
+    expect(formatFormulaPreviewValue(42, 'number')).toBe('42');
+    expect(formatFormulaPreviewValue(null, 'number')).toBe('(empty)');
+    expect(
+      formatFormulaPreviewValue(Date.parse('2026-10-05T00:00:00Z'), 'date')
+    ).toBe('2026-10-05');
+    expect(
+      formatFormulaPreviewValue({ error: 'Division by zero' }, 'number')
+    ).toBe('#ERROR: Division by zero');
   });
 });

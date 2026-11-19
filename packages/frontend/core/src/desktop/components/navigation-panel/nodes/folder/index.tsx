@@ -8,9 +8,12 @@ import {
   notify,
 } from '@nota/component';
 import { usePageHelper } from '@nota/core/blocksuite/block-suite-page-list/utils';
+import { useAsyncCallback } from '@nota/core/components/hooks/nota-async-hooks';
 import { WorkspaceDialogService } from '@nota/core/modules/dialogs';
+import { DocsService } from '@nota/core/modules/doc';
 import { CompatibleFavoriteItemsAdapter } from '@nota/core/modules/favorite';
 import { FeatureFlagService } from '@nota/core/modules/feature-flag';
+import { GlobalContextService } from '@nota/core/modules/global-context';
 import { NavigationPanelService } from '@nota/core/modules/navigation-panel';
 import { type FolderNode, OrganizeService } from '@nota/core/modules/organize';
 import { WorkspaceService } from '@nota/core/modules/workspace';
@@ -25,6 +28,7 @@ import {
   RiAddFill,
   RiArchiveStackFill,
   RiDeleteBin6Fill,
+  RiFileAddFill,
   RiFileTextFill,
   RiFolder3Fill,
   RiFolderForbidFill,
@@ -39,11 +43,35 @@ import {
 import type { NavigationPanelTreeNodeIcon } from '../../tree/node';
 import type { NodeOperation } from '../../tree/types';
 import { NavigationPanelCollectionNode } from '../collection';
-import { NavigationPanelDocNode } from '../doc';
+import { useNavigationPanelDocNodeOperations } from '../doc/operations';
 import { NavigationPanelTagNode } from '../tag';
 import type { GenericNavigationPanelNode } from '../types';
 import { FolderEmpty } from './empty';
 import { FavoriteFolderOperation } from './operations';
+
+const getDraggedOrganizeNodeId = (
+  draggable: AffineDNDData['draggable'] | undefined
+): string | null => {
+  if (!draggable) return null;
+  if (draggable.entity?.type === 'folder') {
+    return draggable.entity.id;
+  }
+  if (draggable.from?.at === 'navigation-panel:organize:folder-node') {
+    return draggable.from.nodeId;
+  }
+  return null;
+};
+
+const isInvalidSelfOrAncestorDrop = (
+  targetNode: FolderNode,
+  draggable: AffineDNDData['draggable'] | undefined
+) => {
+  const sourceNodeId = getDraggedOrganizeNodeId(draggable);
+  return (
+    !!sourceNodeId &&
+    (targetNode.id === sourceNodeId || targetNode.beChildOf(sourceNodeId))
+  );
+};
 
 export const NavigationPanelFolderNode = ({
   nodeId,
@@ -60,8 +88,7 @@ export const NavigationPanelFolderNode = ({
   nodeId: string;
   onDrop?: (data: DropTargetDropEvent<AffineDNDData>, node: FolderNode) => void;
   operations?:
-    | NodeOperation[]
-    | ((type: string, node: FolderNode) => NodeOperation[]);
+    NodeOperation[] | ((type: string, node: FolderNode) => NodeOperation[]);
 } & Omit<GenericNavigationPanelNode, 'operations'>) => {
   const { organizeService } = useServices({
     OrganizeService,
@@ -108,7 +135,8 @@ export const NavigationPanelFolderNode = ({
   } else if (type === 'doc') {
     return (
       data && (
-        <NavigationPanelDocNode
+        <NavigationPanelFolderDocNode
+          node={node}
           docId={data}
           location={location}
           onDrop={handleDrop}
@@ -260,13 +288,10 @@ const NavigationPanelFolderNodeFolder = ({
         });
       }
       if (data.treeInstruction?.type === 'make-child') {
+        if (isInvalidSelfOrAncestorDrop(node, data.source.data)) {
+          return;
+        }
         if (data.source.data.entity?.type === 'folder') {
-          if (
-            node.id === data.source.data.entity.id ||
-            node.beChildOf(data.source.data.entity.id)
-          ) {
-            return;
-          }
           node.moveHere(data.source.data.entity.id, node.indexAt('before'));
           track.$.navigationPanel.organize.moveOrganizeItem({ type: 'folder' });
         } else if (
@@ -305,13 +330,10 @@ const NavigationPanelFolderNodeFolder = ({
   const handleDropEffect = useCallback<NavigationPanelTreeNodeDropEffect>(
     data => {
       if (data.treeInstruction?.type === 'make-child') {
+        if (isInvalidSelfOrAncestorDrop(node, data.source.data)) {
+          return;
+        }
         if (data.source.data.entity?.type === 'folder') {
-          if (
-            node.id === data.source.data.entity.id ||
-            node.beChildOf(data.source.data.entity.id)
-          ) {
-            return;
-          }
           return 'move';
         } else if (
           data.source.data.from?.at === 'navigation-panel:organize:folder-node'
@@ -339,13 +361,10 @@ const NavigationPanelFolderNodeFolder = ({
           type: data.source.data.entity.type,
         });
       }
+      if (isInvalidSelfOrAncestorDrop(node, data.source.data)) {
+        return;
+      }
       if (data.source.data.entity?.type === 'folder') {
-        if (
-          node.id === data.source.data.entity.id ||
-          node.beChildOf(data.source.data.entity.id)
-        ) {
-          return;
-        }
         node.moveHere(data.source.data.entity.id, node.indexAt('before'));
         track.$.navigationPanel.organize.moveOrganizeItem({ type: 'folder' });
       } else if (
@@ -390,15 +409,12 @@ const NavigationPanelFolderNodeFolder = ({
         data.treeInstruction?.type === 'reorder-above' ||
         data.treeInstruction?.type === 'reorder-below'
       ) {
+        if (isInvalidSelfOrAncestorDrop(node, data.source.data)) {
+          return;
+        }
         const at =
           data.treeInstruction?.type === 'reorder-below' ? 'after' : 'before';
         if (data.source.data.entity?.type === 'folder') {
-          if (
-            node.id === data.source.data.entity.id ||
-            node.beChildOf(data.source.data.entity.id)
-          ) {
-            return;
-          }
           node.moveHere(
             data.source.data.entity.id,
             node.indexAt(at, dropAtNode.id)
@@ -468,13 +484,10 @@ const NavigationPanelFolderNodeFolder = ({
           data.treeInstruction?.type === 'reorder-above' ||
           data.treeInstruction?.type === 'reorder-below'
         ) {
+          if (isInvalidSelfOrAncestorDrop(node, data.source.data)) {
+            return;
+          }
           if (data.source.data.entity?.type === 'folder') {
-            if (
-              node.id === data.source.data.entity.id ||
-              node.beChildOf(data.source.data.entity.id)
-            ) {
-              return;
-            }
             return 'move';
           } else if (
             data.source.data.from?.at ===
@@ -525,26 +538,16 @@ const NavigationPanelFolderNodeFolder = ({
         );
       }
 
-      if (args.source.data.entity?.type === 'folder') {
-        if (
-          node.id === args.source.data.entity.id ||
-          node.beChildOf(args.source.data.entity.id)
-        ) {
-          return false;
-        }
-        return true;
-      } else if (
-        args.source.data.from?.at === 'navigation-panel:organize:folder-node'
-      ) {
-        return true;
-      } else if (
+      if (isInvalidSelfOrAncestorDrop(node, args.source.data)) {
+        return false;
+      }
+      return (
+        entityType === 'folder' ||
+        args.source.data.from?.at === 'navigation-panel:organize:folder-node' ||
         entityType === 'collection' ||
         entityType === 'doc' ||
         entityType === 'tag'
-      ) {
-        return true;
-      }
-      return false;
+      );
     },
     [canDrop, node]
   );
@@ -554,27 +557,16 @@ const NavigationPanelFolderNodeFolder = ({
   >(
     () => args => {
       const entityType = args.source.data.entity?.type;
-
-      if (args.source.data.entity?.type === 'folder') {
-        if (
-          node.id === args.source.data.entity.id ||
-          node.beChildOf(args.source.data.entity.id)
-        ) {
-          return false;
-        }
-        return true;
-      } else if (
-        args.source.data.from?.at === 'navigation-panel:organize:folder-node'
-      ) {
-        return true;
-      } else if (
+      if (isInvalidSelfOrAncestorDrop(node, args.source.data)) {
+        return false;
+      }
+      return (
+        entityType === 'folder' ||
+        args.source.data.from?.at === 'navigation-panel:organize:folder-node' ||
         entityType === 'collection' ||
         entityType === 'doc' ||
         entityType === 'tag'
-      ) {
-        return true;
-      }
-      return false;
+      );
     },
     [node]
   );
@@ -816,6 +808,533 @@ const NavigationPanelFolderNodeFolder = ({
           key={child.id}
           nodeId={child.id as string}
           defaultRenaming={child.id === newFolderId}
+          onDrop={handleDropOnChildren}
+          operations={childrenOperations}
+          dropEffect={handleDropEffectOnChildren}
+          canDrop={handleChildrenCanDrop}
+          location={{
+            at: 'navigation-panel:organize:folder-node',
+            nodeId: child.id as string,
+          }}
+          parentPath={path}
+        />
+      ))}
+    </NavigationPanelTreeNode>
+  );
+};
+
+const NavigationPanelFolderDocIcon: NavigationPanelTreeNodeIcon = ({
+  className,
+}) => <RiFileTextFill className={className} size={18} />;
+
+const NavigationPanelFolderDocNode = ({
+  node,
+  docId,
+  onDrop,
+  location,
+  operations: additionalOperations,
+  canDrop,
+  dropEffect,
+  reorderable,
+  parentPath,
+}: {
+  node: FolderNode;
+  docId: string;
+} & GenericNavigationPanelNode) => {
+  const t = useI18n();
+  const {
+    workspaceService,
+    docsService,
+    globalContextService,
+    featureFlagService,
+    workspaceDialogService,
+  } = useServices({
+    WorkspaceService,
+    DocsService,
+    GlobalContextService,
+    FeatureFlagService,
+    WorkspaceDialogService,
+  });
+  const navigationPanelService = useService(NavigationPanelService);
+  const path = useMemo(
+    () => [...(parentPath ?? []), `doc-node-${node.id}`],
+    [parentPath, node.id]
+  );
+  const collapsed = useLiveData(navigationPanelService.collapsed$(path));
+  const setCollapsed = useCallback(
+    (value: boolean) => {
+      navigationPanelService.setCollapsed(path, value);
+    },
+    [navigationPanelService, path]
+  );
+
+  const active =
+    useLiveData(globalContextService.globalContext.docId.$) === docId;
+  const docRecord = useLiveData(docsService.list.doc$(docId));
+  const docTitle = useLiveData(docRecord?.title$);
+  const isInTrash = useLiveData(docRecord?.trash$);
+  const enableEmojiIcon = useLiveData(
+    featureFlagService.flags.enable_emoji_doc_icon.$
+  );
+  const children = useLiveData(node.sortedChildren$);
+  const { createPage } = usePageHelper(
+    workspaceService.workspace.docCollection
+  );
+
+  const dndData = useMemo(() => {
+    return {
+      draggable: {
+        entity: {
+          type: 'doc',
+          id: docId,
+        },
+        from: location,
+      },
+      dropTarget: {
+        at: 'navigation-panel:organize:folder',
+      },
+    } satisfies AffineDNDData;
+  }, [docId, location]);
+
+  const handleRename = useAsyncCallback(
+    async (newName: string) => {
+      await docsService.changeDocTitle(docId, newName);
+      track.$.navigationPanel.organize.renameOrganizeItem({ type: 'doc' });
+    },
+    [docId, docsService]
+  );
+
+  const handleCreateSubPage = useCallback(() => {
+    const newDoc = createPage();
+    node.createLink('doc', newDoc.id, node.indexAt('after'));
+    setCollapsed(false);
+    track.$.navigationPanel.folders.createDoc();
+    track.$.navigationPanel.organize.createOrganizeItem({
+      type: 'link',
+      target: 'doc',
+    });
+  }, [createPage, node, setCollapsed]);
+
+  const handleDropOnDocNode = useCallback(
+    (data: DropTargetDropEvent<AffineDNDData>) => {
+      if (data.treeInstruction?.type === 'make-child') {
+        if (isInvalidSelfOrAncestorDrop(node, data.source.data)) {
+          return;
+        }
+        if (data.source.data.entity?.type === 'folder') {
+          node.moveHere(data.source.data.entity.id, node.indexAt('after'));
+          setCollapsed(false);
+          track.$.navigationPanel.organize.moveOrganizeItem({ type: 'folder' });
+        } else if (
+          data.source.data.entity?.type === 'doc' ||
+          data.source.data.entity?.type === 'collection' ||
+          data.source.data.entity?.type === 'tag'
+        ) {
+          if (
+            data.source.data.entity.type === 'doc' &&
+            data.source.data.entity.id === docId
+          ) {
+            return;
+          }
+          if (
+            data.source.data.from?.at ===
+            'navigation-panel:organize:folder-node'
+          ) {
+            node.moveHere(data.source.data.from.nodeId, node.indexAt('after'));
+            setCollapsed(false);
+            track.$.navigationPanel.organize.moveOrganizeItem({
+              type: 'link',
+              target: data.source.data.entity.type,
+            });
+          } else {
+            node.createLink(
+              data.source.data.entity.type,
+              data.source.data.entity.id,
+              node.indexAt('after')
+            );
+            setCollapsed(false);
+            track.$.navigationPanel.organize.createOrganizeItem({
+              type: 'link',
+              target: data.source.data.entity.type,
+            });
+          }
+        }
+      } else {
+        onDrop?.(data);
+      }
+    },
+    [docId, node, onDrop, setCollapsed]
+  );
+
+  const handleDropEffect = useCallback<NavigationPanelTreeNodeDropEffect>(
+    data => {
+      if (data.treeInstruction?.type === 'make-child') {
+        if (isInvalidSelfOrAncestorDrop(node, data.source.data)) {
+          return;
+        }
+        if (
+          data.source.data.entity?.type === 'doc' &&
+          data.source.data.entity.id === docId
+        ) {
+          return;
+        }
+        if (
+          data.source.data.entity?.type === 'folder' ||
+          data.source.data.from?.at === 'navigation-panel:organize:folder-node'
+        ) {
+          return 'move';
+        }
+        if (
+          data.source.data.entity?.type === 'doc' ||
+          data.source.data.entity?.type === 'collection' ||
+          data.source.data.entity?.type === 'tag'
+        ) {
+          return 'link';
+        }
+      } else {
+        return dropEffect?.(data);
+      }
+      return;
+    },
+    [docId, dropEffect, node]
+  );
+
+  const handleDropOnPlaceholder = useCallback(
+    (data: DropTargetDropEvent<AffineDNDData>) => {
+      if (isInvalidSelfOrAncestorDrop(node, data.source.data)) {
+        return;
+      }
+      if (data.source.data.entity?.type === 'folder') {
+        node.moveHere(data.source.data.entity.id, node.indexAt('after'));
+        track.$.navigationPanel.organize.moveOrganizeItem({ type: 'folder' });
+      } else if (
+        data.source.data.entity?.type === 'doc' ||
+        data.source.data.entity?.type === 'collection' ||
+        data.source.data.entity?.type === 'tag'
+      ) {
+        if (
+          data.source.data.entity.type === 'doc' &&
+          data.source.data.entity.id === docId
+        ) {
+          return;
+        }
+        if (
+          data.source.data.from?.at === 'navigation-panel:organize:folder-node'
+        ) {
+          node.moveHere(data.source.data.from.nodeId, node.indexAt('after'));
+          track.$.navigationPanel.organize.moveOrganizeItem({
+            type: 'link',
+            target: data.source.data.entity.type,
+          });
+        } else {
+          node.createLink(
+            data.source.data.entity.type,
+            data.source.data.entity.id,
+            node.indexAt('after')
+          );
+          track.$.navigationPanel.organize.createOrganizeItem({
+            type: 'link',
+            target: data.source.data.entity.type,
+          });
+        }
+      }
+    },
+    [docId, node]
+  );
+
+  const handleDropOnChildren = useCallback(
+    (data: DropTargetDropEvent<AffineDNDData>, dropAtNode?: FolderNode) => {
+      if (!dropAtNode || !dropAtNode.id) {
+        return;
+      }
+      if (
+        data.treeInstruction?.type === 'reorder-above' ||
+        data.treeInstruction?.type === 'reorder-below'
+      ) {
+        if (isInvalidSelfOrAncestorDrop(node, data.source.data)) {
+          return;
+        }
+        const at =
+          data.treeInstruction.type === 'reorder-below' ? 'after' : 'before';
+        if (data.source.data.entity?.type === 'folder') {
+          node.moveHere(
+            data.source.data.entity.id,
+            node.indexAt(at, dropAtNode.id)
+          );
+          track.$.navigationPanel.organize.moveOrganizeItem({ type: 'folder' });
+        } else if (
+          data.source.data.entity?.type === 'doc' ||
+          data.source.data.entity?.type === 'collection' ||
+          data.source.data.entity?.type === 'tag'
+        ) {
+          if (
+            data.source.data.entity.type === 'doc' &&
+            data.source.data.entity.id === docId
+          ) {
+            return;
+          }
+          if (
+            data.source.data.from?.at ===
+            'navigation-panel:organize:folder-node'
+          ) {
+            node.moveHere(
+              data.source.data.from.nodeId,
+              node.indexAt(at, dropAtNode.id)
+            );
+            track.$.navigationPanel.organize.moveOrganizeItem({
+              type: 'link',
+              target: data.source.data.entity.type,
+            });
+          } else {
+            node.createLink(
+              data.source.data.entity.type,
+              data.source.data.entity.id,
+              node.indexAt(at, dropAtNode.id)
+            );
+            track.$.navigationPanel.organize.createOrganizeItem({
+              type: 'link',
+              target: data.source.data.entity.type,
+            });
+          }
+        }
+      } else if (data.treeInstruction?.type === 'reparent') {
+        const currentLevel = data.treeInstruction.currentLevel;
+        const desiredLevel = data.treeInstruction.desiredLevel;
+        if (currentLevel === desiredLevel + 1) {
+          onDrop?.({
+            ...data,
+            treeInstruction: {
+              type: 'reorder-below',
+              currentLevel,
+              indentPerLevel: data.treeInstruction.indentPerLevel,
+            },
+          });
+          return;
+        }
+        onDrop?.({
+          ...data,
+          treeInstruction: {
+            ...data.treeInstruction,
+            currentLevel: currentLevel - 1,
+          },
+        });
+      }
+    },
+    [docId, node, onDrop]
+  );
+
+  const handleDropEffectOnChildren =
+    useCallback<NavigationPanelTreeNodeDropEffect>(
+      data => {
+        if (
+          data.treeInstruction?.type === 'reorder-above' ||
+          data.treeInstruction?.type === 'reorder-below'
+        ) {
+          if (isInvalidSelfOrAncestorDrop(node, data.source.data)) {
+            return;
+          }
+          if (
+            data.source.data.entity?.type === 'doc' &&
+            data.source.data.entity.id === docId
+          ) {
+            return;
+          }
+          if (
+            data.source.data.entity?.type === 'folder' ||
+            data.source.data.from?.at ===
+              'navigation-panel:organize:folder-node'
+          ) {
+            return 'move';
+          }
+          if (
+            data.source.data.entity?.type === 'doc' ||
+            data.source.data.entity?.type === 'collection' ||
+            data.source.data.entity?.type === 'tag'
+          ) {
+            return 'link';
+          }
+        } else if (data.treeInstruction?.type === 'reparent') {
+          const currentLevel = data.treeInstruction.currentLevel;
+          const desiredLevel = data.treeInstruction.desiredLevel;
+          if (currentLevel === desiredLevel + 1) {
+            dropEffect?.({
+              ...data,
+              treeInstruction: {
+                type: 'reorder-below',
+                currentLevel,
+                indentPerLevel: data.treeInstruction.indentPerLevel,
+              },
+            });
+            return;
+          }
+          dropEffect?.({
+            ...data,
+            treeInstruction: {
+              ...data.treeInstruction,
+              currentLevel: currentLevel - 1,
+            },
+          });
+        }
+        return;
+      },
+      [docId, dropEffect, node]
+    );
+
+  const handleCanDrop = useMemo<DropTargetOptions<AffineDNDData>['canDrop']>(
+    () => args => {
+      const entityType = args.source.data.entity?.type;
+      if (args.treeInstruction && args.treeInstruction.type !== 'make-child') {
+        return (
+          (typeof canDrop === 'function' ? canDrop(args) : canDrop) ?? true
+        );
+      }
+      if (isInvalidSelfOrAncestorDrop(node, args.source.data)) {
+        return false;
+      }
+      if (entityType === 'doc' && args.source.data.entity?.id === docId) {
+        return false;
+      }
+      return (
+        entityType === 'folder' ||
+        entityType === 'doc' ||
+        entityType === 'collection' ||
+        entityType === 'tag'
+      );
+    },
+    [canDrop, docId, node]
+  );
+
+  const handleChildrenCanDrop = useMemo<
+    DropTargetOptions<AffineDNDData>['canDrop']
+  >(
+    () => args => {
+      const entityType = args.source.data.entity?.type;
+      if (isInvalidSelfOrAncestorDrop(node, args.source.data)) {
+        return false;
+      }
+      if (entityType === 'doc' && args.source.data.entity?.id === docId) {
+        return false;
+      }
+      return (
+        entityType === 'folder' ||
+        entityType === 'doc' ||
+        entityType === 'collection' ||
+        entityType === 'tag'
+      );
+    },
+    [docId, node]
+  );
+
+  const baseDocOperations = useNavigationPanelDocNodeOperations(
+    docId,
+    useMemo(
+      () => ({
+        openInfoModal: () => workspaceDialogService.open('doc-info', { docId }),
+        openNodeCollapsed: () => setCollapsed(false),
+      }),
+      [docId, setCollapsed, workspaceDialogService]
+    )
+  );
+
+  const finalOperations = useMemo(() => {
+    const subPageOps: NodeOperation[] = [
+      {
+        index: 0,
+        inline: true,
+        view: (
+          <IconButton
+            size="16"
+            data-testid={`navigation-panel-doc-add-subpage-${docId}`}
+            onClick={handleCreateSubPage}
+            tooltip="Add sub-page"
+          >
+            <RiAddFill size={16} />
+          </IconButton>
+        ),
+      },
+      {
+        index: 98,
+        view: (
+          <MenuItem
+            prefixIcon={<RiFileAddFill size={18} />}
+            onClick={handleCreateSubPage}
+          >
+            Add sub-page
+          </MenuItem>
+        ),
+      },
+    ];
+    const filteredBase = baseDocOperations.filter(op => !op.inline);
+    return [...subPageOps, ...filteredBase, ...(additionalOperations ?? [])];
+  }, [additionalOperations, baseDocOperations, docId, handleCreateSubPage]);
+
+  const childrenOperations = useCallback(
+    (type: string, childNode: FolderNode) => {
+      if (type === 'doc' || type === 'collection' || type === 'tag') {
+        return [
+          {
+            index: 999,
+            view: (
+              <MenuItem
+                type={'danger'}
+                prefixIcon={<RiFolderForbidFill size={18} />}
+                data-event-props="$.navigationPanel.organize.deleteOrganizeItem"
+                data-event-args-type={childNode.type$.value}
+                onClick={() => childNode.delete()}
+              >
+                {t['com.affine.rootAppSidebar.organize.delete-from-folder']()}
+              </MenuItem>
+            ),
+          },
+        ] satisfies NodeOperation[];
+      }
+      return [];
+    },
+    [t]
+  );
+
+  if (isInTrash || !docRecord) {
+    return null;
+  }
+
+  return (
+    <NavigationPanelTreeNode
+      icon={NavigationPanelFolderDocIcon}
+      name={docTitle}
+      dndData={dndData}
+      onDrop={handleDropOnDocNode}
+      renameable
+      extractEmojiAsIcon={enableEmojiIcon}
+      collapsed={collapsed}
+      setCollapsed={setCollapsed}
+      collapsible
+      canDrop={handleCanDrop}
+      to={`/${docId}`}
+      onClick={() => {
+        track.$.navigationPanel.docs.openDoc();
+      }}
+      active={active}
+      reorderable={reorderable}
+      renameableGuard={{
+        docId,
+        action: 'Doc_Update',
+      }}
+      onRename={handleRename}
+      childrenPlaceholder={
+        <FolderEmpty canDrop={handleCanDrop} onDrop={handleDropOnPlaceholder} />
+      }
+      operations={finalOperations}
+      dropEffect={handleDropEffect}
+      data-testid={`navigation-panel-doc-${docId}`}
+      explorerIconConfig={{
+        where: 'doc',
+        id: docId,
+      }}
+    >
+      {children.map(child => (
+        <NavigationPanelFolderNode
+          key={child.id}
+          nodeId={child.id as string}
           onDrop={handleDropOnChildren}
           operations={childrenOperations}
           dropEffect={handleDropEffectOnChildren}

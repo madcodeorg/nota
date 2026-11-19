@@ -2,7 +2,7 @@
   "name": "@nota/templates",
   "private": true,
   "sideEffect": false,
-  "version": "0.1.16",
+  "version": "0.1.17",
   "scripts": {
     "build": "node ./build-onboarding.mjs && node ./build-edgeless.mjs && node ./build-stickers.mjs",
     "postinstall": "yarn build"
