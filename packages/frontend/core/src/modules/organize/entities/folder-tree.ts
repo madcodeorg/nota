@@ -1,7 +1,12 @@
-import { Entity, LiveData } from '@nota/infra';
+import {
+  Entity,
+  generateFractionalIndexingKeyBetween,
+  LiveData,
+} from '@nota/infra';
 import { map } from 'rxjs';
 
-import type { FolderStore } from '../stores/folder';
+import { buildDocAncestors, type FolderStore } from '../stores/folder';
+import type { OrganizeBreadcrumbItem } from '../types';
 import { FolderNode } from './folder-node';
 
 export class FolderTree extends Entity {
@@ -29,6 +34,51 @@ export class FolderTree extends Entity {
         })
       ),
       null
+    );
+  }
+
+  ancestorsForDoc$(docId: string) {
+    return LiveData.from<OrganizeBreadcrumbItem[]>(
+      this.folderStore
+        .watchAllNodes()
+        .pipe(map(nodes => buildDocAncestors(nodes, docId))),
+      []
+    );
+  }
+
+  findDocNodeId(docId: string) {
+    return this.folderStore.findDocNodeId(docId);
+  }
+
+  navigationPathForNode(nodeId: string) {
+    return this.folderStore.getNavigationPath(nodeId);
+  }
+
+  addSubPage(parentDocId: string, childDocId: string) {
+    if (!parentDocId || !childDocId || parentDocId === childDocId) {
+      throw new Error('Sub-page must reference a distinct parent page');
+    }
+    const existingParentNodeId = this.folderStore.findDocNodeId(parentDocId);
+    const parentNodeId =
+      existingParentNodeId ??
+      this.folderStore.createLink(
+        null,
+        'doc',
+        parentDocId,
+        generateFractionalIndexingKeyBetween(
+          this.folderStore.getLastChildIndex(null),
+          null
+        )
+      );
+    const nextIndex = generateFractionalIndexingKeyBetween(
+      this.folderStore.getLastChildIndex(parentNodeId),
+      null
+    );
+    return this.folderStore.createLink(
+      parentNodeId,
+      'doc',
+      childDocId,
+      nextIndex
     );
   }
 }

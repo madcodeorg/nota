@@ -2,7 +2,7 @@
   "name": "@nota-test/kit",
   "private": true,
   "type": "module",
-  "version": "0.1.16",
+  "version": "0.1.17",
   "exports": {
     "./electron": "./src/electron.ts",
     "./mobile": "./src/mobile.ts",

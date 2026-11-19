@@ -2,7 +2,14 @@ import { viewType } from '../../core/view/data-view.js';
 import type { CardViewData } from '../card-view-manager.js';
 import { GallerySingleView } from './gallery-view-manager.js';
 
-export type GalleryViewData = CardViewData & { mode: 'gallery' };
+export type GalleryCardSize = 'small' | 'medium' | 'large';
+export type GalleryCoverFit = 'cover' | 'contain';
+
+export type GalleryViewData = CardViewData & {
+  mode: 'gallery';
+  cardSize?: GalleryCardSize;
+  coverFit?: GalleryCoverFit;
+};
 export const galleryViewType = viewType('gallery');
 export const galleryViewModel = galleryViewType.createModel<GalleryViewData>({
   defaultName: 'Gallery View',

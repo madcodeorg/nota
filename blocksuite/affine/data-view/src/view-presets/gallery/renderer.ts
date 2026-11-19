@@ -9,6 +9,7 @@ import {
 } from '../../core/utils/uni-component/uni-component.js';
 import { DataViewUIBase } from '../../core/view/data-view-base.js';
 import { CardViewUILogic } from '../card-view-ui.js';
+import type { GalleryCardSize, GalleryCoverFit } from './define.js';
 import type { GallerySingleView } from './gallery-view-manager.js';
 import { GalleryImageCache } from './image-utils.js';
 
@@ -44,6 +45,8 @@ export class GalleryViewUI extends DataViewUIBase<GalleryViewUILogic> {
   override render(): TemplateResult {
     const view = this.logic.view;
     const imageProperty = view.imageProperty$.value;
+    const cardSize = view.cardSize$.value;
+    const coverFit = view.coverFit$.value;
     const titleProperty = view.mainProperties$.value.titleColumn;
     const readonly = view.readonly$.value;
     const covers = view.rows$.value.map(
@@ -80,6 +83,47 @@ export class GalleryViewUI extends DataViewUIBase<GalleryViewUILogic> {
             )}
           </select>
         </label>
+        <label
+          >Card size
+          <select
+            aria-label="Gallery card size"
+            .value=${cardSize}
+            ?disabled=${readonly}
+            @change=${(event: Event) =>
+              view.cardSizeSet(
+                (event.target as HTMLSelectElement).value as GalleryCardSize
+              )}
+          >
+            <option value="small" .selected=${cardSize === 'small'}>
+              Small
+            </option>
+            <option value="medium" .selected=${cardSize === 'medium'}>
+              Medium
+            </option>
+            <option value="large" .selected=${cardSize === 'large'}>
+              Large
+            </option>
+          </select>
+        </label>
+        <label
+          >Cover fit
+          <select
+            aria-label="Gallery cover fit"
+            .value=${coverFit}
+            ?disabled=${readonly}
+            @change=${(event: Event) =>
+              view.coverFitSet(
+                (event.target as HTMLSelectElement).value as GalleryCoverFit
+              )}
+          >
+            <option value="cover" .selected=${coverFit === 'cover'}>
+              Cover
+            </option>
+            <option value="contain" .selected=${coverFit === 'contain'}>
+              Contain
+            </option>
+          </select>
+        </label>
         <details>
           <summary>Card properties</summary>
           ${view.detailProperties$.value.map(
@@ -98,7 +142,13 @@ export class GalleryViewUI extends DataViewUIBase<GalleryViewUILogic> {
           )}
         </details>
       </div>
-      <div class="gallery-cards" role="list" aria-label="Database rows">
+      <div
+        class="gallery-cards"
+        data-card-size=${cardSize}
+        data-cover-fit=${coverFit}
+        role="list"
+        aria-label="Database rows"
+      >
         ${repeat(
           view.rows$.value,
           row => row.rowId,
@@ -118,15 +168,18 @@ export class GalleryViewUI extends DataViewUIBase<GalleryViewUILogic> {
                   this.logic.openRow(row.rowId);
                 }}
               >
-                ${image
-                  ? html`<img
-                      class="gallery-cover"
-                      src=${image}
-                      alt=""
-                      loading="lazy"
-                      referrerpolicy="no-referrer"
-                    />`
-                  : ''}
+                ${
+                  image
+                    ? html`<img
+                        class="gallery-cover"
+                        data-cover-fit=${coverFit}
+                        src=${image}
+                        alt=""
+                        loading="lazy"
+                        referrerpolicy="no-referrer"
+                      />`
+                    : ''
+                }
                 <strong class="gallery-title"
                   >${view.titleGet(row.rowId)}</strong
                 >
@@ -136,8 +189,10 @@ export class GalleryViewUI extends DataViewUIBase<GalleryViewUILogic> {
                       ><span class="gallery-property-name"
                         >${property.name$.value}</span
                       ><span
-                        >${property.cellGetOrCreate(row.rowId).stringValue$
-                          .value ?? ''}</span
+                        >${
+                          property.cellGetOrCreate(row.rowId).stringValue$
+                            .value ?? ''
+                        }</span
                       ></span
                     >`
                 )}
@@ -146,9 +201,11 @@ export class GalleryViewUI extends DataViewUIBase<GalleryViewUILogic> {
           }
         )}
       </div>
-      ${view.rows$.value.length === 0
-        ? html`<p>No rows match this view.</p>`
-        : ''}
+      ${
+        view.rows$.value.length === 0
+          ? html`<p>No rows match this view.</p>`
+          : ''
+      }
     `;
   }
 }
@@ -184,8 +241,19 @@ const galleryStyle = css({
   summary: { cursor: 'pointer', padding: '4px 0' },
   '.gallery-cards': {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fill, minmax(min(220px, 100%), 1fr))',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(min(240px, 100%), 1fr))',
     gap: '16px',
+  },
+  '.gallery-cards[data-card-size=small]': {
+    gridTemplateColumns: 'repeat(auto-fill, minmax(min(180px, 100%), 1fr))',
+    gap: '12px',
+  },
+  '.gallery-cards[data-card-size=medium]': {
+    gridTemplateColumns: 'repeat(auto-fill, minmax(min(240px, 100%), 1fr))',
+  },
+  '.gallery-cards[data-card-size=large]': {
+    gridTemplateColumns: 'repeat(auto-fill, minmax(min(320px, 100%), 1fr))',
+    gap: '20px',
   },
   '.gallery-card': {
     display: 'flex',
@@ -213,6 +281,16 @@ const galleryStyle = css({
     objectFit: 'cover',
     background: 'var(--affine-background-secondary-color)',
   },
+  '.gallery-cards[data-card-size=small] .gallery-cover': {
+    height: '100px',
+  },
+  '.gallery-cards[data-card-size=large] .gallery-cover': {
+    height: '200px',
+  },
+  '.gallery-cards[data-cover-fit=contain] .gallery-cover, .gallery-cover[data-cover-fit=contain]':
+    {
+      objectFit: 'contain',
+    },
   '.gallery-title': { padding: '12px', overflowWrap: 'anywhere' },
   '.gallery-property': {
     display: 'flex',

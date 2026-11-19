@@ -11,6 +11,7 @@ import {
   LockIcon,
   OpenInNewIcon,
   PageIcon,
+  PlusIcon,
   ShareIcon,
   SplitViewIcon,
   TocIcon,
@@ -23,6 +24,7 @@ import {
   MenuSeparator,
   MenuSub,
 } from '@nota/component/ui/menu';
+import { usePageHelper } from '@nota/core/blocksuite/block-suite-page-list/utils';
 import { PageHistoryModal } from '@nota/core/components/affine/page-history-modal';
 import { LocalPageHistoryModal } from '@nota/core/components/affine/page-history-modal/local-history';
 import { useGuard } from '@nota/core/components/guard';
@@ -34,7 +36,10 @@ import { IsFavoriteIcon } from '@nota/core/components/pure/icons';
 import { useDetailPageHeaderResponsive } from '@nota/core/desktop/pages/workspace/detail-page/use-header-responsive';
 import { WorkspaceDialogService } from '@nota/core/modules/dialogs';
 import { EditorService } from '@nota/core/modules/editor';
+import { EditorSettingService } from '@nota/core/modules/editor-setting';
+import { NavigationPanelService } from '@nota/core/modules/navigation-panel';
 import { OpenInAppService } from '@nota/core/modules/open-in-app/services';
+import { OrganizeService } from '@nota/core/modules/organize';
 import { GuardService } from '@nota/core/modules/permissions';
 import { DocReminderMenuSub } from '@nota/core/modules/reminders/views/reminder-menu';
 import { ShareMenuContent } from '@nota/core/modules/share-menu';
@@ -44,14 +49,17 @@ import {
   isServerBackedWorkspaceFlavour,
   WorkspaceService,
 } from '@nota/core/modules/workspace';
+import type { PageFontStyle } from '@nota/core/utils/page-cover';
 import { useI18n } from '@nota/i18n';
 import { useLiveData, useService, useServiceOptional } from '@nota/infra';
 import { track } from '@nota/track';
+import clsx from 'clsx';
 import { useCallback, useState } from 'react';
+import { RiExpandHorizontalLine, RiFontSize2 } from 'react-icons/ri';
 
 import { HeaderDropDownButton } from '../../../components/pure/header-drop-down-button';
 import { useFavorite } from '../favorite';
-import { shareMenu } from './style.css';
+import * as styles from './style.css';
 
 type PageMenuProps = {
   rename?: () => void;
@@ -313,7 +321,7 @@ const PageHeaderMenuItem = ({
             collisionPadding: 20,
           }}
           items={
-            <div className={shareMenu}>
+            <div className={styles.shareMenu}>
               <ShareMenuContent
                 workspaceMetadata={workspace.meta}
                 currentPage={page}
@@ -346,14 +354,145 @@ const PageHeaderMenuItem = ({
   const canEdit = useGuard('Doc_Update', pageId);
   const canMoveToTrash = useGuard('Doc_Trash', pageId);
   const locked = useLiveData(editorService.editor.doc.locked$);
+  const fontStyle = useLiveData(editorService.editor.doc.fontStyle$);
+  const smallText = useLiveData(editorService.editor.doc.smallText$);
+  const pageWidth = useLiveData(editorService.editor.doc.pageWidth$);
+  const editorSetting = useService(EditorSettingService).editorSetting;
+  const defaultFullWidth = useLiveData(
+    editorSetting.settings$.selector(s => s.fullWidthLayout)
+  );
+  const defaultFontFamily = useLiveData(
+    editorSetting.settings$.selector(s => s.fontFamily)
+  );
+  const isFullWidth = pageWidth ? pageWidth === 'fullWidth' : defaultFullWidth;
+  const activeFont: PageFontStyle =
+    fontStyle !== 'default'
+      ? fontStyle
+      : defaultFontFamily === 'Serif' || defaultFontFamily === 'Mono'
+        ? defaultFontFamily
+        : 'Sans';
+  const organizeService = useService(OrganizeService);
+  const navigationPanelService = useService(NavigationPanelService);
+  const { createPage } = usePageHelper(workspace.docCollection);
+
   const handleToggleLock = useCallback(() => {
     editorService.editor.doc.setLocked(!locked);
     toast(locked ? 'Page unlocked' : 'Page locked');
   }, [editorService, locked]);
 
+  const handleSelectFontStyle = useCallback(
+    (next: 'Sans' | 'Serif' | 'Mono') => {
+      editorService.editor.doc.setFontStyle(
+        fontStyle === next ? 'default' : next
+      );
+    },
+    [editorService, fontStyle]
+  );
+
+  const handleToggleSmallText = useCallback(
+    (event: Event) => {
+      event.preventDefault();
+      editorService.editor.doc.setSmallText(!smallText);
+    },
+    [editorService, smallText]
+  );
+
+  const handleToggleFullWidth = useCallback(
+    (event: Event) => {
+      event.preventDefault();
+      editorService.editor.doc.setPageWidth(
+        isFullWidth ? 'standard' : 'fullWidth'
+      );
+    },
+    [editorService, isFullWidth]
+  );
+
+  const handleAddSubPage = useCallback(() => {
+    const newDoc = createPage();
+    organizeService.folderTree.addSubPage(pageId, newDoc.id);
+    const parentNodeId = organizeService.folderTree.findDocNodeId(pageId);
+    if (parentNodeId) {
+      const navPath =
+        organizeService.folderTree.navigationPathForNode(parentNodeId);
+      for (let i = 1; i <= navPath.length; i++) {
+        navigationPanelService.setCollapsed(navPath.slice(0, i), false);
+      }
+    }
+    track.$.header.docOptions.createDoc({ control: 'subPage' });
+  }, [createPage, navigationPanelService, organizeService, pageId]);
+
+  const canModifyStyle = canEdit && !locked;
+
   return (
     <>
       {showResponsiveMenu ? ResponsiveMenuItems : null}
+      {currentMode === 'page' ? (
+        <>
+          <div
+            className={styles.fontStyleRow}
+            role="group"
+            aria-label="Page font"
+            data-testid="editor-option-menu-font-style"
+          >
+            {(
+              [
+                {
+                  key: 'Sans',
+                  label: 'Sans',
+                  sampleClass: styles.fontStyleSans,
+                },
+                {
+                  key: 'Serif',
+                  label: 'Serif',
+                  sampleClass: styles.fontStyleSerif,
+                },
+                {
+                  key: 'Mono',
+                  label: 'Mono',
+                  sampleClass: styles.fontStyleMono,
+                },
+              ] as const
+            ).map(item => (
+              <button
+                key={item.key}
+                type="button"
+                className={styles.fontStyleOption}
+                data-active={activeFont === item.key}
+                data-testid={`editor-option-menu-font-${item.key.toLowerCase()}`}
+                disabled={!canModifyStyle}
+                aria-pressed={activeFont === item.key}
+                onClick={() => handleSelectFontStyle(item.key)}
+              >
+                <span
+                  className={clsx(styles.fontStyleSample, item.sampleClass)}
+                >
+                  Ag
+                </span>
+                <span className={styles.fontStyleLabel}>{item.label}</span>
+              </button>
+            ))}
+          </div>
+          <MenuItem
+            prefixIcon={<RiFontSize2 size={18} />}
+            data-testid="editor-option-menu-small-text"
+            selected={smallText}
+            onSelect={handleToggleSmallText}
+            disabled={!canModifyStyle}
+          >
+            Small text
+          </MenuItem>
+          <MenuItem
+            prefixIcon={<RiExpandHorizontalLine size={18} />}
+            data-testid="editor-option-menu-full-width"
+            selected={isFullWidth}
+            onSelect={handleToggleFullWidth}
+            disabled={!canModifyStyle}
+          >
+            Full width
+          </MenuItem>
+          <MenuSeparator />
+        </>
+      ) : null}
       {!isJournal && (
         <MenuItem
           prefixIcon={<EditIcon />}
@@ -362,6 +501,15 @@ const PageHeaderMenuItem = ({
           disabled={!canEdit || locked}
         >
           {t['Rename']()}
+        </MenuItem>
+      )}
+      {!isJournal && (
+        <MenuItem
+          prefixIcon={<PlusIcon />}
+          data-testid="editor-option-menu-add-subpage"
+          onSelect={handleAddSubPage}
+        >
+          Add sub-page
         </MenuItem>
       )}
       <MenuItem

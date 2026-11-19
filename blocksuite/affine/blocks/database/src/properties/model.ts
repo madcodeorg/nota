@@ -6,6 +6,7 @@ import {
   relationPropertyModelConfig,
   rollupPropertyModelConfig,
 } from './computed/define';
+import { lastEditedTimePropertyModelConfig } from './last-edited-time/define';
 import { linkPropertyModelConfig } from './link/define';
 import { richTextPropertyModelConfig } from './rich-text/define';
 import { titlePropertyModelConfig } from './title/define';
@@ -17,11 +18,12 @@ export const databaseBlockModels = Object.fromEntries(
     propertyModelPresets.numberPropertyModelConfig,
     propertyModelPresets.progressPropertyModelConfig,
     propertyModelPresets.selectPropertyModelConfig,
-    propertyModelPresets.multiSelectPropertyModelConfig,
     propertyModelPresets.statusPropertyModelConfig,
+    propertyModelPresets.multiSelectPropertyModelConfig,
     linkPropertyModelConfig,
     richTextPropertyModelConfig,
     titlePropertyModelConfig,
+    lastEditedTimePropertyModelConfig,
     relationPropertyModelConfig,
     formulaPropertyModelConfig,
     rollupPropertyModelConfig,

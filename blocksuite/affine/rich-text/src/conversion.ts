@@ -13,7 +13,7 @@ import {
   QuoteIcon,
   TextIcon,
 } from '@blocksuite/affine-components/icons';
-import { FontIcon, TeXIcon } from '@blocksuite/icons/lit';
+import { FontIcon, TeXIcon, ToggleRightIcon } from '@blocksuite/icons/lit';
 import type { TemplateResult } from 'lit';
 
 /**
@@ -111,6 +111,15 @@ export const textConversionConfigs: TextConversionConfig[] = [
     searchAlias: ['checkbox'],
     hotkey: null,
     icon: CheckBoxIcon,
+  },
+  {
+    flavour: 'affine:list',
+    type: 'toggle',
+    name: 'Toggle List',
+    description: 'Create a collapsible toggle block.',
+    searchAlias: ['toggle', 'collapse', 'accordion', 'details'],
+    hotkey: [`Mod-Alt-7`, `Mod-Shift-7`],
+    icon: ToggleRightIcon(),
   },
   {
     flavour: 'affine:code',

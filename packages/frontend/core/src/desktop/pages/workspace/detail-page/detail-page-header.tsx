@@ -44,6 +44,7 @@ import {
 } from 'react';
 
 import * as styles from './detail-page-header.css';
+import { PageBreadcrumbs } from './page-breadcrumbs';
 import { useDetailPageHeaderResponsive } from './use-header-responsive';
 
 const Header = forwardRef<
@@ -187,6 +188,7 @@ export function NormalPageHeader({ page, workspace }: PageHeaderProps) {
       <ViewTitle title={title} />
       <ViewIcon icon={currentMode ?? 'page'} />
       <EditorModeSwitch />
+      <PageBreadcrumbs pageId={page.id} />
       <BlocksuiteHeaderTitle inputHandleRef={titleInputHandleRef} />
       <TemplateMark />
       <LockedMark />

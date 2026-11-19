@@ -20,11 +20,19 @@ import {
   ViewManagerBase,
   type ViewMeta,
 } from '@blocksuite/data-view';
-import { propertyPresets } from '@blocksuite/data-view/property-presets';
+import {
+  getDateStart,
+  propertyPresets,
+} from '@blocksuite/data-view/property-presets';
 import { IS_MOBILE } from '@blocksuite/global/env';
 import { BlockSuiteError, ErrorCode } from '@blocksuite/global/exceptions';
 import type { EditorHost } from '@blocksuite/std';
-import { type BlockModel, type Doc, type Store } from '@blocksuite/store';
+import {
+  type BlockModel,
+  type Doc,
+  type Store,
+  type Workspace,
+} from '@blocksuite/store';
 import {
   computed,
   effect,
@@ -36,6 +44,7 @@ import {
 
 import { getIcon } from './block-icons.js';
 import {
+  type FormulaData,
   formulaDataSchema,
   type RelationData,
   relationDataSchema,
@@ -46,12 +55,16 @@ import {
   computedText,
   type ComputedValue,
   evaluateFormula,
+  type FormulaPropertyDescriptor,
   isComputedError,
+  type PropertyRefResolution,
+  resolveFormulaPropertyRef,
 } from './properties/computed/evaluate.js';
 import {
   databaseBlockProperties,
   databasePropertyConverts,
 } from './properties/index.js';
+import { resolveLastEditedTimestamp } from './properties/last-edited-time/define.js';
 import {
   addProperty,
   copyCellsByProperty,
@@ -102,6 +115,38 @@ export type RelationTargetsLease = {
   release: () => void;
 };
 
+export type RelationDatabaseInfo = {
+  docId: string;
+  databaseId: string;
+  title: string;
+};
+
+export type DiscoverRelationDatabasesOptions = {
+  maxDocs?: number;
+  concurrency?: number;
+  timeoutMs?: number;
+  force?: boolean;
+};
+
+export type ConfigureRelationOptions = {
+  targetDocId?: string;
+  targetDatabaseId?: string;
+  reciprocal?: boolean;
+  reciprocalColumnName?: string;
+};
+
+type DiscoveredDatabaseCache = {
+  byDoc: Map<string, RelationDatabaseInfo[]>;
+  scannedDocs: Set<string>;
+  revision: Signal<number>;
+  scanning: Signal<boolean>;
+  inFlight: Promise<RelationDatabaseInfo[]> | null;
+};
+
+const DEFAULT_DISCOVER_MAX_DOCS = 50;
+const DEFAULT_DISCOVER_CONCURRENCY = 4;
+const DEFAULT_DISCOVER_TIMEOUT_MS = 5000;
+
 export class DatabaseBlockDataSource extends DataSourceBase {
   private static readonly relationDocuments = new WeakMap<
     DatabaseBlockModel,
@@ -111,6 +156,27 @@ export class DatabaseBlockDataSource extends DataSourceBase {
     Store,
     ReadonlySignal<number>
   >();
+  private static readonly discoveredDatabaseCaches = new WeakMap<
+    Workspace,
+    DiscoveredDatabaseCache
+  >();
+  private static syncingReciprocalDepth = 0;
+
+  private get discoveredDatabases(): DiscoveredDatabaseCache {
+    const workspace = this.doc.workspace;
+    let cache = DatabaseBlockDataSource.discoveredDatabaseCaches.get(workspace);
+    if (!cache) {
+      cache = {
+        byDoc: new Map(),
+        scannedDocs: new Set(),
+        revision: signal(0),
+        scanning: signal(false),
+        inFlight: null,
+      };
+      DatabaseBlockDataSource.discoveredDatabaseCaches.set(workspace, cache);
+    }
+    return cache;
+  }
 
   private get workspaceRevision() {
     let revision = DatabaseBlockDataSource.workspaceRevisions.get(this.doc);
@@ -141,12 +207,22 @@ export class DatabaseBlockDataSource extends DataSourceBase {
         return model.props['meta:createdAt'];
       },
     },
+    'last-edited-time': {
+      valueSet: () => {},
+      valueGet: (rowId: string) => {
+        const model = this.getModelById(rowId) as
+          ParagraphBlockModel | undefined;
+        return resolveLastEditedTimestamp({
+          rowProps: model?.props,
+          docMeta: this.doc.meta,
+        });
+      },
+    },
     'created-by': {
       valueSet: () => {},
       valueGet: (rowId: string) => {
         const model = this.getModelById(rowId) as
-          | ParagraphBlockModel
-          | undefined;
+          ParagraphBlockModel | undefined;
         return model ? model.props['meta:createdBy'] : null;
       },
     },
@@ -332,6 +408,14 @@ export class DatabaseBlockDataSource extends DataSourceBase {
             columnId: propertyId,
             value: newValue,
           });
+          if (type === 'relation') {
+            this.syncReciprocalAfterCellUpdate(
+              rowId,
+              propertyId,
+              old,
+              newValue
+            );
+          }
         }
       },
     });
@@ -581,6 +665,398 @@ export class DatabaseBlockDataSource extends DataSourceBase {
     );
   }
 
+  private writableRelationTarget(
+    data: RelationData
+  ): DatabaseBlockDataSource | undefined {
+    if (!data.targetDocId || !data.targetDatabaseId) return;
+    const doc = this.doc.workspace.getDoc(data.targetDocId);
+    if (!doc || doc.meta?.trash) return;
+    if (doc.id === this.doc.doc.id) {
+      if (this.readonly$.value || this.doc.readonly) return;
+      if (data.targetDatabaseId === this._model.id) return this;
+      const model = this.doc.blocks.value[data.targetDatabaseId]?.model;
+      if (model?.flavour !== 'affine:database') return;
+      return new DatabaseBlockDataSource(model as DatabaseBlockModel);
+    }
+    if (this.relationTargetStatus(data) !== 'ready') return;
+    const store = doc.getStore({ id: doc.id });
+    if (store.readonly) return;
+    const model = store.blocks.value[data.targetDatabaseId]?.model;
+    if (!doc.ready || model?.flavour !== 'affine:database') return;
+    return new DatabaseBlockDataSource(model as DatabaseBlockModel);
+  }
+
+  private getRelationRowIds(rowId: string, propertyId: string): string[] {
+    const raw = this.cellValueGet(rowId, propertyId);
+    if (!Array.isArray(raw)) return [];
+    return raw.filter((item): item is string => typeof item === 'string');
+  }
+
+  private syncReciprocalAfterCellUpdate(
+    rowId: string,
+    propertyId: string,
+    previousValue: unknown,
+    nextValue: unknown
+  ) {
+    if (DatabaseBlockDataSource.syncingReciprocalDepth > 0) return;
+    const prevIds = Array.isArray(previousValue)
+      ? previousValue.filter((item): item is string => typeof item === 'string')
+      : [];
+    const nextIds = Array.isArray(nextValue)
+      ? nextValue.filter((item): item is string => typeof item === 'string')
+      : [];
+    const prevSet = new Set(prevIds);
+    const nextSet = new Set(nextIds);
+    const added = nextIds.filter(id => !prevSet.has(id));
+    const removed = prevIds.filter(id => !nextSet.has(id));
+    if (!added.length && !removed.length) return;
+    this.syncReciprocalRelation(rowId, propertyId, added, removed);
+  }
+
+  private syncReciprocalRelation(
+    rowId: string,
+    propertyId: string,
+    addedTargetRows: string[],
+    removedTargetRows: string[]
+  ) {
+    if (DatabaseBlockDataSource.syncingReciprocalDepth > 0) return;
+    if (!addedTargetRows.length && !removedTargetRows.length) return;
+    const parsed = relationDataSchema.safeParse(
+      this.propertyDataGet(propertyId)
+    );
+    if (
+      !parsed.success ||
+      !parsed.data.reciprocal ||
+      !parsed.data.reciprocalColumnId
+    ) {
+      return;
+    }
+    const targetColumnId = parsed.data.reciprocalColumnId;
+    const targetSource = this.writableRelationTarget(parsed.data);
+    if (!targetSource || targetSource.readonly$.value) return;
+    if (targetSource.propertyTypeGet(targetColumnId) !== 'relation') return;
+    const parsedTarget = relationDataSchema.safeParse(
+      targetSource.propertyDataGet(targetColumnId)
+    );
+    if (!parsedTarget.success) return;
+    const targetData = parsedTarget.data;
+    if (
+      targetData.targetDocId !== this.doc.doc.id ||
+      targetData.targetDatabaseId !== this._model.id ||
+      targetData.reciprocal === false ||
+      (targetData.reciprocalColumnId &&
+        targetData.reciprocalColumnId !== propertyId)
+    ) {
+      return;
+    }
+
+    const validTargetRows = new Set(targetSource.rows$.value);
+    DatabaseBlockDataSource.syncingReciprocalDepth++;
+    try {
+      for (const targetRowId of addedTargetRows) {
+        if (!validTargetRows.has(targetRowId)) continue;
+        const current = targetSource.getRelationRowIds(
+          targetRowId,
+          targetColumnId
+        );
+        if (current.includes(rowId)) continue;
+        targetSource.cellValueChange(targetRowId, targetColumnId, [
+          ...current,
+          rowId,
+        ]);
+      }
+      for (const targetRowId of removedTargetRows) {
+        if (!validTargetRows.has(targetRowId)) continue;
+        const current = targetSource.getRelationRowIds(
+          targetRowId,
+          targetColumnId
+        );
+        if (!current.includes(rowId)) continue;
+        targetSource.cellValueChange(
+          targetRowId,
+          targetColumnId,
+          current.filter(id => id !== rowId)
+        );
+      }
+    } finally {
+      DatabaseBlockDataSource.syncingReciprocalDepth--;
+    }
+  }
+
+  private detachReciprocalColumn(
+    sourcePropertyId: string,
+    relationData: RelationData
+  ) {
+    if (!relationData.reciprocal || !relationData.reciprocalColumnId) return;
+    const targetSource = this.writableRelationTarget(relationData);
+    if (!targetSource || targetSource.readonly$.value) return;
+    const targetColumnId = relationData.reciprocalColumnId;
+    if (targetSource.propertyTypeGet(targetColumnId) !== 'relation') return;
+    const parsedTarget = relationDataSchema.safeParse(
+      targetSource.propertyDataGet(targetColumnId)
+    );
+    if (!parsedTarget.success) return;
+    const targetData = parsedTarget.data;
+    if (
+      targetData.targetDocId !== this.doc.doc.id ||
+      targetData.targetDatabaseId !== this._model.id
+    ) {
+      return;
+    }
+    if (
+      targetData.reciprocalColumnId &&
+      targetData.reciprocalColumnId !== sourcePropertyId
+    ) {
+      return;
+    }
+    targetSource.propertyDataSet(targetColumnId, {
+      targetDocId: targetData.targetDocId,
+      targetDatabaseId: targetData.targetDatabaseId,
+      reciprocal: false,
+    });
+  }
+
+  private findExistingReciprocalColumn(
+    targetSource: DatabaseBlockDataSource,
+    sourcePropertyId: string,
+    preferredColumnId?: string
+  ): string | undefined {
+    const isSelfDb = targetSource._model === this._model;
+    const matchesBacklink = (
+      colId: string,
+      allowUnpaired: boolean,
+      allowSelfColumn: boolean
+    ): boolean => {
+      if (isSelfDb && colId === sourcePropertyId && !allowSelfColumn) {
+        return false;
+      }
+      if (targetSource.propertyTypeGet(colId) !== 'relation') return false;
+      const parsed = relationDataSchema.safeParse(
+        targetSource.propertyDataGet(colId)
+      );
+      if (!parsed.success) return false;
+      const data = parsed.data;
+      if (
+        data.targetDocId !== this.doc.doc.id ||
+        data.targetDatabaseId !== this._model.id
+      ) {
+        return false;
+      }
+      if (data.reciprocalColumnId === sourcePropertyId) return true;
+      if (allowUnpaired && !data.reciprocal && !data.reciprocalColumnId) {
+        return true;
+      }
+      return false;
+    };
+
+    if (preferredColumnId && matchesBacklink(preferredColumnId, true, true)) {
+      return preferredColumnId;
+    }
+
+    const columns = targetSource.properties$.value;
+    const pairedMatch = columns.find(id => matchesBacklink(id, false, false));
+    if (pairedMatch) return pairedMatch;
+
+    return columns.find(id => matchesBacklink(id, true, false));
+  }
+
+  configureRelation(
+    propertyId: string,
+    options: ConfigureRelationOptions
+  ): { reciprocalColumnId?: string } {
+    if (this.readonly$.value) return {};
+    if (this.propertyTypeGet(propertyId) !== 'relation') return {};
+
+    const parsed = relationDataSchema.safeParse(
+      this.propertyDataGet(propertyId)
+    );
+    const current: RelationData = parsed.success
+      ? parsed.data
+      : { targetDocId: '', targetDatabaseId: '' };
+
+    const nextTargetDocId = options.targetDocId ?? current.targetDocId;
+    const nextTargetDatabaseId =
+      options.targetDatabaseId ?? current.targetDatabaseId;
+    const nextReciprocal = options.reciprocal ?? Boolean(current.reciprocal);
+    const targetChanged =
+      nextTargetDocId !== current.targetDocId ||
+      nextTargetDatabaseId !== current.targetDatabaseId;
+
+    this.doc.captureSync();
+
+    if (targetChanged) {
+      // Clear existing links before retargeting so backlinks on the old target are cleaned up
+      // and existing row IDs are never silently reinterpreted in a new target database.
+      for (const rowId of this.rows$.value) {
+        if (this.getRelationRowIds(rowId, propertyId).length > 0) {
+          this.cellValueChange(rowId, propertyId, []);
+        }
+      }
+      this.detachReciprocalColumn(propertyId, current);
+    }
+
+    if (!nextTargetDocId || !nextTargetDatabaseId) {
+      this.propertyDataSet(propertyId, {
+        targetDocId: nextTargetDocId,
+        targetDatabaseId: nextTargetDatabaseId,
+        ...(nextReciprocal
+          ? { reciprocal: true }
+          : options.reciprocal === false
+            ? { reciprocal: false }
+            : {}),
+      });
+      return {};
+    }
+
+    if (!nextReciprocal) {
+      if (!targetChanged) {
+        this.detachReciprocalColumn(propertyId, current);
+      }
+      this.propertyDataSet(propertyId, {
+        targetDocId: nextTargetDocId,
+        targetDatabaseId: nextTargetDatabaseId,
+        ...(options.reciprocal === false ? { reciprocal: false } : {}),
+      });
+      return {};
+    }
+
+    const targetSource = this.writableRelationTarget({
+      targetDocId: nextTargetDocId,
+      targetDatabaseId: nextTargetDatabaseId,
+    });
+    if (!targetSource) {
+      this.propertyDataSet(propertyId, {
+        targetDocId: nextTargetDocId,
+        targetDatabaseId: nextTargetDatabaseId,
+        reciprocal: true,
+      });
+      return {};
+    }
+
+    const existingColumnId = this.findExistingReciprocalColumn(
+      targetSource,
+      propertyId,
+      targetChanged ? undefined : current.reciprocalColumnId
+    );
+
+    let targetColumnId = existingColumnId;
+    if (!targetColumnId) {
+      const sourceTitle = this._model.props.title?.toString().trim();
+      const defaultName =
+        targetSource._model === this._model
+          ? `Related to ${this.propertyNameGet(propertyId) || sourceTitle || 'Relation'}`
+          : sourceTitle || this.propertyNameGet(propertyId) || 'Relation';
+      targetColumnId = targetSource.propertyAdd('end', {
+        type: 'relation',
+        name: options.reciprocalColumnName ?? defaultName,
+      });
+    }
+
+    if (!targetColumnId) {
+      this.propertyDataSet(propertyId, {
+        targetDocId: nextTargetDocId,
+        targetDatabaseId: nextTargetDatabaseId,
+        reciprocal: true,
+      });
+      return {};
+    }
+
+    targetSource.propertyDataSet(targetColumnId, {
+      targetDocId: this.doc.doc.id,
+      targetDatabaseId: this._model.id,
+      reciprocal: true,
+      reciprocalColumnId: propertyId,
+    });
+
+    this.propertyDataSet(propertyId, {
+      targetDocId: nextTargetDocId,
+      targetDatabaseId: nextTargetDatabaseId,
+      reciprocal: true,
+      reciprocalColumnId: targetColumnId,
+    });
+
+    // Backfill existing links on both sides so two-way state starts consistent.
+    for (const rowId of this.rows$.value) {
+      const linked = this.getRelationRowIds(rowId, propertyId);
+      if (linked.length > 0) {
+        this.syncReciprocalRelation(rowId, propertyId, linked, []);
+      }
+    }
+    if (existingColumnId && targetColumnId !== propertyId) {
+      for (const targetRowId of targetSource.rows$.value) {
+        const linked = targetSource.getRelationRowIds(
+          targetRowId,
+          targetColumnId
+        );
+        if (linked.length > 0) {
+          targetSource.syncReciprocalRelation(
+            targetRowId,
+            targetColumnId,
+            linked,
+            []
+          );
+        }
+      }
+    }
+
+    return { reciprocalColumnId: targetColumnId };
+  }
+
+  async configureRelationAsync(
+    propertyId: string,
+    options: ConfigureRelationOptions
+  ): Promise<{ reciprocalColumnId?: string }> {
+    const parsed = relationDataSchema.safeParse(
+      this.propertyDataGet(propertyId)
+    );
+    const current: RelationData = parsed.success
+      ? parsed.data
+      : { targetDocId: '', targetDatabaseId: '' };
+    const nextTargetDocId = options.targetDocId ?? current.targetDocId;
+    const nextReciprocal = options.reciprocal ?? Boolean(current.reciprocal);
+
+    if (
+      nextReciprocal &&
+      nextTargetDocId &&
+      nextTargetDocId !== this.doc.doc.id
+    ) {
+      const targetDoc = this.doc.workspace.getDoc(nextTargetDocId);
+      if (targetDoc && !targetDoc.meta?.trash && !targetDoc.ready) {
+        if (this.doc.workspace.acquireDoc) {
+          let lease: { ready: Promise<void>; release(): void } | undefined;
+          let timer: ReturnType<typeof setTimeout> | undefined;
+          try {
+            lease = this.doc.workspace.acquireDoc(targetDoc.id);
+            const timeout = new Promise<never>((_, reject) => {
+              timer = setTimeout(
+                () => reject(new Error('timeout')),
+                DEFAULT_DISCOVER_TIMEOUT_MS
+              );
+            });
+            await Promise.race([lease.ready, timeout]);
+            return this.configureRelation(propertyId, options);
+          } catch {
+            return this.configureRelation(propertyId, options);
+          } finally {
+            if (timer !== undefined) clearTimeout(timer);
+            try {
+              lease?.release();
+            } catch {
+              // Ignore release errors on failed leases.
+            }
+          }
+        }
+        try {
+          targetDoc.load();
+        } catch {
+          // Fall through to configureRelation without target loaded.
+        }
+      }
+    }
+
+    return this.configureRelation(propertyId, options);
+  }
+
   // Readonly target sources share the canonical Store used by DocsService. A
   // separate Store projection would miss same-process local proxy edits.
   // The loading lease is
@@ -615,24 +1091,257 @@ export class DatabaseBlockDataSource extends DataSourceBase {
     });
   }
 
-  relationDatabases(): { docId: string; databaseId: string; title: string }[] {
-    void this.workspaceRevision;
-    const result: { docId: string; databaseId: string; title: string }[] = [];
+  private extractDocDatabases(doc: Doc): RelationDatabaseInfo[] {
+    if (!doc.ready || doc.meta?.trash) return [];
+    const store =
+      doc.id === this.doc.doc.id ? this.doc : doc.getStore({ id: doc.id });
+    const databases: RelationDatabaseInfo[] = [];
+    for (const block of Object.values(store.blocks.value)) {
+      if (block.model.flavour !== 'affine:database') continue;
+      const model = block.model as DatabaseBlockModel;
+      databases.push({
+        docId: doc.id,
+        databaseId: model.id,
+        title: `${doc.meta?.title || 'Untitled'} / ${model.props.title?.toString() || 'Database'}`,
+      });
+    }
+    return databases;
+  }
+
+  private workspaceDocIds(): string[] {
+    const ids = new Set<string>();
+    for (const meta of this.doc.workspace.meta.docMetas) {
+      if (!meta.trash) ids.add(meta.id);
+    }
     for (const doc of this.doc.workspace.docs.values()) {
-      if (!doc.ready || doc.meta?.trash) continue;
-      const store =
-        doc.id === this.doc.doc.id ? this.doc : doc.getStore({ id: doc.id });
-      for (const block of Object.values(store.blocks.value)) {
-        if (block.model.flavour !== 'affine:database') continue;
-        const model = block.model as DatabaseBlockModel;
-        result.push({
-          docId: doc.id,
-          databaseId: model.id,
-          title: `${doc.meta?.title || 'Untitled'} / ${model.props.title?.toString() || 'Database'}`,
-        });
+      if (!doc.meta?.trash) ids.add(doc.id);
+    }
+    return [...ids];
+  }
+
+  hasUnloadedRelationDocs(): boolean {
+    void this.workspaceRevision;
+    const cache = this.discoveredDatabases;
+    void cache.revision.value;
+    for (const id of this.workspaceDocIds()) {
+      const doc = this.doc.workspace.getDoc(id);
+      if (doc && !doc.meta?.trash && !doc.ready && !cache.scannedDocs.has(id)) {
+        return true;
       }
     }
-    return result;
+    return false;
+  }
+
+  isDiscoveringRelationDatabases(): boolean {
+    return this.discoveredDatabases.scanning.value;
+  }
+
+  relationDatabases(): RelationDatabaseInfo[] {
+    void this.workspaceRevision;
+    const cache = this.discoveredDatabases;
+    void cache.revision.value;
+    const result = new Map<string, RelationDatabaseInfo>();
+    const liveDocs = new Set<string>();
+
+    for (const doc of this.doc.workspace.docs.values()) {
+      if (!doc.ready || doc.meta?.trash) continue;
+      liveDocs.add(doc.id);
+      for (const db of this.extractDocDatabases(doc)) {
+        result.set(`${db.docId}:${db.databaseId}`, db);
+      }
+    }
+
+    for (const [docId, cached] of cache.byDoc) {
+      if (liveDocs.has(docId)) continue;
+      const doc = this.doc.workspace.getDoc(docId);
+      if (!doc || doc.meta?.trash) continue;
+      for (const db of cached) {
+        result.set(`${db.docId}:${db.databaseId}`, db);
+      }
+    }
+
+    return [...result.values()];
+  }
+
+  async discoverRelationDatabases(
+    options: DiscoverRelationDatabasesOptions = {}
+  ): Promise<RelationDatabaseInfo[]> {
+    const cache = this.discoveredDatabases;
+    if (cache.inFlight && !options.force) {
+      return cache.inFlight;
+    }
+
+    const maxDocs = Math.max(0, options.maxDocs ?? DEFAULT_DISCOVER_MAX_DOCS);
+    const concurrency = Math.max(
+      1,
+      Math.min(options.concurrency ?? DEFAULT_DISCOVER_CONCURRENCY, 16)
+    );
+    const timeoutMs = Math.max(
+      50,
+      options.timeoutMs ?? DEFAULT_DISCOVER_TIMEOUT_MS
+    );
+
+    const run = async (): Promise<RelationDatabaseInfo[]> => {
+      const workspace = this.doc.workspace;
+      const candidates: Doc[] = [];
+      for (const id of this.workspaceDocIds()) {
+        if (candidates.length >= maxDocs) break;
+        const doc = workspace.getDoc(id);
+        if (!doc || doc.meta?.trash || doc.ready) continue;
+        if (!options.force && cache.scannedDocs.has(id)) continue;
+        candidates.push(doc);
+      }
+
+      if (!candidates.length) {
+        return this.relationDatabases();
+      }
+
+      cache.scanning.value = true;
+      let cursor = 0;
+
+      const scanOne = async (doc: Doc) => {
+        if (doc.meta?.trash) return;
+        if (workspace.acquireDoc) {
+          let lease: { ready: Promise<void>; release(): void } | undefined;
+          let timer: ReturnType<typeof setTimeout> | undefined;
+          try {
+            lease = workspace.acquireDoc(doc.id);
+            const timeout = new Promise<never>((_, reject) => {
+              timer = setTimeout(() => reject(new Error('timeout')), timeoutMs);
+            });
+            await Promise.race([lease.ready, timeout]);
+            if (doc.ready && !doc.meta?.trash) {
+              cache.byDoc.set(doc.id, this.extractDocDatabases(doc));
+            }
+          } catch {
+            // Cleanly skip docs that fail to load or time out.
+          } finally {
+            cache.scannedDocs.add(doc.id);
+            if (timer !== undefined) clearTimeout(timer);
+            try {
+              lease?.release();
+            } catch {
+              // Ignore release errors on failed leases.
+            }
+            cache.revision.value++;
+          }
+          return;
+        }
+
+        try {
+          doc.load();
+          if (doc.ready && !doc.meta?.trash) {
+            cache.byDoc.set(doc.id, this.extractDocDatabases(doc));
+          }
+        } catch {
+          // Cleanly skip docs that fail to load.
+        } finally {
+          cache.scannedDocs.add(doc.id);
+          cache.revision.value++;
+        }
+      };
+
+      try {
+        const workerCount = Math.min(concurrency, candidates.length);
+        await Promise.all(
+          Array.from({ length: workerCount }, async () => {
+            while (cursor < candidates.length) {
+              const doc = candidates[cursor++];
+              if (doc) await scanOne(doc);
+            }
+          })
+        );
+      } finally {
+        cache.scanning.value = false;
+        if (cache.inFlight === promise) {
+          cache.inFlight = null;
+        }
+      }
+
+      return this.relationDatabases();
+    };
+
+    const promise = run();
+    cache.inFlight = promise;
+    return promise;
+  }
+
+  formulaPropertyDescriptors(): FormulaPropertyDescriptor[] {
+    return this.properties$.value.map(id => ({
+      id,
+      name: this.propertyNameGet(id),
+    }));
+  }
+
+  resolveFormulaProperty(reference: string): PropertyRefResolution {
+    return resolveFormulaPropertyRef(
+      reference,
+      this.formulaPropertyDescriptors()
+    );
+  }
+
+  private evaluateFormulaInContext(
+    rowId: string | undefined,
+    expression: string,
+    resultType: FormulaData['resultType'],
+    context: ComputationContext
+  ): ComputedValue {
+    const descriptors = this.formulaPropertyDescriptors();
+    const result = evaluateFormula(
+      expression,
+      id => {
+        const propType = this.propertyTypeGet(id);
+        if (!propType) return { error: 'Referenced property is missing' };
+        if (!rowId) return null;
+        const value = this.resolveValue(rowId, id, context);
+        if (propType === 'date') {
+          return getDateStart(value);
+        }
+        if (
+          (propType === 'status' || propType === 'select') &&
+          typeof value === 'string'
+        ) {
+          const options = this.propertyDataGet(id).options as
+            { id: string; value: string }[] | undefined;
+          return options?.find(option => option.id === value)?.value ?? value;
+        }
+        if (value && typeof value === 'object' && 'deltas$' in value) {
+          // Text.toString itself is not reactive; subscribe to its existing signal.
+          void (value.deltas$ as ReadonlySignal<unknown>).value;
+        }
+        return value;
+      },
+      descriptors
+    );
+    if (result == null || isComputedError(result)) return result;
+    const expected = resultType === 'date' ? 'number' : resultType;
+    return typeof result === expected
+      ? result
+      : { error: `Formula result must be ${expected}` };
+  }
+
+  previewFormula(
+    rowId: string | undefined,
+    expression: string,
+    resultType: FormulaData['resultType'],
+    propertyId?: string
+  ): ComputedValue {
+    const context: ComputationContext = {
+      visiting: new Set(),
+      cache: new Map(),
+      remaining: 512,
+    };
+    if (propertyId && rowId) {
+      context.visiting.add(
+        JSON.stringify([this.doc.doc.id, this._model.id, rowId, propertyId])
+      );
+    }
+    return this.evaluateFormulaInContext(
+      rowId,
+      expression,
+      resultType,
+      context
+    );
   }
 
   private computedValue(
@@ -646,22 +1355,12 @@ export class DatabaseBlockDataSource extends DataSourceBase {
         this.propertyDataGet(propertyId)
       );
       if (!data.success) return { error: 'Invalid formula configuration' };
-      const result = evaluateFormula(data.data.expression, id => {
-        if (!this.propertyTypeGet(id))
-          return { error: 'Referenced property is missing' };
-        const value = this.resolveValue(rowId, id, context);
-        if (value && typeof value === 'object' && 'deltas$' in value) {
-          // Text.toString itself is not reactive; subscribe to its existing signal.
-          void (value.deltas$ as ReadonlySignal<unknown>).value;
-        }
-        return value;
-      });
-      if (result == null || isComputedError(result)) return result;
-      const expected =
-        data.data.resultType === 'date' ? 'number' : data.data.resultType;
-      return typeof result === expected
-        ? result
-        : { error: `Formula result must be ${expected}` };
+      return this.evaluateFormulaInContext(
+        rowId,
+        data.data.expression,
+        data.data.resultType,
+        context
+      );
     }
     const data = rollupDataSchema.safeParse(this.propertyDataGet(propertyId));
     if (!data.success || !data.data.relationColumnId)
@@ -704,8 +1403,11 @@ export class DatabaseBlockDataSource extends DataSourceBase {
         if (
           data.data.operation !== 'values' &&
           data.data.operation !== 'unique'
-        )
-          return value;
+        ) {
+          return target.propertyTypeGet(data.data.targetColumnId) === 'date'
+            ? getDateStart(value)
+            : value;
+        }
         return target.readableRollupValue(data.data.targetColumnId, value);
       })
     );
@@ -717,10 +1419,9 @@ export class DatabaseBlockDataSource extends DataSourceBase {
       void (value.deltas$ as ReadonlySignal<unknown>).value;
     const type = this.propertyTypeGet(propertyId);
     const data = this.propertyDataGet(propertyId);
-    if (type === 'select' || type === 'multi-select') {
+    if (type === 'select' || type === 'multi-select' || type === 'status') {
       const options = data.options as
-        | { id: string; value: string }[]
-        | undefined;
+        { id: string; value: string }[] | undefined;
       return (Array.isArray(value) ? value : [value]).map(
         id =>
           options?.find(option => option.id === id)?.value ??
@@ -867,6 +1568,14 @@ export class DatabaseBlockDataSource extends DataSourceBase {
     this.doc.captureSync();
     const index = this._model.props.columns.findIndex(v => v.id === id);
     if (index < 0) return;
+
+    const column = this._model.props.columns[index];
+    if (column?.type === 'relation') {
+      const parsed = relationDataSchema.safeParse(column.data);
+      if (parsed.success) {
+        this.detachReciprocalColumn(id, parsed.data);
+      }
+    }
 
     this.doc.transact(() => {
       this._model.props.columns = this._model.props.columns.filter(
@@ -1098,8 +1807,7 @@ export const convertToDatabase = (host: EditorHost, viewType: string) => {
     parentModel.children.indexOf(firstModel)
   );
   const databaseModel = host.store.getBlock(id)?.model as
-    | DatabaseBlockModel
-    | undefined;
+    DatabaseBlockModel | undefined;
   if (!databaseModel) {
     return;
   }

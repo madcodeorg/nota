@@ -13,6 +13,10 @@ import { afterEach, describe, expect, test, vi } from 'vitest';
 
 import { processTable } from '../adapters/utils.js';
 import { DatabaseBlockDataSource } from '../data-source.js';
+import {
+  evaluateFormulaPreview,
+  FormulaEditor,
+} from '../properties/computed/formula-editor.js';
 
 const workspaces: TestWorkspace[] = [];
 function setup(id = 'source-doc') {
@@ -621,6 +625,699 @@ describe('derived values in the real local database model', () => {
     workspace.removeDoc(targetDoc.id);
     expect(value.value).toHaveProperty('error');
     expect(source.relationOptions(relation)).toBeUndefined();
+  });
+
+  test('workspace-wide relation discovery keeps synchronous loaded scan and safely discovers unloaded docs', async () => {
+    const { workspace, database } = setup();
+    const { model: loadedDb, source } = database();
+    loadedDb.props.title.insert('Loaded DB', 0);
+
+    // Prepare an unloaded doc containing a database by creating blocks before simulating unload.
+    const unloadedWithDb = workspace.createDoc('unloaded-with-db');
+    unloadedWithDb.load();
+    const unloadedStore = unloadedWithDb.getStore();
+    const p1 = unloadedStore.addBlock('affine:page', {
+      title: new Text('Remote Page'),
+    });
+    const n1 = unloadedStore.addBlock('affine:note', {}, p1);
+    const remoteDbId = unloadedStore.addBlock(
+      'affine:database',
+      { title: new Text('Projects') },
+      n1
+    );
+    let remoteReady = false;
+    Object.defineProperty(unloadedWithDb, 'ready', {
+      configurable: true,
+      get: () => remoteReady,
+    });
+
+    // Unloaded doc without any database (must never be mutated during discovery).
+    const plainUnloaded = workspace.createDoc('plain-unloaded');
+    const plainUpdateSpy = vi.fn();
+    plainUnloaded.spaceDoc.on('update', plainUpdateSpy);
+
+    // Failing doc and trashed doc.
+    const brokenDoc = workspace.createDoc('broken-doc');
+    const trashedDoc = workspace.createDoc('trashed-doc');
+    workspace.meta.setDocMeta(trashedDoc.id, { trash: true });
+
+    const releases = new Map<string, ReturnType<typeof vi.fn>>();
+    const acquired: string[] = [];
+    (workspace as Workspace).acquireDoc = id => {
+      acquired.push(id);
+      const release = vi.fn(() => {
+        if (id === unloadedWithDb.id) remoteReady = false;
+      });
+      releases.set(id, release);
+      if (id === brokenDoc.id) {
+        return { ready: Promise.reject(new Error('disk error')), release };
+      }
+      if (id === unloadedWithDb.id) {
+        remoteReady = true;
+      } else if (id === plainUnloaded.id) {
+        plainUnloaded.load();
+      }
+      return { ready: Promise.resolve(), release };
+    };
+
+    // Fast synchronous scan sees only already-loaded databases and does NOT call acquireDoc.
+    expect(source.relationDatabases()).toEqual([
+      {
+        docId: 'source-doc',
+        databaseId: loadedDb.id,
+        title: 'Database test / Loaded DB',
+      },
+    ]);
+    expect(acquired).toEqual([]);
+    expect(source.hasUnloadedRelationDocs()).toBe(true);
+
+    const discovered = await source.discoverRelationDatabases({
+      concurrency: 2,
+      timeoutMs: 200,
+    });
+    expect(discovered).toEqual([
+      {
+        docId: 'source-doc',
+        databaseId: loadedDb.id,
+        title: 'Database test / Loaded DB',
+      },
+      {
+        docId: unloadedWithDb.id,
+        databaseId: remoteDbId,
+        title: 'Remote Page / Projects',
+      },
+    ]);
+
+    // Trashed docs are never acquired; every acquired lease is released in finally.
+    expect(acquired).not.toContain(trashedDoc.id);
+    expect(releases.get(unloadedWithDb.id)).toHaveBeenCalledOnce();
+    expect(releases.get(brokenDoc.id)).toHaveBeenCalledOnce();
+    expect(releases.get(plainUnloaded.id)).toHaveBeenCalledOnce();
+    // Unrelated unloaded docs were never mutated.
+    expect(plainUpdateSpy).not.toHaveBeenCalled();
+
+    // Cached discovered databases remain visible synchronously after lease release,
+    // and disappear immediately if the doc is later trashed or removed.
+    expect(remoteReady).toBe(false);
+    expect(source.relationDatabases().map(db => db.databaseId)).toContain(
+      remoteDbId
+    );
+    workspace.meta.setDocMeta(unloadedWithDb.id, { trash: true });
+    expect(source.relationDatabases().map(db => db.databaseId)).not.toContain(
+      remoteDbId
+    );
+    workspace.meta.setDocMeta(unloadedWithDb.id, { trash: false });
+    expect(source.relationDatabases().map(db => db.databaseId)).toContain(
+      remoteDbId
+    );
+    workspace.removeDoc(unloadedWithDb.id);
+    expect(source.relationDatabases().map(db => db.databaseId)).not.toContain(
+      remoteDbId
+    );
+  });
+
+  test('discoverRelationDatabases bounds maxDocs, skips timed-out docs, and handles fallback load errors', async () => {
+    const { workspace, database } = setup();
+    const { source } = database();
+
+    const slowDoc = workspace.createDoc('slow-doc');
+    const doc2 = workspace.createDoc('doc-2');
+    const doc3 = workspace.createDoc('doc-3');
+
+    const slowRelease = vi.fn();
+    const acquired: string[] = [];
+    (workspace as Workspace).acquireDoc = id => {
+      acquired.push(id);
+      if (id === slowDoc.id) {
+        return { ready: new Promise<void>(() => {}), release: slowRelease };
+      }
+      return { ready: Promise.resolve(), release: vi.fn() };
+    };
+
+    // Bounded maxDocs=2 only scans the first 2 unloaded docs.
+    await source.discoverRelationDatabases({ maxDocs: 2, timeoutMs: 60 });
+    expect(acquired).toHaveLength(2);
+    expect(slowRelease).toHaveBeenCalledOnce();
+    expect(source.hasUnloadedRelationDocs()).toBe(true);
+
+    // Next call scans the remaining unloaded doc.
+    await source.discoverRelationDatabases({ maxDocs: 2, timeoutMs: 60 });
+    expect(acquired).toContain(doc2.id);
+    expect(acquired).toContain(doc3.id);
+    expect(source.hasUnloadedRelationDocs()).toBe(false);
+
+    // Fallback without acquireDoc skips docs whose load() throws.
+    delete (workspace as Workspace).acquireDoc;
+    const throwingDoc = workspace.createDoc('throwing-load');
+    vi.spyOn(throwingDoc, 'load').mockImplementation(() => {
+      throw new Error('corrupt doc');
+    });
+    await expect(
+      source.discoverRelationDatabases({ force: true })
+    ).resolves.toBeDefined();
+  });
+
+  test('two-way reciprocal relations create/link paired columns, sync both directions without looping, and handle lifecycle changes', () => {
+    const { store, database } = setup();
+    const tasks = database();
+    tasks.model.props.title.insert('Tasks', 0);
+    const projects = database();
+    projects.model.props.title.insert('Projects', 0);
+
+    const task1 = tasks.source.rowAdd('end');
+    const task2 = tasks.source.rowAdd('end');
+    const proj1 = projects.source.rowAdd('end');
+    const proj2 = projects.source.rowAdd('end');
+
+    const taskRel = tasks.source.propertyAdd('end', {
+      type: 'relation',
+      name: 'Project',
+    })!;
+
+    // Pre-existing link before enabling two-way should be backfilled when enabled.
+    tasks.source.configureRelation(taskRel, {
+      targetDocId: store.doc.id,
+      targetDatabaseId: projects.model.id,
+    });
+    tasks.source.cellValueChange(task1, taskRel, [proj1]);
+
+    const { reciprocalColumnId: projRel } = tasks.source.configureRelation(
+      taskRel,
+      { reciprocal: true }
+    );
+    expect(projRel).toBeTruthy();
+
+    expect(tasks.source.propertyDataGet(taskRel)).toEqual({
+      targetDocId: store.doc.id,
+      targetDatabaseId: projects.model.id,
+      reciprocal: true,
+      reciprocalColumnId: projRel,
+    });
+    expect(projects.source.propertyDataGet(projRel!)).toEqual({
+      targetDocId: store.doc.id,
+      targetDatabaseId: tasks.model.id,
+      reciprocal: true,
+      reciprocalColumnId: taskRel,
+    });
+    expect(projects.source.propertyNameGet(projRel!)).toBe('Tasks');
+    // Backfilled existing link.
+    expect(projects.source.cellValueGet(proj1, projRel!)).toEqual([task1]);
+
+    // Re-enabling two-way is idempotent and does not duplicate target column.
+    const colCountBefore = projects.source.properties$.value.length;
+    const again = tasks.source.configureRelation(taskRel, { reciprocal: true });
+    expect(again.reciprocalColumnId).toBe(projRel);
+    expect(projects.source.properties$.value.length).toBe(colCountBefore);
+
+    // Bidirectional add & remove sync.
+    tasks.source.cellValueChange(task1, taskRel, [proj1, proj2]);
+    expect(projects.source.cellValueGet(proj1, projRel!)).toEqual([task1]);
+    expect(projects.source.cellValueGet(proj2, projRel!)).toEqual([task1]);
+
+    // Updating from target side syncs back to source side cleanly.
+    projects.source.cellValueChange(proj1, projRel!, [task1, task2]);
+    expect(tasks.source.cellValueGet(task2, taskRel)).toEqual([proj1]);
+
+    // Removing from target side removes from source without touching other links.
+    projects.source.cellValueChange(proj1, projRel!, [task2]);
+    expect(tasks.source.cellValueGet(task1, taskRel)).toEqual([proj2]);
+    expect(tasks.source.cellValueGet(task2, taskRel)).toEqual([proj1]);
+
+    // Idempotent repeat write causes no extra mutations or loops.
+    const updateSpy = vi.fn();
+    store.doc.spaceDoc.on('update', updateSpy);
+    tasks.source.cellValueChange(task1, taskRel, [proj2, proj2]);
+    expect(updateSpy).toHaveBeenCalledTimes(1);
+    expect(projects.source.cellValueGet(proj2, projRel!)).toEqual([task1]);
+
+    // Missing target rows are skipped safely while valid rows still sync.
+    tasks.source.cellValueChange(task1, taskRel, ['nonexistent-row', proj1]);
+    expect(tasks.source.cellValueGet(task1, taskRel)).toEqual([
+      'nonexistent-row',
+      proj1,
+    ]);
+    expect(projects.source.cellValueGet(proj1, projRel!)).toEqual([
+      task2,
+      task1,
+    ]);
+    expect(projects.source.cellValueGet(proj2, projRel!)).toEqual([]);
+    expect(projects.model.props.cells['nonexistent-row']).toBeUndefined();
+
+    // Disabling two-way stops future sync on both sides without erasing cells.
+    tasks.source.configureRelation(taskRel, { reciprocal: false });
+    expect(tasks.source.propertyDataGet(taskRel)).toEqual({
+      targetDocId: store.doc.id,
+      targetDatabaseId: projects.model.id,
+      reciprocal: false,
+    });
+    expect(projects.source.propertyDataGet(projRel!)).toEqual({
+      targetDocId: store.doc.id,
+      targetDatabaseId: tasks.model.id,
+      reciprocal: false,
+    });
+    tasks.source.cellValueChange(task1, taskRel, []);
+    expect(projects.source.cellValueGet(proj1, projRel!)).toEqual([
+      task2,
+      task1,
+    ]);
+
+    // Re-enabling links the existing unpaired target column instead of creating a duplicate
+    // and backfills target's links back onto source.
+    const relinked = tasks.source.configureRelation(taskRel, {
+      reciprocal: true,
+    });
+    expect(relinked.reciprocalColumnId).toBe(projRel);
+    expect(projects.source.properties$.value.length).toBe(colCountBefore);
+    expect(tasks.source.cellValueGet(task1, taskRel)).toEqual([proj1]);
+
+    // Deleting the source relation column detaches the target reciprocal flag.
+    tasks.source.propertyDelete(taskRel);
+    expect(projects.source.propertyDataGet(projRel!)).toEqual({
+      targetDocId: store.doc.id,
+      targetDatabaseId: tasks.model.id,
+      reciprocal: false,
+    });
+  });
+
+  test('two-way self-relations (two-column and symmetric) never infinite-loop', () => {
+    const { store, database } = setup();
+    const { model, source } = database();
+    model.props.title.insert('Tasks', 0);
+
+    const rowA = source.rowAdd('end');
+    const rowB = source.rowAdd('end');
+
+    // Two-column self-relation: Blocking <-> Related to Blocking.
+    const blocking = source.propertyAdd('end', {
+      type: 'relation',
+      name: 'Blocking',
+    })!;
+    const { reciprocalColumnId: blockedBy } = source.configureRelation(
+      blocking,
+      {
+        targetDocId: store.doc.id,
+        targetDatabaseId: model.id,
+        reciprocal: true,
+      }
+    );
+    expect(blockedBy).toBeTruthy();
+    expect(blockedBy).not.toBe(blocking);
+
+    // Linking to another row AND self-row stays loop-free.
+    source.cellValueChange(rowA, blocking, [rowA, rowB]);
+    expect(source.cellValueGet(rowA, blockedBy!)).toEqual([rowA]);
+    expect(source.cellValueGet(rowB, blockedBy!)).toEqual([rowA]);
+
+    source.cellValueChange(rowA, blocking, [rowB]);
+    expect(source.cellValueGet(rowA, blockedBy!)).toEqual([]);
+    expect(source.cellValueGet(rowB, blockedBy!)).toEqual([rowA]);
+
+    // Symmetric single-column self-relation (same column as its own reciprocal).
+    const related = source.propertyAdd('end', {
+      type: 'relation',
+      name: 'Related',
+    })!;
+    source.propertyDataSet(related, {
+      targetDocId: store.doc.id,
+      targetDatabaseId: model.id,
+      reciprocal: true,
+      reciprocalColumnId: related,
+    });
+    source.cellValueChange(rowA, related, [rowA, rowB]);
+    expect(source.cellValueGet(rowA, related)).toEqual([rowA, rowB]);
+    expect(source.cellValueGet(rowB, related)).toEqual([rowA]);
+
+    source.cellValueChange(rowB, related, []);
+    expect(source.cellValueGet(rowA, related)).toEqual([rowA]);
+  });
+
+  test('cross-page two-way relation syncs edits and configureRelationAsync loads unloaded targets cleanly', async () => {
+    const { workspace, database } = setup();
+    const { source } = database();
+
+    const targetDoc = workspace.createDoc('target-page');
+    targetDoc.load();
+    const targetStore = targetDoc.getStore();
+    const page = targetStore.addBlock('affine:page', {
+      title: new Text('Clients'),
+    });
+    const note = targetStore.addBlock('affine:note', {}, page);
+    const targetDbId = targetStore.addBlock('affine:database', {}, note);
+    const targetModel =
+      targetStore.getModelById<DatabaseBlockModel>(targetDbId)!;
+    const targetSource = new DatabaseBlockDataSource(targetModel);
+    const clientRow = targetSource.rowAdd('end');
+
+    let isTargetReady = false;
+    Object.defineProperty(targetDoc, 'ready', {
+      configurable: true,
+      get: () => isTargetReady,
+    });
+    const tempRelease = vi.fn();
+    (workspace as Workspace).acquireDoc = id => {
+      if (id === targetDoc.id) isTargetReady = true;
+      return { ready: Promise.resolve(), release: tempRelease };
+    };
+
+    const row = source.rowAdd('end');
+    const rel = source.propertyAdd('end', {
+      type: 'relation',
+      name: 'Client',
+    })!;
+    const { reciprocalColumnId } = await source.configureRelationAsync(rel, {
+      targetDocId: targetDoc.id,
+      targetDatabaseId: targetDbId,
+      reciprocal: true,
+    });
+    expect(reciprocalColumnId).toBeTruthy();
+    expect(tempRelease).toHaveBeenCalledOnce();
+
+    source.cellValueChange(row, rel, [clientRow]);
+    expect(targetSource.cellValueGet(clientRow, reciprocalColumnId!)).toEqual([
+      row,
+    ]);
+
+    targetSource.cellValueChange(clientRow, reciprocalColumnId!, []);
+    expect(source.cellValueGet(row, rel)).toEqual([]);
+  });
+
+  test('formulas resolve human-friendly property names, detect ambiguity, and support live preview', () => {
+    const { database } = setup();
+    const { source } = database();
+
+    const price = source.propertyAdd('end', { type: 'number', name: 'Price' })!;
+    const qty = source.propertyAdd('end', { type: 'number', name: 'Qty' })!;
+    const total = source.propertyAdd('end', {
+      type: 'formula',
+      name: 'Total',
+    })!;
+
+    // Empty database live preview: syntax check for property refs, evaluation for constants.
+    expect(
+      evaluateFormulaPreview(source, {
+        expression: '',
+        resultType: 'number',
+        propertyId: total,
+      })
+    ).toEqual({ kind: 'empty', message: 'Enter a formula expression' });
+    expect(
+      evaluateFormulaPreview(source, {
+        expression: 'prop("Price") * prop("Qty")',
+        resultType: 'number',
+        propertyId: total,
+      })
+    ).toEqual({
+      kind: 'syntax-ok',
+      message: 'Syntax valid — add a row to preview values',
+    });
+    expect(
+      evaluateFormulaPreview(source, {
+        expression: '2 + 3 * 4',
+        resultType: 'number',
+        propertyId: total,
+      })
+    ).toEqual({ kind: 'value', value: 14, formatted: '14' });
+    expect(
+      evaluateFormulaPreview(source, {
+        expression: 'prop("Total") + 1',
+        resultType: 'number',
+        propertyId: total,
+      })
+    ).toEqual({ kind: 'error', message: 'Circular property reference' });
+
+    // Populate first row and test readable name formulas + case-insensitivity + reactivity.
+    const row = source.rowAdd('end');
+    source.cellValueChange(row, price, 15);
+    source.cellValueChange(row, qty, 3);
+    source.propertyDataSet(total, {
+      expression: 'prop("Price") * prop("qty")',
+      resultType: 'number',
+    });
+    const totalVal = source.cellValueGet$(row, total);
+    expect(totalVal.value).toBe(45);
+
+    // Live preview evaluates draft formula against first row without mutating saved formula.
+    expect(
+      evaluateFormulaPreview(source, {
+        expression: 'prop("Price") * prop("Qty") + 5',
+        resultType: 'number',
+        propertyId: total,
+      })
+    ).toEqual({ kind: 'value', value: 50, formatted: '50' });
+    expect(
+      evaluateFormulaPreview(source, {
+        expression: 'dateAdd(date("2026-10-05"), 2)',
+        resultType: 'date',
+        propertyId: total,
+      })
+    ).toEqual({
+      kind: 'value',
+      value: Date.parse('2026-10-07T00:00:00Z'),
+      formatted: '2026-10-07',
+    });
+    expect(
+      evaluateFormulaPreview(source, {
+        expression: 'prop("Price") * 2',
+        resultType: 'string',
+        propertyId: total,
+      })
+    ).toEqual({ kind: 'error', message: 'Formula result must be string' });
+    expect(
+      evaluateFormulaPreview(source, {
+        expression: 'prop("Total") + 1',
+        resultType: 'number',
+        propertyId: total,
+      })
+    ).toEqual({ kind: 'error', message: 'Circular property reference' });
+
+    // Saved formula remains unchanged after previews.
+    expect(totalVal.value).toBe(45);
+
+    // Circular reference by column name is caught in real evaluation too.
+    source.propertyDataSet(total, {
+      expression: 'prop("Total") + 1',
+      resultType: 'number',
+    });
+    expect(totalVal.value).toEqual({ error: 'Circular property reference' });
+
+    // Duplicate column names produce explicit ambiguity error, while column ID still works.
+    const duplicatePrice = source.propertyAdd('end', {
+      type: 'number',
+      name: 'Price',
+    })!;
+    source.propertyNameSet(duplicatePrice, 'Price');
+    source.propertyDataSet(total, {
+      expression: 'prop("Price") * 2',
+      resultType: 'number',
+    });
+    expect(totalVal.value).toEqual({
+      error: 'Ambiguous property name: "Price" (use column ID)',
+    });
+    source.propertyDataSet(total, {
+      expression: `prop(${JSON.stringify(price)}) * 2`,
+      resultType: 'number',
+    });
+    expect(totalVal.value).toBe(30);
+  });
+
+  test('retargeting a two-way relation cleans up old backlinks and links the new target', () => {
+    const { store, database } = setup();
+    const tasks = database();
+    const projectsA = database();
+    const projectsB = database();
+
+    const taskRow = tasks.source.rowAdd('end');
+    const projARow = projectsA.source.rowAdd('end');
+    const projBRow = projectsB.source.rowAdd('end');
+
+    const rel = tasks.source.propertyAdd('end', {
+      type: 'relation',
+      name: 'Project',
+    })!;
+    const { reciprocalColumnId: colA } = tasks.source.configureRelation(rel, {
+      targetDocId: store.doc.id,
+      targetDatabaseId: projectsA.model.id,
+      reciprocal: true,
+    });
+    tasks.source.cellValueChange(taskRow, rel, [projARow]);
+    expect(projectsA.source.cellValueGet(projARow, colA!)).toEqual([taskRow]);
+
+    // Retargeting to projectsB clears old links & backlinks, detaches colA, and creates colB.
+    const { reciprocalColumnId: colB } = tasks.source.configureRelation(rel, {
+      targetDocId: store.doc.id,
+      targetDatabaseId: projectsB.model.id,
+      reciprocal: true,
+    });
+    expect(colB).toBeTruthy();
+    expect(tasks.source.cellValueGet(taskRow, rel)).toEqual([]);
+    expect(projectsA.source.cellValueGet(projARow, colA!)).toEqual([]);
+    expect(projectsA.source.propertyDataGet(colA!).reciprocal).toBe(false);
+
+    tasks.source.cellValueChange(taskRow, rel, [projBRow]);
+    expect(projectsB.source.cellValueGet(projBRow, colB!)).toEqual([taskRow]);
+  });
+
+  test('FormulaEditor renders property chips, function templates, live preview, and saves cleanly', async () => {
+    const { database } = setup();
+    const { source } = database();
+    const row = source.rowAdd('end');
+    const price = source.propertyAdd('end', { type: 'number', name: 'Price' })!;
+    const total = source.propertyAdd('end', {
+      type: 'formula',
+      name: 'Total',
+    })!;
+    source.cellValueChange(row, price, 10);
+
+    const view = source.viewManager.viewGet(
+      source.viewManager.viewAdd('table')
+    )!;
+    const formulaProperty = view.propertyGetOrCreate(total);
+
+    const onClose = vi.fn();
+    const editor = new FormulaEditor();
+    editor.dataSource = source;
+    editor.formulaProperty = formulaProperty;
+    editor.onClose = onClose;
+    document.body.append(editor);
+    try {
+      await editor.updateComplete;
+      const root = editor.shadowRoot!;
+      const priceChip = [...root.querySelectorAll('button.chip')].find(
+        btn => btn.textContent?.trim() === 'Price'
+      ) as HTMLButtonElement | undefined;
+      expect(priceChip).toBeDefined();
+      priceChip!.click();
+      await editor.updateComplete;
+
+      expect(editor.expression).toBe('prop("Price")');
+      const preview = root.querySelector(
+        '[data-testid="formula-live-preview"]'
+      );
+      expect(preview?.textContent).toContain('10');
+
+      const saveBtn = root.querySelector(
+        '[data-testid="formula-save-btn"]'
+      ) as HTMLButtonElement;
+      saveBtn.click();
+
+      expect(onClose).toHaveBeenCalledOnce();
+      expect(source.propertyDataGet(total)).toEqual({
+        expression: 'prop("Price")',
+        resultType: 'number',
+      });
+      expect(source.cellValueGet(row, total)).toBe(10);
+    } finally {
+      editor.remove();
+    }
+  });
+
+  test('integrates status labels in rollups, date ranges in formulas/rollups, and last-edited-time in spacialProperties', () => {
+    const { store, database } = setup();
+    const tasks = database();
+    const projects = database();
+
+    const statusCol = tasks.source.propertyAdd('end', {
+      type: 'status',
+      name: 'Status',
+    })!;
+    const dueCol = tasks.source.propertyAdd('end', {
+      type: 'date',
+      name: 'Due',
+    })!;
+    const editedCol = tasks.source.propertyAdd('end', {
+      type: 'last-edited-time',
+      name: 'Edited',
+    })!;
+    const nextDayFormula = tasks.source.propertyAdd('end', {
+      type: 'formula',
+      name: 'Plus One Day',
+    })!;
+    tasks.source.propertyDataSet(nextDayFormula, {
+      expression: 'dateAdd(prop("Due"), 1)',
+      resultType: 'date',
+    });
+
+    const startTs = Date.UTC(2026, 4, 10, 9, 30);
+    const endTs = Date.UTC(2026, 4, 12, 17, 0);
+    const statusOptions = tasks.source.propertyDataGet(statusCol).options as {
+      id: string;
+      value: string;
+    }[];
+    const doneOption = statusOptions.find(opt => opt.value === 'Done')!;
+
+    const taskRow = tasks.source.rowAdd('end');
+    tasks.source.cellValueChange(taskRow, statusCol, doneOption.id);
+    tasks.source.cellValueChange(taskRow, dueCol, {
+      start: startTs,
+      end: endTs,
+      includeTime: true,
+    });
+
+    // Formula unwraps DateRangeValue to its start timestamp cleanly.
+    expect(tasks.source.cellValueGet(taskRow, nextDayFormula)).toBe(
+      startTs + 24 * 60 * 60 * 1000
+    );
+
+    // Formula resolves Status option IDs to their readable label.
+    const statusLabelFormula = tasks.source.propertyAdd('end', {
+      type: 'formula',
+      name: 'Status Label',
+    })!;
+    tasks.source.propertyDataSet(statusLabelFormula, {
+      expression: 'prop("Status")',
+      resultType: 'string',
+    });
+    expect(tasks.source.cellValueGet(taskRow, statusLabelFormula)).toBe('Done');
+    expect(
+      evaluateFormulaPreview(tasks.source, {
+        expression: 'prop("Status")',
+        resultType: 'string',
+        propertyId: statusLabelFormula,
+      })
+    ).toEqual({ kind: 'value', value: 'Done', formatted: 'Done' });
+
+    // last-edited-time resolves per-row updatedAt via spacialProperties.
+    const rowModel = store.getModelById(taskRow)!;
+    store.updateBlock(rowModel, { 'meta:updatedAt': 1_700_000_000_000 });
+    expect(tasks.source.cellValueGet(taskRow, editedCol)).toBe(
+      1_700_000_000_000
+    );
+
+    // Rollup over Status renders readable labels, and min over Date range unwraps start timestamp.
+    const relCol = projects.source.propertyAdd('end', {
+      type: 'relation',
+      name: 'Tasks',
+    })!;
+    projects.source.propertyDataSet(relCol, {
+      targetDocId: store.doc.id,
+      targetDatabaseId: tasks.model.id,
+    });
+    const statusRollup = projects.source.propertyAdd('end', {
+      type: 'rollup',
+      name: 'Task Statuses',
+    })!;
+    projects.source.propertyDataSet(statusRollup, {
+      relationColumnId: relCol,
+      targetColumnId: statusCol,
+      operation: 'values',
+    });
+    const minDueRollup = projects.source.propertyAdd('end', {
+      type: 'rollup',
+      name: 'Earliest Due',
+    })!;
+    projects.source.propertyDataSet(minDueRollup, {
+      relationColumnId: relCol,
+      targetColumnId: dueCol,
+      operation: 'min',
+    });
+
+    const projRow = projects.source.rowAdd('end');
+    projects.source.cellValueChange(projRow, relCol, [taskRow]);
+
+    expect(projects.source.cellValueGet(projRow, statusRollup)).toEqual([
+      'Done',
+    ]);
+    expect(projects.source.cellValueGet(projRow, minDueRollup)).toBe(startTs);
   });
 });
 
